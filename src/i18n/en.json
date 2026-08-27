@@ -11,7 +11,8 @@
     "home": "Overview",
     "backToOverview": "Back to overview",
     "loading": "Loading simulation…",
-    "footer": "Built with Three.js · Open educational resource"
+    "footer": "Built with Three.js · Open educational resource",
+    "footerCredit": "Planet textures: Solar System Scope (CC BY 4.0)"
   },
   "home": {
     "heading": "Simulations",
@@ -50,7 +51,12 @@
     "years": "yr",
     "kilometers": "km",
     "percent": "%",
-    "times": "×"
+    "times": "×",
+    "au": "AU",
+    "millionKm": "million km",
+    "daysPerSecond": "days/s",
+    "yearPerSecond": "year/s",
+    "millionKmShort": "M km"
   },
   "sims": {
     "axialTilt": {
@@ -72,6 +78,74 @@
           "Try setting the tilt to 0° (no seasons) or 90° (extreme seasons, like Uranus) and observe how the day/night boundary changes."
         ]
       }
+    },
+    "solarOrbit": {
+      "title": "Earth's orbit & the habitable zone",
+      "description": "Travel through the solar system with real planet positions and see why Earth's near-circular orbit at 1 AU is such a favourable address.",
+      "planets": {
+        "sun": "Sun",
+        "mercury": "Mercury",
+        "venus": "Venus",
+        "earth": "Earth",
+        "mars": "Mars",
+        "jupiter": "Jupiter",
+        "saturn": "Saturn",
+        "uranus": "Uranus",
+        "neptune": "Neptune"
+      },
+      "sections": {
+        "time": "Time",
+        "view": "View",
+        "camera": "Camera"
+      },
+      "controls": {
+        "speed": "Time speed",
+        "paused": "Paused",
+        "date": "Date",
+        "today": "Today",
+        "habitableZone": "Habitable zone",
+        "labels": "Planet labels",
+        "trueScale": "True scale",
+        "visualScale": "Visual scale (planets ×1000)",
+        "eccentricOrbit": "Compare: eccentric orbit (e = 0.3)",
+        "overview": "Overview",
+        "followEarth": "Follow Earth",
+        "outerSystem": "Outer planets",
+        "dateOutOfRange": "Dates are limited to 1800–2050 (validity range of the JPL orbital elements)."
+      },
+      "legend": {
+        "habitableZone": "Habitable zone (0.95–1.37 AU)",
+        "earthOrbit": "Earth's orbit (e = 0.0167)",
+        "eccentricOrbit": "Hypothetical orbit (e = 0.3)"
+      },
+      "card": {
+        "distanceNow": "Distance to Sun (now)",
+        "meanDistance": "Mean distance to Sun",
+        "period": "Orbital period",
+        "radius": "Radius",
+        "eccentricity": "Orbital eccentricity",
+        "close": "Close",
+        "clickHint": "Click a planet for details",
+        "sunRadius": "Radius",
+        "sunType": "G-type main-sequence star",
+        "days": "{n} days",
+        "years": "{n} years",
+        "earthRadii": "{n} Earth radii"
+      },
+      "info": {
+        "title": "Why Earth's address matters",
+        "earthSun": "Earth–Sun distance",
+        "earthSunValue": "≈ 149.6 million km (1 AU)",
+        "eccentricity": "Orbital eccentricity",
+        "eccentricityValue": "0.0167 (nearly circular)",
+        "range": "Distance over the year",
+        "rangeValue": "147.1 – 152.1 million km",
+        "note": "Earth's distance varies only ~5 million km over the year — a remarkably stable energy supply.",
+        "eccentricNote": "With e = 0.3 Earth would swing between 0.70 and 1.30 AU – leaving the habitable zone every year and receiving over three times more sunlight at perihelion than at aphelion.",
+        "zoneNote": "The conservative habitable zone (0.95–1.37 AU) is the region where liquid water can persist on the surface of an Earth-like planet. Earth orbits well inside it; Venus and Mars lie outside.",
+        "scaleNote": "Planet sizes are exaggerated about 1000× for visibility; orbits and positions are to scale (JPL approximate elements, 1800–2050)."
+      },
+      "credit": "Textures: Solar System Scope (CC BY 4.0) · Orbital elements: NASA/JPL"
     }
   }
 }

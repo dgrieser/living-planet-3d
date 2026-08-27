@@ -10,6 +10,13 @@ export const simulations = [
     icon: '🌍',
     load: () => import('./axial-tilt/index.js'),
   },
+  {
+    id: 'solar-orbit',
+    titleKey: 'sims.solarOrbit.title',
+    descriptionKey: 'sims.solarOrbit.description',
+    icon: '🪐',
+    load: () => import('./solar-orbit/index.js'),
+  },
 ];
 
 export function findSimulation(id) {

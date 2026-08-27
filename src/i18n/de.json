@@ -11,7 +11,8 @@
     "home": "Übersicht",
     "backToOverview": "Zurück zur Übersicht",
     "loading": "Simulation wird geladen …",
-    "footer": "Erstellt mit Three.js · Offene Bildungsressource"
+    "footer": "Erstellt mit Three.js · Offene Bildungsressource",
+    "footerCredit": "Planetentexturen: Solar System Scope (CC BY 4.0)"
   },
   "home": {
     "heading": "Simulationen",
@@ -50,7 +51,12 @@
     "years": "J",
     "kilometers": "km",
     "percent": "%",
-    "times": "×"
+    "times": "×",
+    "au": "AE",
+    "millionKm": "Mio. km",
+    "daysPerSecond": "Tage/s",
+    "yearPerSecond": "Jahr/s",
+    "millionKmShort": "Mio. km"
   },
   "sims": {
     "axialTilt": {
@@ -72,6 +78,74 @@
           "Stelle die Neigung auf 0° (keine Jahreszeiten) oder 90° (extreme Jahreszeiten wie beim Uranus) und beobachte, wie sich die Tag-Nacht-Grenze verändert."
         ]
       }
+    },
+    "solarOrbit": {
+      "title": "Erdbahn & bewohnbare Zone",
+      "description": "Reise mit realen Planetenpositionen durch das Sonnensystem und erkenne, warum die fast kreisförmige Erdbahn bei 1 AE eine so günstige Adresse ist.",
+      "planets": {
+        "sun": "Sonne",
+        "mercury": "Merkur",
+        "venus": "Venus",
+        "earth": "Erde",
+        "mars": "Mars",
+        "jupiter": "Jupiter",
+        "saturn": "Saturn",
+        "uranus": "Uranus",
+        "neptune": "Neptun"
+      },
+      "sections": {
+        "time": "Zeit",
+        "view": "Ansicht",
+        "camera": "Kamera"
+      },
+      "controls": {
+        "speed": "Zeitgeschwindigkeit",
+        "paused": "Pausiert",
+        "date": "Datum",
+        "today": "Heute",
+        "habitableZone": "Bewohnbare Zone",
+        "labels": "Planetennamen",
+        "trueScale": "Maßstab (wahre Größen)",
+        "visualScale": "Anschaulich (Planeten ×1000)",
+        "eccentricOrbit": "Vergleich: exzentrische Bahn (e = 0,3)",
+        "overview": "Übersicht",
+        "followEarth": "Erde folgen",
+        "outerSystem": "Äußere Planeten",
+        "dateOutOfRange": "Datumsbereich ist auf 1800–2050 begrenzt (Gültigkeit der JPL-Bahnelemente)."
+      },
+      "legend": {
+        "habitableZone": "Bewohnbare Zone (0,95–1,37 AE)",
+        "earthOrbit": "Erdbahn (e = 0,0167)",
+        "eccentricOrbit": "Hypothetische Bahn (e = 0,3)"
+      },
+      "card": {
+        "distanceNow": "Abstand zur Sonne (jetzt)",
+        "meanDistance": "Mittlerer Abstand zur Sonne",
+        "period": "Umlaufzeit",
+        "radius": "Radius",
+        "eccentricity": "Bahnexzentrizität",
+        "close": "Schließen",
+        "clickHint": "Planet anklicken für Details",
+        "sunRadius": "Radius",
+        "sunType": "Hauptreihenstern (Typ G)",
+        "days": "{n} Tage",
+        "years": "{n} Jahre",
+        "earthRadii": "{n} Erdradien"
+      },
+      "info": {
+        "title": "Warum die Adresse der Erde zählt",
+        "earthSun": "Abstand Erde–Sonne",
+        "earthSunValue": "≈ 149,6 Mio. km (1 AE)",
+        "eccentricity": "Bahnexzentrizität",
+        "eccentricityValue": "0,0167 (nahezu kreisförmig)",
+        "range": "Abstand im Jahreslauf",
+        "rangeValue": "147,1 – 152,1 Mio. km",
+        "note": "Die Entfernung der Erde zur Sonne schwankt im Jahreslauf nur um ca. 5 Millionen km — eine bemerkenswert stabile Energiezufuhr.",
+        "eccentricNote": "Mit e = 0,3 würde die Erde zwischen 0,70 und 1,30 AE pendeln – sie verließe jedes Jahr die bewohnbare Zone und erhielte im Perihel über dreimal so viel Sonnenlicht wie im Aphel.",
+        "zoneNote": "Die konservative bewohnbare Zone (0,95–1,37 AE) ist der Bereich, in dem flüssiges Wasser auf der Oberfläche eines erdähnlichen Planeten dauerhaft bestehen kann. Die Erde kreist deutlich innerhalb; Venus und Mars liegen außerhalb.",
+        "scaleNote": "Planetengrößen sind zur besseren Sichtbarkeit etwa 1000-fach vergrößert; Bahnen und Positionen sind maßstabsgetreu (JPL-Näherungselemente, 1800–2050)."
+      },
+      "credit": "Texturen: Solar System Scope (CC BY 4.0) · Bahnelemente: NASA/JPL"
     }
   }
 }

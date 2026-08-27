@@ -80,7 +80,8 @@ function renderHome(main) {
   main.append(page);
 
   const footer = el('footer', 'lp-footer');
-  footer.append(bindText(el('span'), 'app.footer'));
+  const credit = el('a', 'lp-footer__credit', { href: 'https://www.solarsystemscope.com/textures/', target: '_blank', rel: 'noopener noreferrer license' });
+  footer.append(bindText(el('span'), 'app.footer'), el('br'), bindText(credit, 'app.footerCredit'));
   main.append(footer);
 
   document.title = t('app.title');

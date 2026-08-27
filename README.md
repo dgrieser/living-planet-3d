@@ -11,6 +11,7 @@ npm run build      # production build into dist/
 npm run preview    # serve the production build
 npm run lint       # ESLint
 npm run check:i18n # verify de.json mirrors en.json 1:1
+npm run check:orbits # validate planet-position algorithm against known events
 ```
 
 ## Project structure
@@ -31,9 +32,28 @@ src/
   lib/webgl.js       WebGL availability check (no Three.js import)
   sims/index.js      simulation registry (lazy-loaded modules)
   sims/<name>/       one folder per simulation
+  sims/solar-orbit/  kepler.js (JPL approximate elements, pure JS), planets.js (physical data), index.js
+public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
   check-i18n.mjs     key-parity check for locale files
+  check-orbits.mjs   validates kepler.js against equinoxes, oppositions, transits (npm run check:orbits)
 ```
+
+## Simulations
+
+| id | Module | Content |
+|----|--------|---------|
+| `axial-tilt` | Axial tilt & rotation | Tilt a planet's axis, watch the terminator move. |
+| `solar-orbit` | Earth's orbit & the habitable zone | All 8 planets from JPL Keplerian elements (1800–2050), habitable-zone annulus (0.95–1.37 AU), Earth highlight, hypothetical e = 0.3 orbit, true/visual scale, date picker, camera presets, bilingual planet info cards. |
+
+### solar-orbit notes
+
+- Positions use the JPL "Keplerian Elements for Approximate Positions of the Major Planets"
+  (Table 1, 1800–2050). Earth uses the Earth–Moon barycenter row. Scene: 1 AU = 10 units,
+  ecliptic (x, y, z) → scene (x, z, −y).
+- Visual mode exaggerates planet radii ×1000 and the Sun ×30; orbits and positions are always to scale.
+- Textures: [Solar System Scope](https://www.solarsystemscope.com/textures/) (CC BY 4.0) – credited in
+  the home footer and inside the simulation.
 
 ## Adding a simulation
 

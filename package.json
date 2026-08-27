@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "check:i18n": "node scripts/check-i18n.mjs"
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "check:orbits": "node scripts/check-orbits.mjs"
   },
   "dependencies": {
     "three": "^0.185.1"
