@@ -1,0 +1,77 @@
+{
+  "app": {
+    "title": "Living Planet 3D",
+    "tagline": "Interaktive Astronomie-Simulationen",
+    "language": "Sprache",
+    "languageEn": "Englisch",
+    "languageDe": "Deutsch",
+    "switchToEn": "Sprache auf Englisch umstellen",
+    "switchToDe": "Sprache auf Deutsch umstellen",
+    "skipToContent": "Zum Inhalt springen",
+    "home": "Übersicht",
+    "backToOverview": "Zurück zur Übersicht",
+    "loading": "Simulation wird geladen …",
+    "footer": "Erstellt mit Three.js · Offene Bildungsressource"
+  },
+  "home": {
+    "heading": "Simulationen",
+    "intro": "Entdecke, wie unser Planet funktioniert: Rotation, Achsneigung, Umlaufbahn und mehr – interaktiv und in 3D. Wähle ein Modul, um zu beginnen.",
+    "open": "Simulation öffnen",
+    "comingSoon": "Demnächst verfügbar"
+  },
+  "panel": {
+    "title": "Steuerung",
+    "collapse": "Steuerung einklappen",
+    "expand": "Steuerung ausklappen",
+    "reset": "Zurücksetzen",
+    "info": "Informationen",
+    "hint": "Ziehen zum Drehen · Scrollen oder Zwei-Finger-Geste zum Zoomen"
+  },
+  "motion": {
+    "reducedNotice": "Die Animation ist pausiert, weil dein System reduzierte Bewegung bevorzugt. Du kannst die Ansicht weiterhin drehen und zoomen.",
+    "paused": "Pausiert",
+    "playing": "Läuft",
+    "play": "Animation starten",
+    "pause": "Animation pausieren"
+  },
+  "errors": {
+    "webglTitle": "3D-Grafik nicht verfügbar",
+    "webglBody": "Dein Browser oder Gerät unterstützt kein WebGL, das für diese Simulationen benötigt wird. Bitte verwende eine aktuelle Version von Chrome, Firefox, Edge oder Safari oder aktiviere die Hardwarebeschleunigung.",
+    "notFoundTitle": "Seite nicht gefunden",
+    "notFoundBody": "Die angeforderte Simulation existiert nicht.",
+    "loadFailedTitle": "Simulation konnte nicht geladen werden",
+    "loadFailedBody": "Beim Laden dieses Moduls ist ein Fehler aufgetreten. Bitte lade die Seite neu."
+  },
+  "units": {
+    "degrees": "°",
+    "degreesPerSecond": "°/s",
+    "hours": "h",
+    "days": "d",
+    "years": "J",
+    "kilometers": "km",
+    "percent": "%",
+    "times": "×"
+  },
+  "sims": {
+    "axialTilt": {
+      "title": "Achsneigung & Rotation",
+      "description": "Neige die Rotationsachse eines Planeten und beobachte, wie das Sonnenlicht auf seine Oberfläche fällt, während er sich dreht.",
+      "controls": {
+        "tilt": "Achsneigung",
+        "rotationSpeed": "Rotationsgeschwindigkeit",
+        "showAxis": "Rotationsachse anzeigen",
+        "showEquator": "Äquator anzeigen",
+        "showTerminator": "Tag-Nacht-Grenze anzeigen",
+        "sunLabel": "Sonne"
+      },
+      "info": {
+        "title": "Was ist die Achsneigung?",
+        "body": [
+          "Die Achsneigung (Obliquität) ist der Winkel zwischen der Rotationsachse eines Planeten und der Senkrechten auf seine Bahnebene. Die Erdachse ist um etwa 23,4° geneigt.",
+          "Da die Achse während des Umlaufs um die Sonne stets in dieselbe Richtung zeigt, ist jede Hemisphäre eine Hälfte des Jahres zur Sonne hin und die andere Hälfte von ihr weg geneigt – so entstehen die Jahreszeiten.",
+          "Stelle die Neigung auf 0° (keine Jahreszeiten) oder 90° (extreme Jahreszeiten wie beim Uranus) und beobachte, wie sich die Tag-Nacht-Grenze verändert."
+        ]
+      }
+    }
+  }
+}

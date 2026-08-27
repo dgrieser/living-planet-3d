@@ -1,0 +1,23 @@
+{
+  "name": "living-planet-3d",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Educational, bilingual (EN/DE) interactive 3D astronomy simulations built with Vite and Three.js.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "check:i18n": "node scripts/check-i18n.mjs"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.1",
+    "globals": "^17.11.0",
+    "vite": "^8.2.2"
+  }
+}

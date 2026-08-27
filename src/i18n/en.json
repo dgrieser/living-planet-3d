@@ -1,0 +1,77 @@
+{
+  "app": {
+    "title": "Living Planet 3D",
+    "tagline": "Interactive astronomy simulations",
+    "language": "Language",
+    "languageEn": "English",
+    "languageDe": "German",
+    "switchToEn": "Switch language to English",
+    "switchToDe": "Switch language to German",
+    "skipToContent": "Skip to content",
+    "home": "Overview",
+    "backToOverview": "Back to overview",
+    "loading": "Loading simulation…",
+    "footer": "Built with Three.js · Open educational resource"
+  },
+  "home": {
+    "heading": "Simulations",
+    "intro": "Explore how our planet works: rotation, tilt, orbit and more – interactively and in 3D. Choose a module to begin.",
+    "open": "Open simulation",
+    "comingSoon": "Coming soon"
+  },
+  "panel": {
+    "title": "Controls",
+    "collapse": "Collapse controls",
+    "expand": "Expand controls",
+    "reset": "Reset",
+    "info": "Information",
+    "hint": "Drag to rotate · Scroll or pinch to zoom"
+  },
+  "motion": {
+    "reducedNotice": "Animation is paused because your system prefers reduced motion. You can still rotate and zoom the view.",
+    "paused": "Paused",
+    "playing": "Playing",
+    "play": "Play animation",
+    "pause": "Pause animation"
+  },
+  "errors": {
+    "webglTitle": "3D graphics unavailable",
+    "webglBody": "Your browser or device does not support WebGL, which is required for these simulations. Please try a current version of Chrome, Firefox, Edge or Safari, or enable hardware acceleration.",
+    "notFoundTitle": "Page not found",
+    "notFoundBody": "The requested simulation does not exist.",
+    "loadFailedTitle": "Simulation could not be loaded",
+    "loadFailedBody": "Something went wrong while loading this module. Please reload the page."
+  },
+  "units": {
+    "degrees": "°",
+    "degreesPerSecond": "°/s",
+    "hours": "h",
+    "days": "d",
+    "years": "yr",
+    "kilometers": "km",
+    "percent": "%",
+    "times": "×"
+  },
+  "sims": {
+    "axialTilt": {
+      "title": "Axial tilt & rotation",
+      "description": "Tilt a planet's rotation axis and watch how sunlight falls on its surface as it spins.",
+      "controls": {
+        "tilt": "Axial tilt",
+        "rotationSpeed": "Rotation speed",
+        "showAxis": "Show rotation axis",
+        "showEquator": "Show equator",
+        "showTerminator": "Show day/night boundary",
+        "sunLabel": "Sun"
+      },
+      "info": {
+        "title": "What is axial tilt?",
+        "body": [
+          "The axial tilt (obliquity) is the angle between a planet's rotation axis and the perpendicular to its orbital plane. Earth's axis is tilted by about 23.4°.",
+          "Because the axis keeps pointing in the same direction while the planet orbits the Sun, each hemisphere is tilted towards the Sun for one half of the year and away from it for the other – this is what causes the seasons.",
+          "Try setting the tilt to 0° (no seasons) or 90° (extreme seasons, like Uranus) and observe how the day/night boundary changes."
+        ]
+      }
+    }
+  }
+}
