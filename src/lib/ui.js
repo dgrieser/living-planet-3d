@@ -80,9 +80,10 @@ export function createSection(titleKey) {
 /**
  * Range slider with live, locale-formatted value + unit.
  * @param {{ labelKey: string, unitKey?: string, min: number, max: number, step?: number,
- *           value: number, decimals?: number, onChange: (v:number)=>void }} opts
+ *           value: number, decimals?: number, format?: (v:number)=>string, onChange: (v:number)=>void }} opts
+ *   `format` replaces the default "number + unit" readout (e.g. for log-scaled sliders).
  */
-export function createSlider({ labelKey, unitKey, min, max, step = 1, value, decimals = 1, onChange }) {
+export function createSlider({ labelKey, unitKey, min, max, step = 1, value, decimals = 1, format, onChange }) {
   const id = uid('slider');
   const wrap = el('div', 'lp-control lp-slider');
   const row = el('div', 'lp-control__row');
@@ -93,10 +94,14 @@ export function createSlider({ labelKey, unitKey, min, max, step = 1, value, dec
 
   let current = value;
   const renderValue = () => {
-    const unit = unitKey ? t(unitKey) : '';
-    const num = formatNumber(current, { maximumFractionDigits: decimals });
-    // Degree sign and percent stick to the number; other units get a normal space.
-    output.textContent = unit === '°' || unit === '%' ? `${num}${unit}` : `${num}\u2009${unit}`.trimEnd();
+    if (format) {
+      output.textContent = format(current);
+    } else {
+      const unit = unitKey ? t(unitKey) : '';
+      const num = formatNumber(current, { maximumFractionDigits: decimals });
+      // Degree sign and percent stick to the number; other units get a normal space.
+      output.textContent = unit === '°' || unit === '%' ? `${num}${unit}` : `${num}\u2009${unit}`.trimEnd();
+    }
     input.setAttribute('aria-valuetext', output.textContent);
   };
   input.addEventListener('input', () => {

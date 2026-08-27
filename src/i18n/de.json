@@ -56,7 +56,14 @@
     "millionKm": "Mio. km",
     "daysPerSecond": "Tage/s",
     "yearPerSecond": "Jahr/s",
-    "millionKmShort": "Mio. km"
+    "millionKmShort": "Mio. km",
+    "kelvin": "K",
+    "celsius": "°C",
+    "solarLuminosity": "L☉",
+    "solarMass": "M☉",
+    "solarRadius": "R☉",
+    "solarFlux": "S☉",
+    "gigayears": "Mrd. Jahre"
   },
   "sims": {
     "axialTilt": {
@@ -146,6 +153,109 @@
         "scaleNote": "Planetengrößen sind zur besseren Sichtbarkeit etwa 1000-fach vergrößert; Bahnen und Positionen sind maßstabsgetreu (JPL-Näherungselemente, 1800–2050)."
       },
       "credit": "Texturen: Solar System Scope (CC BY 4.0) · Bahnelemente: NASA/JPL"
+    },
+    "habitableZone": {
+      "title": "Die bewohnbare Zone",
+      "description": "Erkunde den schmalen „Goldlöckchen“-Ring um einen Stern, in dem flüssiges Wasser existieren kann – und beobachte, wie er sich mit Typ, Helligkeit und Alter des Sterns verschiebt.",
+      "sections": {
+        "star": "Stern",
+        "planet": "Planet",
+        "evolution": "Sternentwicklung",
+        "view": "Ansicht"
+      },
+      "star": {
+        "presets": "Sterntyp",
+        "presetM": "M-Zwerg",
+        "presetK": "K-Stern",
+        "presetG": "G – Sonne",
+        "presetF": "F-Stern",
+        "presetMAria": "M-Zwerg (0,01 Sonnenleuchtkräfte)",
+        "presetKAria": "K-Stern (0,3 Sonnenleuchtkräfte)",
+        "presetGAria": "G-Stern wie unsere Sonne (1 Sonnenleuchtkraft)",
+        "presetFAria": "F-Stern (3 Sonnenleuchtkräfte)",
+        "luminosity": "Leuchtkraft",
+        "type": "Spektraltyp",
+        "temperature": "Oberflächentemperatur",
+        "mass": "Masse",
+        "radius": "Radius",
+        "types": {
+          "M": "M – Roter Zwerg",
+          "K": "K – orange",
+          "G": "G – gelbweiß (Sonne)",
+          "F": "F – weiß",
+          "A": "A – blauweiß"
+        }
+      },
+      "zone": {
+        "edges": "Bewohnbare Zone",
+        "width": "Breite der Zone"
+      },
+      "planet": {
+        "distance": "Abstand zum Stern",
+        "name": "Planet",
+        "earth": "Erde",
+        "teq": "Gleichgewichtstemperatur",
+        "insolation": "Einstrahlung",
+        "period": "Umlaufzeit",
+        "days": "{n} Tage",
+        "years": "{n} Jahre",
+        "state": "Oberflächenzustand",
+        "frozen": "Gefroren",
+        "habitable": "Bewohnbar",
+        "scorched": "Versengt",
+        "frozenHint": "Unterhalb der Maximal-Treibhaus-Grenze: alles Wasser ist Eis.",
+        "habitableHint": "Flüssiges Wasser kann auf der Oberfläche bestehen.",
+        "scorchedHint": "Jenseits der Grenze des galoppierenden Treibhauseffekts: die Ozeane verdampfen.",
+        "dragHint": "Planeten ziehen, um den Abstand zu ändern"
+      },
+      "evolution": {
+        "age": "Sternalter (sonnenähnlicher Stern)",
+        "today": "heute",
+        "play": "Sternentwicklung abspielen",
+        "pause": "Sternentwicklung pausieren",
+        "resetToday": "Heute (4,57 Mrd. Jahre)",
+        "window": "Bewohnbar bei {d} AE: {from} – {to} Mrd. Jahre",
+        "never": "Bei {d} AE um einen sonnenähnlichen Stern nie bewohnbar",
+        "note": "Ein sonnenähnlicher Stern wird pro Milliarde Jahre etwa 10 % heller, sodass die bewohnbare Zone langsam nach außen wandert. Die Erde erreicht den inneren Rand in etwa einer Milliarde Jahren."
+      },
+      "view": {
+        "zone": "Bewohnbare Zone",
+        "shell": "Zone als 3D-Schale",
+        "tempLabels": "Temperaturbeschriftungen",
+        "grid": "Bahnraster",
+        "frameZone": "Zone einpassen",
+        "overview": "Übersicht (5 AE)"
+      },
+      "legend": {
+        "zone": "Bewohnbare Zone",
+        "orbit": "Planetenbahn",
+        "todayZone": "Zone heute (Entwicklungsmodus)"
+      },
+      "info": {
+        "title": "Die Goldlöckchen-Zone",
+        "body": "Nur in einem schmalen Ring um einen Stern kann flüssiges Wasser auf der Oberfläche eines Planeten existieren. Bei unserer Sonne reicht dieser Ring etwa von 0,95 bis 1,37 AE — und die Erde liegt bequem darin."
+      },
+      "physics": {
+        "title": "Physik",
+        "zoneLabel": "Bewohnbare Zone (Kopparapu et al. 2013, konservative Grenzen)",
+        "zoneFormula": "d_innen = √(L / 1,1) AE · d_außen = √(L / 0,53) AE",
+        "zoneNote": "L in Sonnenleuchtkräften. Der innere Rand ist die Grenze des galoppierenden Treibhauseffekts (1,1 S☉), der äußere Rand die Maximal-Treibhaus-Grenze (0,53 S☉).",
+        "teqLabel": "Gleichgewichtstemperatur",
+        "teqFormula": "T_eq = 278 K · L^¼ / √d",
+        "teqNote": "d in AE; Strahlungsgleichgewicht ohne Treibhauseffekt (die Erdoberfläche ist ≈ 33 K wärmer als ihre Gleichgewichtstemperatur).",
+        "stateLabel": "Oberflächenzustand aus T_eq",
+        "stateFormula": "gefroren < 237 K ≤ bewohnbar ≤ 285 K < versengt",
+        "stateNote": "Die Schwellen sind die Zonenränder als Temperaturen ausgedrückt (T_eq hängt nur von der Einstrahlung L/d² ab). 237 K entsprechen mit erdähnlichem Treibhauseffekt etwa 0 °C an der Oberfläche.",
+        "evolutionLabel": "Sternentwicklung (Gough 1981)",
+        "evolutionFormula": "L(t) = L☉ / (1 + 0,4 · (1 − t / 4,57 Mrd. Jahre))",
+        "evolutionNote": "≈ 0,7 L☉ bei der Entstehung, 1 L☉ heute, ≈ 1,9 L☉ nach 10 Mrd. Jahren – etwa +10 % pro Milliarde Jahre.",
+        "starLabel": "Hauptreihen-Beziehungen (für das Aussehen)",
+        "starFormula": "T_eff ≈ 5778 K · L^0,13 · M ≈ L^(1/3,5) M☉ · R = √L · (5778 K / T_eff)² R☉",
+        "periodLabel": "Umlaufzeit (3. Kepler-Gesetz)",
+        "periodFormula": "P = √(d³ / M) Jahre",
+        "scaleNote": "Stern- und Planetengrößen sind zur besseren Sichtbarkeit vergrößert; Abstände sind maßstabsgetreu."
+      },
+      "hint": "Planeten ziehen, um ihn zu verschieben"
     }
   }
 }

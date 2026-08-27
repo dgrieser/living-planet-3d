@@ -17,6 +17,13 @@ export const simulations = [
     icon: '🪐',
     load: () => import('./solar-orbit/index.js'),
   },
+  {
+    id: 'habitable-zone',
+    titleKey: 'sims.habitableZone.title',
+    descriptionKey: 'sims.habitableZone.description',
+    icon: '🌡️',
+    load: () => import('./habitable-zone/index.js'),
+  },
 ];
 
 export function findSimulation(id) {

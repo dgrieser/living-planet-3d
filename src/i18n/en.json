@@ -56,7 +56,14 @@
     "millionKm": "million km",
     "daysPerSecond": "days/s",
     "yearPerSecond": "year/s",
-    "millionKmShort": "M km"
+    "millionKmShort": "M km",
+    "kelvin": "K",
+    "celsius": "°C",
+    "solarLuminosity": "L☉",
+    "solarMass": "M☉",
+    "solarRadius": "R☉",
+    "solarFlux": "S☉",
+    "gigayears": "Gyr"
   },
   "sims": {
     "axialTilt": {
@@ -146,6 +153,109 @@
         "scaleNote": "Planet sizes are exaggerated about 1000× for visibility; orbits and positions are to scale (JPL approximate elements, 1800–2050)."
       },
       "credit": "Textures: Solar System Scope (CC BY 4.0) · Orbital elements: NASA/JPL"
+    },
+    "habitableZone": {
+      "title": "The habitable zone",
+      "description": "Explore the narrow ‘Goldilocks’ ring around a star where liquid water can exist – and watch it shift with the star’s type, brightness and age.",
+      "sections": {
+        "star": "Star",
+        "planet": "Planet",
+        "evolution": "Stellar evolution",
+        "view": "View"
+      },
+      "star": {
+        "presets": "Star type",
+        "presetM": "M dwarf",
+        "presetK": "K star",
+        "presetG": "G – Sun",
+        "presetF": "F star",
+        "presetMAria": "M dwarf (0.01 solar luminosities)",
+        "presetKAria": "K star (0.3 solar luminosities)",
+        "presetGAria": "G star like our Sun (1 solar luminosity)",
+        "presetFAria": "F star (3 solar luminosities)",
+        "luminosity": "Luminosity",
+        "type": "Spectral type",
+        "temperature": "Surface temperature",
+        "mass": "Mass",
+        "radius": "Radius",
+        "types": {
+          "M": "M – red dwarf",
+          "K": "K – orange",
+          "G": "G – yellow-white (Sun)",
+          "F": "F – white",
+          "A": "A – blue-white"
+        }
+      },
+      "zone": {
+        "edges": "Habitable zone",
+        "width": "Zone width"
+      },
+      "planet": {
+        "distance": "Distance from star",
+        "name": "Planet",
+        "earth": "Earth",
+        "teq": "Equilibrium temperature",
+        "insolation": "Insolation",
+        "period": "Orbital period",
+        "days": "{n} days",
+        "years": "{n} years",
+        "state": "Surface state",
+        "frozen": "Frozen",
+        "habitable": "Habitable",
+        "scorched": "Scorched",
+        "frozenHint": "Below the maximum-greenhouse limit: any water is ice.",
+        "habitableHint": "Liquid water can persist on the surface.",
+        "scorchedHint": "Beyond the runaway-greenhouse limit: oceans boil away.",
+        "dragHint": "Drag the planet to change its distance"
+      },
+      "evolution": {
+        "age": "Stellar age (Sun-like star)",
+        "today": "today",
+        "play": "Play stellar evolution",
+        "pause": "Pause stellar evolution",
+        "resetToday": "Today (4.57 Gyr)",
+        "window": "Habitable at {d} AU: {from} – {to} Gyr",
+        "never": "Never habitable at {d} AU around a Sun-like star",
+        "note": "A Sun-like star brightens by roughly 10 % per billion years, so the habitable zone slowly migrates outward. Earth will reach the inner edge in about one billion years."
+      },
+      "view": {
+        "zone": "Habitable zone",
+        "shell": "Zone as 3D shell",
+        "tempLabels": "Temperature labels",
+        "grid": "Orbit grid",
+        "frameZone": "Frame zone",
+        "overview": "Overview (5 AU)"
+      },
+      "legend": {
+        "zone": "Habitable zone",
+        "orbit": "Planet orbit",
+        "todayZone": "Zone today (evolution mode)"
+      },
+      "info": {
+        "title": "The Goldilocks zone",
+        "body": "Only in a narrow ring around a star can liquid water exist on a planet's surface. For our Sun that ring spans roughly 0.95 to 1.37 AU — and Earth sits comfortably inside it."
+      },
+      "physics": {
+        "title": "Physics",
+        "zoneLabel": "Habitable zone (Kopparapu et al. 2013, conservative limits)",
+        "zoneFormula": "d_inner = √(L / 1.1) AU · d_outer = √(L / 0.53) AU",
+        "zoneNote": "L in solar luminosities. The inner edge is the runaway-greenhouse limit (1.1 S☉), the outer edge the maximum-greenhouse limit (0.53 S☉).",
+        "teqLabel": "Equilibrium temperature",
+        "teqFormula": "T_eq = 278 K · L^¼ / √d",
+        "teqNote": "d in AU; radiative balance without greenhouse warming (Earth's surface is ≈ 33 K warmer than its equilibrium temperature).",
+        "stateLabel": "Surface state from T_eq",
+        "stateFormula": "frozen < 237 K ≤ habitable ≤ 285 K < scorched",
+        "stateNote": "The thresholds are the zone edges expressed as temperatures (T_eq depends only on the insolation L/d²). 237 K corresponds to about 0 °C at the surface with an Earth-like greenhouse effect.",
+        "evolutionLabel": "Stellar evolution (Gough 1981)",
+        "evolutionFormula": "L(t) = L☉ / (1 + 0.4 · (1 − t / 4.57 Gyr))",
+        "evolutionNote": "≈ 0.7 L☉ at birth, 1 L☉ today, ≈ 1.9 L☉ after 10 Gyr – about +10 % per Gyr.",
+        "starLabel": "Main-sequence relations (for appearance)",
+        "starFormula": "T_eff ≈ 5778 K · L^0.13 · M ≈ L^(1/3.5) M☉ · R = √L · (5778 K / T_eff)² R☉",
+        "periodLabel": "Orbital period (Kepler's third law)",
+        "periodFormula": "P = √(d³ / M) years",
+        "scaleNote": "Star and planet sizes are exaggerated for visibility; distances are to scale."
+      },
+      "hint": "Drag the planet to move it"
     }
   }
 }
