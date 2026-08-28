@@ -13,7 +13,8 @@
     "check:orbits": "node scripts/check-orbits.mjs",
     "check:hz": "node scripts/check-habitable-zone.mjs",
     "check:seasons": "node scripts/check-seasons.mjs",
-    "check:tides": "node scripts/check-moon-tides.mjs"
+    "check:tides": "node scripts/check-moon-tides.mjs",
+    "check:mag": "node scripts/check-magnetosphere.mjs"
   },
   "dependencies": {
     "three": "^0.185.1"

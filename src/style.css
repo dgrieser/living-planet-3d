@@ -481,3 +481,38 @@ a:hover { color: #a9d9ff; }
 .lp-state--stable { color: #b8f5cf; background: rgba(90, 220, 140, 0.16); border-color: rgba(90, 220, 140, 0.55); }
 .lp-state--chaotic { color: #ffc7b8; background: rgba(255, 107, 74, 0.18); border-color: rgba(255, 107, 74, 0.6); }
 .lp-presets--2 { grid-template-columns: repeat(2, 1fr); }
+
+/* ---------- magnetosphere simulation ---------- */
+.lp-presets--3 { grid-template-columns: repeat(3, 1fr); }
+
+.lp-storm-card {
+  position: absolute; left: 16px; bottom: 72px; z-index: 10;
+  width: min(300px, calc(100vw - 32px));
+  padding: 12px 14px 10px;
+  background: var(--lp-bg-elevated);
+  backdrop-filter: var(--lp-blur); -webkit-backdrop-filter: var(--lp-blur);
+  border: 1px solid var(--lp-border); border-radius: var(--lp-radius); box-shadow: var(--lp-shadow);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+.lp-storm-card.is-storm { border-color: rgba(255, 138, 128, 0.65); box-shadow: 0 0 24px rgba(255, 138, 128, 0.25), var(--lp-shadow); }
+.lp-storm-card__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lp-storm-card__title { margin: 0; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lp-text-muted); }
+.lp-storm-card__phase {
+  flex: none; padding: 3px 9px; border-radius: 999px; font-size: 0.7rem; font-weight: 700;
+  color: #ffc7b8; background: rgba(255, 107, 74, 0.18); border: 1px solid rgba(255, 107, 74, 0.6);
+  white-space: nowrap;
+}
+.lp-storm-card__phase[hidden] { display: none; }
+.lp-storm-card__note { margin: 2px 0 0; font-size: 0.72rem; color: var(--lp-text-muted); }
+.lp-readout--storm { margin: 8px 0 6px; }
+.lp-storm-card .lp-facts { margin: 0 0 4px; font-size: 0.82rem; }
+
+.lp-state--kp-quiet { color: #cfe9ff; background: rgba(159, 216, 255, 0.16); border-color: rgba(159, 216, 255, 0.5); }
+.lp-state--kp-active { color: #b8f5cf; background: rgba(90, 220, 140, 0.16); border-color: rgba(90, 220, 140, 0.55); }
+.lp-state--kp-g1, .lp-state--kp-g2 { color: #ffe1a3; background: rgba(255, 209, 102, 0.16); border-color: rgba(255, 209, 102, 0.55); }
+.lp-state--kp-g3, .lp-state--kp-g4, .lp-state--kp-g5 { color: #ffc7b8; background: rgba(255, 107, 74, 0.2); border-color: rgba(255, 107, 74, 0.65); }
+.lp-state--kp-unshielded { color: #ffc7b8; background: rgba(255, 107, 74, 0.2); border-color: rgba(255, 107, 74, 0.65); }
+
+@media (max-width: 720px) {
+  .lp-storm-card { left: 8px; right: 8px; bottom: auto; top: 8px; width: auto; }
+}

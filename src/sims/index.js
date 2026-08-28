@@ -38,6 +38,13 @@ export const simulations = [
     icon: '🌕',
     load: () => import('./moon-tides/index.js'),
   },
+  {
+    id: 'magnetosphere',
+    titleKey: 'sims.magnetosphere.title',
+    descriptionKey: 'sims.magnetosphere.description',
+    icon: '🧲',
+    load: () => import('./magnetosphere/index.js'),
+  },
 ];
 
 export function findSimulation(id) {

@@ -15,6 +15,7 @@ npm run check:orbits # validate planet-position algorithm against known events
 npm run check:hz     # validate habitable-zone physics (zone edges, T_eq, stellar evolution)
 npm run check:seasons # validate seasons physics (declination, day length, insolation, calendar mapping)
 npm run check:tides   # validate moon-tides physics (2GMR/r³, 1/r³ scaling, spring/neap, periods, tilt models)
+npm run check:mag     # validate magnetosphere physics (ram pressure, standoff, boundary fits, field-line deformation, Kp, aurora)
 ```
 
 ## Project structure
@@ -39,6 +40,8 @@ src/
   sims/habitable-zone/ physics.js (zone edges, T_eq, stellar evolution, star relations – pure JS), index.js
   sims/seasons/      physics.js (declination, day length, insolation, energy-balance temperature – pure JS), index.js
   sims/moon-tides/   physics.js (tidal acceleration, equilibrium bulge, spring/neap, Kepler periods, tilt models – pure JS), index.js
+  sims/magnetosphere/ physics.js (ram pressure, magnetopause standoff, Shue boundary, dipole lines,
+                     field-line deformation, streamlines, Kp-style index, aurora oval – pure JS), index.js
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
   check-i18n.mjs     key-parity check for locale files
@@ -46,6 +49,7 @@ scripts/
   check-habitable-zone.mjs validates physics.js against reference values (npm run check:hz)
   check-seasons.mjs  validates the seasons physics against textbook values (npm run check:seasons)
   check-moon-tides.mjs validates the moon-tides physics (npm run check:tides)
+  check-magnetosphere.mjs validates the magnetosphere physics (npm run check:mag)
 ```
 
 ## Simulations
@@ -56,6 +60,7 @@ scripts/
 | `solar-orbit` | Earth's orbit & the habitable zone | All 8 planets from JPL Keplerian elements (1800–2050), habitable-zone annulus (0.95–1.37 AU), Earth highlight, hypothetical e = 0.3 orbit, true/visual scale, date picker, camera presets, bilingual planet info cards. |
 | `seasons` | Seasons, axial tilt & day length | Earth orbiting an emissive Sun with adjustable tilt (0–90°) and rotation period (6–300 h); shader day/night terminator, insolation heat map, live tropics/polar circles/subsolar point, draggable orbit position with season stops, annual-cycle animation, day-length/insolation/temperature readout for any latitude, bilingual what-if presets (0°, 23.4°, 90°, 300 h, 6 h). |
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
+| `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout, and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
 | `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate appearance, draggable planet (0.1–5 AU) whose surface morphs frozen / habitable / scorched from T_eq, live Kopparapu zone (annulus or 3D shell), evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, bilingual physics card. |
 
 ### solar-orbit notes
@@ -118,6 +123,41 @@ scripts/
   incommensurate sinusoids wandering between 0° and 60° with a 60 kyr time scale, precession slowed 3×; flagged as
   simplified in the UI. Real chaos (Laskar et al. 1993) unfolds over millions of years.
 - Removing the Moon also switches off the lunar tide in view A (only the solar tide remains if enabled).
+
+### magnetosphere notes
+
+- Frame: +x points at the Sun (the wind flows towards −x), +y is the dipole axis, +z is dusk. One scene
+  unit is one Earth radius and Earth is drawn to scale (radius 1). The dipole is drawn aligned with the
+  rotation axis; the real 11° offset, the interplanetary magnetic field, reconnection and the ring current
+  are all left out and the physics card says so.
+- Dynamic pressure `P = ρv² = n·m_p·v²` (5 cm⁻³ / 400 km/s → 1.34 nPa). Two standoff distances are computed:
+  the pressure-balance result `r₀ = [2B₀²/(μ₀·k·P)]^(1/6)` with k = 0.88 (10.5 R⊕ for the quiet wind, quoted in
+  the physics card) and the empirical Shue et al. (1997) `r₀ = 11.4·P^(−1/6.6)`, `α = 0.58·(1 + 0.01·P)`, which
+  drives the scene (10.9 R⊕ quiet, 4.3 R⊕ at 100 cm⁻³ / 2000 km/s). Bow shock at 1.3·r₀.
+- Both boundary surfaces are paraboloids of revolution fitted to the Shue boundary at the nose and the
+  terminator (`ρ² = r₀·4^α·(r₀ − x)`, within 11 % on the dayside). Position **and** normal `(c, 2y, 2z)` are
+  evaluated in a vertex shader from a fixed (u, v) grid, so changing the wind never rebuilds geometry.
+- Field lines start as ideal dipole curves `r = L·cos²λ` and are bent by `deformPoint()`: the radius is mapped
+  through `r ↦ r_b·u/(1+u³)^(1/3)` with `u = r/r_b(θ)`, which is the identity near Earth and saturates below the
+  boundary, so no line can cross the magnetopause; on the night side x is scaled up with r (tail) and y is
+  pressed towards the current sheet (lobes). Both effects are faded out below r = 2 R⊕ so the footpoints stay
+  planted on the surface. Rising pressure moves the noon apex from 9.2 to 4.2 R⊕ and the tail from −17 to −63 R⊕.
+- Solar wind, CME cloud and escaping atmosphere are three `THREE.Points` objects (10 000 / 4 000 / 1 600)
+  whose positions are computed entirely in the vertex shader; a frame costs a handful of uniform writes.
+  Streamlines follow `ρ(x) = √(ρ∞² + ρ_mp(x − 0.28·r₀)²)` – adding the obstacle's cross-section can never take a
+  parcel inside the magnetopause, and evaluating the boundary 0.28·r₀ sunward makes the flow start turning at
+  the bow shock. Particles inside the shock silhouette but outside the magnetopause are drawn hot and larger
+  (the compressed magnetosheath). 72 % of the beam sits in a slab around the noon–midnight meridian, because a
+  hollow tube of points projects to a filled disc and the split around the boundary would otherwise be invisible.
+- "Launch CME": the cloud travels from the Sun sprite to the magnetopause in 3.6 s, then a sheath envelope
+  (0.6 s rise, 5.5 s plateau, 8 s decay) multiplies the wind to `n·(1 + 9e) + 6e` and `v·(1 + 1.25e)`. Everything
+  else – standoff, Kp, aurora radius and brightness – follows from that single effective wind, so on the quiet
+  wind a CME pushes the nose to 5.9 R⊕ (inside geostationary orbit) and the index to Kp 5.6 (G2) within 0.6 s.
+- Kp-style index `Kp ≈ 1.5 + 3.3·log₁₀[√(n/5)·(v/400)²]`, capped at 9, bucketed into the NOAA G-scale; the oval's
+  equatorward edge follows the NOAA viewline `λ ≈ 66.5° − 2.1·Kp`. Both are labelled as schematic in the UI.
+- "Magnetic field off" hides the field lines, boundaries and aurora, sends the particles straight into the
+  atmosphere (they are absorbed inside r = 1.045) and releases an escaping-atmosphere plume downwind. Flagged
+  as schematic: real atmospheric escape takes hundreds of millions of years.
 
 ## Adding a simulation
 

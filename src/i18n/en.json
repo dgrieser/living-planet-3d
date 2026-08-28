@@ -70,7 +70,11 @@
     "kyrPerSecond": "kyr/s",
     "meters": "m",
     "metersPerSecondSquared": "m/s²",
-    "kyr": "kyr"
+    "kyr": "kyr",
+    "perCubicCentimeter": "cm⁻³",
+    "kilometersPerSecond": "km/s",
+    "nanopascal": "nPa",
+    "earthRadii": "R⊕"
   },
   "sims": {
     "axialTilt": {
@@ -570,6 +574,123 @@
         "eclipticPole": "Ecliptic pole"
       },
       "hint": "Switch between “Tides” and “Axis stability” in the panel",
+      "credit": "Earth texture: Solar System Scope (CC BY 4.0)"
+    },
+    "magnetosphere": {
+      "title": "Earth's magnetosphere",
+      "description": "Watch Earth's magnetic field deflect the solar wind, fire off a coronal mass ejection and switch the shield off.",
+      "sections": {
+        "wind": "Solar wind",
+        "shield": "Magnetic shield",
+        "view": "View"
+      },
+      "controls": {
+        "density": "Density",
+        "speed": "Speed",
+        "launchCme": "Launch CME",
+        "cmeRunning": "CME on its way …",
+        "cmeHint": "A coronal mass ejection reaches the magnetopause after about three seconds of scene time; in reality it takes 18 hours to 4 days.",
+        "fieldOff": "Magnetic field off",
+        "fieldOn": "Magnetic field on",
+        "fieldLines": "Field lines",
+        "boundaries": "Bow shock & magnetopause",
+        "aurora": "Aurora",
+        "labels": "Labels",
+        "camera": "Camera",
+        "cameraSide": "Side view",
+        "cameraPolar": "Polar view",
+        "cameraTail": "Magnetotail"
+      },
+      "facts": {
+        "pressure": "Dynamic pressure",
+        "pressureRatio": "Compared with the quiet wind",
+        "standoff": "Magnetopause (nose)",
+        "bowShock": "Bow shock (nose)",
+        "transit": "Sun → Earth",
+        "days": "{n} days"
+      },
+      "storm": {
+        "title": "Space weather",
+        "kp": "Geomagnetic activity",
+        "wind": "Wind at the boundary",
+        "standoff": "Magnetopause",
+        "aurora": "Aurora reaches",
+        "latitude": "geomagnetic latitude",
+        "geosync": "Geostationary orbit",
+        "geosyncSafe": "inside the shield",
+        "geosyncExposed": "exposed to the wind",
+        "noBoundary": "no boundary",
+        "noOval": "no oval",
+        "schematic": "Kp-style index – schematic, derived from the solar wind alone.",
+        "level": {
+          "quiet": "Quiet",
+          "active": "Active",
+          "g1": "G1 · minor storm",
+          "g2": "G2 · moderate",
+          "g3": "G3 · strong",
+          "g4": "G4 · severe",
+          "g5": "G5 · extreme",
+          "unshielded": "No shield"
+        },
+        "phase": {
+          "incoming": "CME incoming",
+          "impact": "Impact",
+          "decay": "Decaying"
+        }
+      },
+      "warn": {
+        "fieldOff": "Schematic: without the magnetic field the wind hits the atmosphere directly and carries part of it away. Real atmospheric escape takes hundreds of millions of years – Mars is the textbook case."
+      },
+      "legend": {
+        "fieldLines": "Dipole field lines",
+        "compressed": "Compressed field",
+        "magnetopause": "Magnetopause",
+        "bowShock": "Bow shock",
+        "wind": "Solar wind",
+        "sheath": "Shocked wind (magnetosheath)",
+        "cme": "CME cloud",
+        "aurora": "Auroral oval",
+        "erosion": "Escaping atmosphere"
+      },
+      "labels": {
+        "sun": "Sun",
+        "bowShock": "Bow shock",
+        "magnetopause": "Magnetopause",
+        "magnetotail": "Magnetotail",
+        "north": "N",
+        "south": "S"
+      },
+      "info": {
+        "title": "The double shield",
+        "body": [
+          "Earth's magnetic field and atmosphere form a double shield. The magnetic field deflects the solar wind — a stream of charged particles that would otherwise strip the atmosphere and bombard the surface with radiation.",
+          "The magnetopause sits where the magnetic pressure balances the ram pressure of the wind: about 10 Earth radii sunward in a quiet wind, and inside geostationary orbit during a strong storm. On the night side the field is drawn out into a magnetotail hundreds of Earth radii long.",
+          "The particles that do get in are guided along the field lines down to the poles, where they light up the auroral oval — the visible sign that the shield is working. What still reaches the atmosphere is stopped by the second layer of the shield."
+        ]
+      },
+      "physics": {
+        "title": "Physics",
+        "pressureLabel": "Dynamic pressure of the wind",
+        "pressureFormula": "P = ρv² = n · m_p · v²",
+        "pressureNote": "5 protons per cm³ at 400 km/s give 1.34 nPa. The speed counts twice, the density once – which is why fast streams matter more than dense ones.",
+        "standoffLabel": "Standoff distance from pressure balance",
+        "standoffFormula": "r₀ = [2B₀² / (μ₀ · k · P)]^(1/6) · R⊕",
+        "standoffNote": "The compressed dipole field 2B₀(R⊕/r)³ balances k·ρv² (k = 0.88). With B₀ = 31 200 nT that gives 10.5 R⊕ for the quiet wind, and the 1/6 power is why a tenfold pressure increase only pushes the boundary in by a third.",
+        "shueLabel": "Shape of the magnetopause",
+        "shueFormula": "r(θ) = r₀ · [2/(1 + cos θ)]^α,   r₀ = 11.4 · P^(−1/6.6)",
+        "shueNote": "Shue et al. (1997), fitted to thousands of spacecraft boundary crossings. The field lines are held below this surface on the dayside and stretched down the tail on the night side.",
+        "shockLabel": "Bow shock",
+        "shockFormula": "x_bs ≈ 1.3 · r₀,   ρ² = 4 · r₀ · (x_bs − x)",
+        "shockNote": "The wind arrives faster than the local magnetosonic speed, so it is shocked and heated before it flows around the magnetopause. The paraboloid drawn here is a fit to observed crossings, not a solution of the flow.",
+        "kpLabel": "Kp-style index (schematic)",
+        "kpFormula": "Kp ≈ 1.5 + 3.3 · log₁₀[√(n/5) · (v/400)²]",
+        "kpNote": "A teaching formula, not a forecast. It reproduces the observed pattern that speed drives geomagnetic activity harder than density, and lands on Kp 1–2 for the quiet wind and Kp 8–9 for extreme events.",
+        "auroraLabel": "Auroral oval",
+        "auroraFormula": "λ ≈ 66.5° − 2.1 · Kp",
+        "auroraNote": "Equatorward edge of the oval in geomagnetic latitude, following the NOAA viewline table: Iceland at Kp 0, central Europe at Kp 8.",
+        "scaleNote": "Lengths are in Earth radii (1 R⊕ = 6371 km) and Earth is drawn to scale. The field-line deformation, the particle streamlines and the CME are qualitative: the dipole is drawn aligned with the rotation axis (the real offset is 11°), and there is no interplanetary magnetic field, no reconnection and no ring current."
+      },
+      "hint": "Move the sliders, then launch a CME",
       "credit": "Earth texture: Solar System Scope (CC BY 4.0)"
     }
   }
