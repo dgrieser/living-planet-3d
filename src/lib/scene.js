@@ -79,6 +79,7 @@ export function createScene({
   let renderRequested = false;
   let reducedMotion = prefersReducedMotion();
   let userPaused = false;
+  let inTick = false;
 
   const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   const onMotionChange = (e) => {
@@ -94,6 +95,7 @@ export function createScene({
   function tick(timestamp) {
     rafId = 0;
     if (!running) return;
+    inTick = true;
     timer.update(timestamp);
     const shouldAnimate = animating();
     const dt = shouldAnimate ? Math.min(timer.getDelta(), MAX_DELTA) : 0;
@@ -101,17 +103,24 @@ export function createScene({
       elapsed += dt;
       for (const cb of frameCallbacks) cb(dt, elapsed);
     }
+    // OrbitControls dispatches "change" from inside update() while damping settles (and when the
+    // camera was moved programmatically); that only flags renderRequested while inTick is set.
     const controlsMoved = controls.update(dt || 1 / 60);
-    if (shouldAnimate || controlsMoved || renderRequested) {
+    const needsFrame = shouldAnimate || controlsMoved || renderRequested;
+    if (needsFrame) {
       renderer.render(scene, camera);
       renderRequested = false;
     }
-    // Keep looping while animating or while damping still settles.
-    if (shouldAnimate || controlsMoved || renderRequested) rafId = requestAnimationFrame(tick);
+    inTick = false;
+    // Keep looping while animating or while damping still settles – exactly one pending frame at a time.
+    if (needsFrame && !rafId) rafId = requestAnimationFrame(tick);
   }
 
   function requestRender() {
     renderRequested = true;
+    // During a tick the render (and the follow-up frame) is handled by tick() itself; scheduling a
+    // second requestAnimationFrame here would double the number of ticks per frame.
+    if (inTick) return;
     if (running && !rafId) rafId = requestAnimationFrame(tick);
   }
 
