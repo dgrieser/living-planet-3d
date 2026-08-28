@@ -16,6 +16,7 @@ npm run check:hz     # validate habitable-zone physics (zone edges, T_eq, stella
 npm run check:seasons # validate seasons physics (declination, day length, insolation, calendar mapping)
 npm run check:tides   # validate moon-tides physics (2GMR/r³, 1/r³ scaling, spring/neap, periods, tilt models)
 npm run check:mag     # validate magnetosphere physics (ram pressure, standoff, boundary fits, field-line deformation, Kp, aurora)
+npm run check:galaxy  # validate galactic-zone model (Sun's orbit, zone edges, metallicity gradient, spiral geometry, point cloud statistics)
 ```
 
 ## Project structure
@@ -42,6 +43,8 @@ src/
   sims/moon-tides/   physics.js (tidal acceleration, equilibrium bulge, spring/neap, Kepler periods, tilt models – pure JS), index.js
   sims/magnetosphere/ physics.js (ram pressure, magnetopause standoff, Shue boundary, dipole lines,
                      field-line deformation, streamlines, Kp-style index, aurora oval – pure JS), index.js
+  sims/galactic-zone/ model.js (config object with zone edges, Sun's orbit, metallicity gradient, log-spiral
+                     arms, seeded 50 000-point galaxy generator – pure JS), index.js
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
   check-i18n.mjs     key-parity check for locale files
@@ -50,6 +53,7 @@ scripts/
   check-seasons.mjs  validates the seasons physics against textbook values (npm run check:seasons)
   check-moon-tides.mjs validates the moon-tides physics (npm run check:tides)
   check-magnetosphere.mjs validates the magnetosphere physics (npm run check:mag)
+  check-galactic-zone.mjs validates the galactic-zone model (npm run check:galaxy)
 ```
 
 ## Simulations
@@ -61,6 +65,7 @@ scripts/
 | `seasons` | Seasons, axial tilt & day length | Earth orbiting an emissive Sun with adjustable tilt (0–90°) and rotation period (6–300 h); shader day/night terminator, insolation heat map, live tropics/polar circles/subsolar point, draggable orbit position with season stops, annual-cycle animation, day-length/insolation/temperature readout for any latitude, bilingual what-if presets (0°, 23.4°, 90°, 300 h, 6 h). |
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout, and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
+| `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc), translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
 | `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate appearance, draggable planet (0.1–5 AU) whose surface morphs frozen / habitable / scorched from T_eq, live Kopparapu zone (annulus or 3D shell), evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, bilingual physics card. |
 
 ### solar-orbit notes
@@ -158,6 +163,33 @@ scripts/
 - "Magnetic field off" hides the field lines, boundaries and aurora, sends the particles straight into the
   atmosphere (they are absorbed inside r = 1.045) and releases an escaping-atmosphere plume downwind. Flagged
   as schematic: real atmospheric escape takes hundreds of millions of years.
+
+### galactic-zone notes
+
+- Scene: one unit is 1 000 light-years, the galactic plane is y = 0 and +y is the north galactic pole.
+  Azimuth is measured from +x towards +z, which is clockwise seen from above – the sense in which the
+  Milky Way rotates when viewed from the north galactic pole. The Sun sits at azimuth −90° (top of the
+  overview) on the Orion spur; arms trail, i.e. their azimuth decreases with radius.
+- Everything adjustable lives in `DEFAULT_CONFIG` in `model.js`; `createConfig({ zone: { innerKly, outerKly } })`
+  changes the habitable-zone edges and the overlays, labels and readouts follow. The dev hook
+  `window.__lpGalacticZone.setZoneEdges()` rebuilds them at run time.
+- The Sun: 27 kly (≈ 8.3 kpc), 230 Myr per orbit ⇒ v = 2πr/T ≈ 221 km/s; ≈ 20 "galactic years" since it
+  formed. The rotation curve is taken as flat, so `T(r) = 230 Myr · r / 27 kly`; the spiral pattern rotates
+  rigidly once per 230 Myr (Sun ≈ corotation). Moving the Sun inward therefore makes it overtake the arms on
+  the timeline, moving it outward makes it lag – both flagged as schematic in the UI.
+- Readouts: heavy elements relative to the Sun from the radial gradient `[Fe/H] ≈ −0.06 dex/kpc · (r − r☉)`
+  (≈ 0.47× at 45 kly, 1.8× at 13 kly); "supernova hazard" ∝ stellar surface density of an exponential disc
+  with scale length 2.6 kpc (`exp[(r☉ − r)/h]`, ≈ 13× at 5 kly) – an order-of-magnitude teaching number.
+- Galaxy: four logarithmic arms `r = r₀·exp(k·Δφ)` with pitch 12.5° (Scutum–Centaurus and Perseus major,
+  Sagittarius and Norma minor), pinned by the radius at which each crosses the Sun's azimuth (16 / 21.5 /
+  32.5 / 44 kly), plus the Orion spur (22.5–32.5 kly) carrying the Sun. Radii are drawn from Gamma(2, h)
+  (the radial pdf of an exponential disc), arm offsets are Gaussian across the arm, the bar/bulge is an
+  exponential blob squashed to 0.42 × 0.6 axis ratios and aligned with the major-arm roots. Colours: warm
+  bulge, blue-white arm cores, pink HII regions, dim inter-arm disc; brightness fades with radius.
+- Rendering: one `THREE.Points` with per-point colour, size and twinkle phase; the vertex shader adds
+  perspective sizing, a faint twinkle and a near-camera fade. Zone overlays are flat radial shaders
+  (soft band between two radii, rims, pulsing core) with `depthTest` off so they read as overlays; hit meshes
+  on layer 1 drive the tooltips. Labels are canvas sprites; arm labels are children of the rotating group.
 
 ## Adding a simulation
 

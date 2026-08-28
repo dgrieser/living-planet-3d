@@ -74,7 +74,10 @@
     "perCubicCentimeter": "cm⁻³",
     "kilometersPerSecond": "km/s",
     "nanopascal": "nPa",
-    "earthRadii": "R⊕"
+    "earthRadii": "R⊕",
+    "lightYears": "ly",
+    "millionYears": "Myr",
+    "kiloparsec": "kpc"
   },
   "sims": {
     "axialTilt": {
@@ -692,6 +695,117 @@
       },
       "hint": "Move the sliders, then launch a CME",
       "credit": "Earth texture: Solar System Scope (CC BY 4.0)"
+    },
+    "galacticZone": {
+      "title": "The galactic habitable zone",
+      "description": "Fly through a schematic Milky Way to the Sun’s place 27,000 light-years from the centre – and see why not too close and not too far is just right.",
+      "schematic": {
+        "tag": "Schematic",
+        "text": "A stylised Milky Way – arm shapes, colours and zone edges are illustrative, not measured."
+      },
+      "notice": "Schematic model: the arms, colours and zone edges are illustrative. Distances, the Sun’s orbit and the metallicity gradient follow published values.",
+      "sections": {
+        "sun": "The Sun",
+        "time": "Galactic orbit",
+        "view": "View"
+      },
+      "controls": {
+        "sunRadius": "Distance from the galactic centre",
+        "sunHome": "Back to 27,000 ly",
+        "time": "Simulation time",
+        "play": "Play orbit",
+        "pause": "Pause",
+        "timeHint": "One revolution of the spiral pattern takes 230 million years – about 40 seconds here. The Sun orbits with the period of its current radius, so away from 27,000 ly it drifts through the arms.",
+        "ring": "Habitable ring",
+        "zones": "Danger & metal-poor zones",
+        "armLabels": "Arm labels",
+        "camera": "Camera",
+        "cameraOverview": "Overview",
+        "cameraSun": "Sun’s location"
+      },
+      "status": {
+        "label": "Where the Sun sits",
+        "inner": "Too close – hostile",
+        "innerHint": "Dense star fields near the centre: intense radiation, frequent supernovae and close stellar encounters that disturb planetary orbits.",
+        "habitable": "Galactic habitable zone",
+        "habitableHint": "Far enough from the centre to be calm, close enough to have inherited the heavy elements that rocky planets are made of.",
+        "outer": "Too far – metal-poor",
+        "outerHint": "Few generations of stars have lived and died out here, so gas clouds hold too few heavy elements to build rocky planets easily."
+      },
+      "facts": {
+        "distance": "Distance from the centre",
+        "period": "Orbital period",
+        "speed": "Orbital speed",
+        "galacticYears": "Orbits since the Sun formed",
+        "supernova": "Supernova rate vs. the Sun today",
+        "metals": "Heavy elements vs. the Sun today",
+        "orbits": "Orbits on the timeline"
+      },
+      "tooltip": {
+        "innerTitle": "Inner galaxy",
+        "inner": "Higher radiation, frequent supernovae",
+        "habitableTitle": "Galactic habitable zone",
+        "habitable": "Calm enough, rich enough in heavy elements – about 13,000 to 33,000 light-years from the centre.",
+        "outerTitle": "Outer disc",
+        "outer": "Too few heavy elements for rocky planets",
+        "sunTitle": "The Sun",
+        "sun": "{distance} light-years from the galactic centre, on the Orion spur"
+      },
+      "labels": {
+        "sun": "Sun",
+        "centre": "Galactic centre",
+        "habitable": "Habitable zone",
+        "inner": "Radiation & supernovae",
+        "outer": "Too few heavy elements"
+      },
+      "arms": {
+        "scutumCentaurus": "Scutum–Centaurus arm",
+        "sagittarius": "Sagittarius arm",
+        "perseus": "Perseus arm",
+        "norma": "Norma / Outer arm",
+        "orion": "Orion spur"
+      },
+      "legend": {
+        "bulge": "Bulge & bar – old stars",
+        "arms": "Spiral arms – young stars",
+        "hii": "Star-forming regions",
+        "habitable": "Galactic habitable zone",
+        "danger": "Inner galaxy – radiation, supernovae",
+        "metalPoor": "Outer disc – too few heavy elements",
+        "sun": "Sun",
+        "orbit": "Sun’s orbit"
+      },
+      "info": {
+        "title": "A favourable address",
+        "body": [
+          "Our solar system sits in a favorable region of the Milky Way — far enough from the dangerous, radiation-rich center, yet close enough to regions rich in the chemical elements life requires.",
+          "Near the centre stars are packed a hundred times more densely than around the Sun. Supernovae explode more often, their radiation can strip ozone layers and kill off surface life, and passing stars disturb the orbits of comets and planets. In the sparse outer disc the opposite problem arises: too few stars have lived and died to enrich the gas with carbon, oxygen, silicon and iron — the very elements rocky planets and living things are made of.",
+          "In between lies a broad ring, commonly quoted as roughly 13,000 to 33,000 light-years from the centre, where both conditions are met. The Sun orbits at about 27,000 light-years, once every 230 million years — it has completed around twenty such galactic years since it formed."
+        ]
+      },
+      "model": {
+        "title": "About the model",
+        "zoneLabel": "Galactic habitable zone",
+        "zoneFormula": "{inner} ly  ≤  r  ≤  {outer} ly   ({innerKpc}–{outerKpc} kpc)",
+        "zoneNote": "A commonly cited range; Lineweaver, Fenner & Gibson (2004) find the highest probability for complex life between about 7 and 9 kpc. The edges are configurable constants in the model.",
+        "periodLabel": "The Sun’s orbit",
+        "periodFormula": "T = 2πr / v   →   r = {sun} ly, v ≈ {speed} km/s   ⇒   T ≈ {period} Myr",
+        "periodNote": "The rotation curve is taken as flat (v = const), so stars further out need proportionally longer: T(r) = T☉ · r/r☉.",
+        "galacticYearLabel": "Galactic years",
+        "galacticYearFormula": "4.6 Gyr / {period} Myr ≈ {galacticYears}",
+        "galacticYearNote": "The Sun has circled the galactic centre about twenty times since it formed.",
+        "supernovaLabel": "Supernova hazard (schematic)",
+        "supernovaFormula": "rate(r) / rate(r☉) = exp[(r☉ − r) / h],   h = {scaleLength} kly",
+        "supernovaNote": "Taken proportional to the stellar surface density of an exponential disc with scale length 2.6 kpc. The real rate also follows star formation and the bulge – treat the number as an order of magnitude.",
+        "metalsLabel": "Heavy elements (metallicity gradient)",
+        "metalsFormula": "[Fe/H](r) ≈ −0.06 dex/kpc · (r − r☉)",
+        "metalsNote": "The observed radial abundance gradient of the Milky Way’s disc: at 45,000 ly the gas holds roughly half the Sun’s share of heavy elements, at 13,000 ly nearly twice as much.",
+        "spiralLabel": "Spiral arms",
+        "spiralFormula": "r(φ) = r₀ · exp(k · Δφ),   k = tan({pitch}°)",
+        "spiralNote": "{arms} logarithmic arms (two major, two minor) plus the Orion spur that carries the Sun. Their shapes, the bar and the point distribution are stylised; the pattern rotates rigidly at the Sun’s angular speed, because the Sun is close to the corotation radius.",
+        "scaleNote": "One scene unit is 1,000 light-years; the disc is drawn out to 50,000 light-years with a thin-disc scale height of about 650 light-years. Point brightness and colours are stylised."
+      },
+      "hint": "Hover the zones for details · Drag the distance slider"
     }
   }
 }

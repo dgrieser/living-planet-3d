@@ -74,7 +74,10 @@
     "perCubicCentimeter": "cm⁻³",
     "kilometersPerSecond": "km/s",
     "nanopascal": "nPa",
-    "earthRadii": "R⊕"
+    "earthRadii": "R⊕",
+    "lightYears": "Lj",
+    "millionYears": "Mio. Jahre",
+    "kiloparsec": "kpc"
   },
   "sims": {
     "axialTilt": {
@@ -692,6 +695,117 @@
       },
       "hint": "Regler bewegen, dann einen CME auslösen",
       "credit": "Erdtextur: Solar System Scope (CC BY 4.0)"
+    },
+    "galacticZone": {
+      "title": "Die galaktische habitable Zone",
+      "description": "Fliege durch eine schematische Milchstraße zum Platz der Sonne 27.000 Lichtjahre vom Zentrum – und sieh, warum nicht zu nah und nicht zu fern genau richtig ist.",
+      "schematic": {
+        "tag": "Schematisch",
+        "text": "Eine stilisierte Milchstraße – Armformen, Farben und Zonengrenzen sind illustrativ, nicht gemessen."
+      },
+      "notice": "Schematisches Modell: Arme, Farben und Zonengrenzen sind illustrativ. Entfernungen, die Bahn der Sonne und der Metallizitätsgradient folgen publizierten Werten.",
+      "sections": {
+        "sun": "Die Sonne",
+        "time": "Galaktischer Umlauf",
+        "view": "Ansicht"
+      },
+      "controls": {
+        "sunRadius": "Abstand vom galaktischen Zentrum",
+        "sunHome": "Zurück zu 27.000 Lj",
+        "time": "Simulationszeit",
+        "play": "Umlauf abspielen",
+        "pause": "Pause",
+        "timeHint": "Ein Umlauf des Spiralmusters dauert 230 Millionen Jahre – hier etwa 40 Sekunden. Die Sonne kreist mit der Periode ihres aktuellen Radius, abseits von 27.000 Lj driftet sie also durch die Arme.",
+        "ring": "Habitabler Ring",
+        "zones": "Gefahren- & metallarme Zonen",
+        "armLabels": "Arm-Beschriftungen",
+        "camera": "Kamera",
+        "cameraOverview": "Übersicht",
+        "cameraSun": "Standort der Sonne"
+      },
+      "status": {
+        "label": "Wo die Sonne steht",
+        "inner": "Zu nah – lebensfeindlich",
+        "innerHint": "Dichte Sternfelder nahe dem Zentrum: intensive Strahlung, häufige Supernovae und nahe Sternbegegnungen, die Planetenbahnen stören.",
+        "habitable": "Galaktische habitable Zone",
+        "habitableHint": "Weit genug vom Zentrum, um ruhig zu sein, nah genug, um die schweren Elemente geerbt zu haben, aus denen Gesteinsplaneten bestehen.",
+        "outer": "Zu fern – metallarm",
+        "outerHint": "Hier draußen haben nur wenige Sterngenerationen gelebt und sind gestorben, die Gaswolken enthalten daher zu wenige schwere Elemente, um leicht Gesteinsplaneten zu bilden."
+      },
+      "facts": {
+        "distance": "Abstand vom Zentrum",
+        "period": "Umlaufzeit",
+        "speed": "Bahngeschwindigkeit",
+        "galacticYears": "Umläufe seit Sonnenentstehung",
+        "supernova": "Supernova-Rate ggü. Sonne heute",
+        "metals": "Schwere Elemente ggü. Sonne heute",
+        "orbits": "Umläufe auf der Zeitleiste"
+      },
+      "tooltip": {
+        "innerTitle": "Innere Galaxis",
+        "inner": "Höhere Strahlung, häufige Supernovae",
+        "habitableTitle": "Galaktische habitable Zone",
+        "habitable": "Ruhig genug, reich genug an schweren Elementen – etwa 13.000 bis 33.000 Lichtjahre vom Zentrum.",
+        "outerTitle": "Äußere Scheibe",
+        "outer": "Zu wenige schwere Elemente für Gesteinsplaneten",
+        "sunTitle": "Die Sonne",
+        "sun": "{distance} Lichtjahre vom galaktischen Zentrum, im Orion-Sporn"
+      },
+      "labels": {
+        "sun": "Sonne",
+        "centre": "Galaktisches Zentrum",
+        "habitable": "Habitable Zone",
+        "inner": "Strahlung & Supernovae",
+        "outer": "Zu wenige schwere Elemente"
+      },
+      "arms": {
+        "scutumCentaurus": "Scutum-Centaurus-Arm",
+        "sagittarius": "Sagittarius-Arm",
+        "perseus": "Perseus-Arm",
+        "norma": "Norma- / Äußerer Arm",
+        "orion": "Orion-Sporn"
+      },
+      "legend": {
+        "bulge": "Bulge & Balken – alte Sterne",
+        "arms": "Spiralarme – junge Sterne",
+        "hii": "Sternentstehungsgebiete",
+        "habitable": "Galaktische habitable Zone",
+        "danger": "Innere Galaxis – Strahlung, Supernovae",
+        "metalPoor": "Äußere Scheibe – zu wenige schwere Elemente",
+        "sun": "Sonne",
+        "orbit": "Bahn der Sonne"
+      },
+      "info": {
+        "title": "Eine günstige Adresse",
+        "body": [
+          "Unser Sonnensystem liegt in einer günstigen Region der Milchstraße — weit genug vom gefährlichen, strahlungsreichen Zentrum entfernt, aber nahe genug an Regionen, die reich an den für Leben nötigen chemischen Elementen sind.",
+          "Nahe dem Zentrum stehen die Sterne hundertmal dichter als in der Umgebung der Sonne. Supernovae explodieren häufiger, ihre Strahlung kann Ozonschichten abtragen und Leben an der Oberfläche auslöschen, und vorbeiziehende Sterne stören die Bahnen von Kometen und Planeten. In der dünn besiedelten äußeren Scheibe stellt sich das umgekehrte Problem: Zu wenige Sterne haben gelebt und sind gestorben, um das Gas mit Kohlenstoff, Sauerstoff, Silizium und Eisen anzureichern — genau den Elementen, aus denen Gesteinsplaneten und Lebewesen bestehen.",
+          "Dazwischen liegt ein breiter Ring, meist mit etwa 13.000 bis 33.000 Lichtjahren Abstand vom Zentrum angegeben, in dem beide Bedingungen erfüllt sind. Die Sonne kreist in rund 27.000 Lichtjahren Abstand, einmal in 230 Millionen Jahren — seit ihrer Entstehung hat sie etwa zwanzig solcher galaktischen Jahre vollendet."
+        ]
+      },
+      "model": {
+        "title": "Zum Modell",
+        "zoneLabel": "Galaktische habitable Zone",
+        "zoneFormula": "{inner} Lj  ≤  r  ≤  {outer} Lj   ({innerKpc}–{outerKpc} kpc)",
+        "zoneNote": "Ein häufig zitierter Bereich; Lineweaver, Fenner & Gibson (2004) finden die höchste Wahrscheinlichkeit für komplexes Leben zwischen etwa 7 und 9 kpc. Die Grenzen sind konfigurierbare Konstanten im Modell.",
+        "periodLabel": "Die Bahn der Sonne",
+        "periodFormula": "T = 2πr / v   →   r = {sun} Lj, v ≈ {speed} km/s   ⇒   T ≈ {period} Mio. Jahre",
+        "periodNote": "Die Rotationskurve wird als flach angenommen (v = konst.), weiter außen liegende Sterne brauchen daher proportional länger: T(r) = T☉ · r/r☉.",
+        "galacticYearLabel": "Galaktische Jahre",
+        "galacticYearFormula": "4,6 Mrd. Jahre / {period} Mio. Jahre ≈ {galacticYears}",
+        "galacticYearNote": "Die Sonne hat das galaktische Zentrum seit ihrer Entstehung etwa zwanzigmal umrundet.",
+        "supernovaLabel": "Supernova-Gefahr (schematisch)",
+        "supernovaFormula": "Rate(r) / Rate(r☉) = exp[(r☉ − r) / h],   h = {scaleLength} kLj",
+        "supernovaNote": "Proportional zur stellaren Flächendichte einer exponentiellen Scheibe mit Skalenlänge 2,6 kpc angesetzt. Die tatsächliche Rate folgt auch der Sternentstehung und dem Bulge – die Zahl ist als Größenordnung zu verstehen.",
+        "metalsLabel": "Schwere Elemente (Metallizitätsgradient)",
+        "metalsFormula": "[Fe/H](r) ≈ −0,06 dex/kpc · (r − r☉)",
+        "metalsNote": "Der beobachtete radiale Häufigkeitsgradient der Milchstraßenscheibe: Bei 45.000 Lj enthält das Gas etwa halb so viele schwere Elemente wie die Sonne, bei 13.000 Lj fast doppelt so viele.",
+        "spiralLabel": "Spiralarme",
+        "spiralFormula": "r(φ) = r₀ · exp(k · Δφ),   k = tan({pitch}°)",
+        "spiralNote": "{arms} logarithmische Arme (zwei Haupt-, zwei Nebenarme) plus der Orion-Sporn, der die Sonne trägt. Ihre Formen, der Balken und die Punktverteilung sind stilisiert; das Muster rotiert starr mit der Winkelgeschwindigkeit der Sonne, weil die Sonne nahe am Korotationsradius liegt.",
+        "scaleNote": "Eine Szeneneinheit entspricht 1.000 Lichtjahren; die Scheibe ist bis 50.000 Lichtjahre gezeichnet, mit einer Skalenhöhe der dünnen Scheibe von etwa 650 Lichtjahren. Punkthelligkeit und Farben sind stilisiert."
+      },
+      "hint": "Zonen mit der Maus erkunden · Abstandsregler ziehen"
     }
   }
 }

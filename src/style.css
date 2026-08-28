@@ -516,3 +516,59 @@ a:hover { color: #a9d9ff; }
 @media (max-width: 720px) {
   .lp-storm-card { left: 8px; right: 8px; bottom: auto; top: 8px; width: auto; }
 }
+
+/* ---------- galactic-zone simulation ---------- */
+.lp-schematic-badge {
+  position: absolute; left: 16px; top: 16px; z-index: 10;
+  display: flex; align-items: center; gap: 10px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 6px 12px 6px 6px;
+  font-size: 0.78rem; color: var(--lp-text-muted);
+  background: var(--lp-bg-elevated);
+  backdrop-filter: var(--lp-blur); -webkit-backdrop-filter: var(--lp-blur);
+  border: 1px solid rgba(255, 209, 102, 0.45); border-radius: 999px;
+  box-shadow: var(--lp-shadow);
+  pointer-events: none;
+}
+.lp-schematic-badge__tag {
+  flex: none; padding: 3px 10px; border-radius: 999px;
+  font-weight: 700; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #1a1400; background: var(--lp-focus);
+}
+.lp-schematic-badge__text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.lp-tooltip {
+  position: absolute; z-index: 12; pointer-events: none;
+  max-width: 260px; padding: 8px 12px;
+  font-size: 0.82rem; line-height: 1.4; color: var(--lp-text);
+  background: var(--lp-bg-elevated); backdrop-filter: var(--lp-blur); -webkit-backdrop-filter: var(--lp-blur);
+  border: 1px solid var(--lp-border); border-left-width: 4px; border-radius: var(--lp-radius-sm);
+  box-shadow: var(--lp-shadow);
+}
+.lp-tooltip[hidden] { display: none; }
+.lp-tooltip__title { display: block; margin-bottom: 2px; font-size: 0.8rem; }
+.lp-tooltip__body { color: var(--lp-text-muted); }
+.lp-tooltip--inner { border-left-color: #ff5a4a; }
+.lp-tooltip--inner .lp-tooltip__title { color: #ffc7b8; }
+.lp-tooltip--habitable { border-left-color: #5ee08c; }
+.lp-tooltip--habitable .lp-tooltip__title { color: #b8f5cf; }
+.lp-tooltip--outer { border-left-color: #7f9bc4; }
+.lp-tooltip--outer .lp-tooltip__title { color: #cfe0ff; }
+.lp-tooltip--sun { border-left-color: #ffd166; }
+.lp-tooltip--sun .lp-tooltip__title { color: #ffe1a3; }
+
+.lp-facts--gz { grid-template-columns: minmax(0, 1fr) max-content; }
+.lp-facts--gz dd { white-space: nowrap; }
+
+.lp-readout--zone { transition: border-color 200ms ease, background 200ms ease; }
+.lp-readout--zone.is-inner { border-color: rgba(255, 107, 74, 0.55); background: rgba(255, 107, 74, 0.08); }
+.lp-readout--zone.is-habitable { border-color: rgba(90, 220, 140, 0.5); background: rgba(90, 220, 140, 0.07); }
+.lp-readout--zone.is-outer { border-color: rgba(127, 155, 196, 0.55); background: rgba(127, 155, 196, 0.09); }
+.lp-state--gz-inner { color: #ffc7b8; background: rgba(255, 107, 74, 0.2); border-color: rgba(255, 107, 74, 0.65); }
+.lp-state--gz-habitable { color: #b8f5cf; background: rgba(90, 220, 140, 0.16); border-color: rgba(90, 220, 140, 0.55); }
+.lp-state--gz-outer { color: #cfe0ff; background: rgba(127, 155, 196, 0.2); border-color: rgba(127, 155, 196, 0.6); }
+
+@media (max-width: 720px) {
+  .lp-schematic-badge { left: 8px; top: 8px; padding-right: 8px; }
+  .lp-schematic-badge__text { display: none; }
+}

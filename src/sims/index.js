@@ -45,6 +45,13 @@ export const simulations = [
     icon: '🧲',
     load: () => import('./magnetosphere/index.js'),
   },
+  {
+    id: 'galactic-zone',
+    titleKey: 'sims.galacticZone.title',
+    descriptionKey: 'sims.galacticZone.description',
+    icon: '🌌',
+    load: () => import('./galactic-zone/index.js'),
+  },
 ];
 
 export function findSimulation(id) {
