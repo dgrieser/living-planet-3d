@@ -65,7 +65,12 @@
     "solarFlux": "S☉",
     "gigayears": "Gyr",
     "minutes": "min",
-    "wattsPerSquareMeter": "W/m²"
+    "wattsPerSquareMeter": "W/m²",
+    "hoursPerSecond": "h/s",
+    "kyrPerSecond": "kyr/s",
+    "meters": "m",
+    "metersPerSecondSquared": "m/s²",
+    "kyr": "kyr"
   },
   "sims": {
     "axialTilt": {
@@ -410,6 +415,162 @@
         "september": "22 Sep",
         "december": "21 Dec"
       }
+    },
+    "moonTides": {
+      "title": "The Moon & the tides",
+      "description": "Watch the Moon raise two tidal bulges, switch the Sun on for spring and neap tides, move the Moon closer or farther away – and remove it to see Earth’s axis start to wander.",
+      "views": {
+        "label": "View",
+        "tides": "Tides",
+        "axis": "Axis stability"
+      },
+      "sections": {
+        "moon": "Moon",
+        "tides": "Tides",
+        "axis": "Axis stability",
+        "view": "View"
+      },
+      "controls": {
+        "distance": "Moon distance",
+        "exaggeration": "Bulge exaggeration",
+        "speed": "Rotation speed",
+        "axisSpeed": "Time lapse",
+        "play": "Play",
+        "pause": "Pause",
+        "sun": "Sun contribution (spring & neap tides)",
+        "elongation": "Moon position (angle from the Sun)",
+        "phases": "Moon phase presets",
+        "removeMoon": "Remove Moon",
+        "restoreMoon": "Bring the Moon back",
+        "toScale": "Moon distance to scale",
+        "labels": "Labels",
+        "trace": "Precession trace",
+        "cone": "Precession cone",
+        "orbitPlane": "Ecliptic plane & Moon orbit",
+        "camera": "Camera",
+        "cameraSide": "Side view",
+        "cameraTop": "Top view"
+      },
+      "phases": {
+        "new": "New moon",
+        "waxingCrescent": "Waxing crescent",
+        "firstQuarter": "First quarter",
+        "waxingGibbous": "Waxing gibbous",
+        "full": "Full moon",
+        "waningGibbous": "Waning gibbous",
+        "lastQuarter": "Last quarter",
+        "waningCrescent": "Waning crescent"
+      },
+      "moonFacts": {
+        "distance": "Distance",
+        "acceleration": "Tidal acceleration",
+        "height": "Bulge height (equilibrium)",
+        "relative": "Compared with today",
+        "month": "Orbital period (sidereal)",
+        "lunarDay": "Lunar day (tide cycle)",
+        "removed": "Moon removed – no lunar tides, no stabilising torque",
+        "none": "–"
+      },
+      "tides": {
+        "range": "Tidal range along the equator",
+        "rangeKind": {
+          "spring": "Spring tide",
+          "neap": "Neap tide",
+          "between": "In between",
+          "lunarOnly": "Moon only",
+          "solarOnly": "Sun only",
+          "none": "No tides"
+        },
+        "gaugeTitle": "Tide gauge (marker on the equator)",
+        "level": "Sea level at the marker",
+        "rising": "Rising",
+        "falling": "Falling",
+        "high": "High tide",
+        "low": "Low tide",
+        "chartLabel": "Sea level at the marker over the last 48 simulated hours",
+        "simTime": "Simulated time",
+        "time": "{days} d {hours} h",
+        "realHeightNote": "The readout shows real heights; the 3D bulge is exaggerated by the slider factor.",
+        "noMoon": "Without the Moon only the weak solar tide remains (range ≈ 0.25 m).",
+        "noBodies": "Nothing raises a tide: the ocean rests.",
+        "sunHint": "Spring tides at new and full moon (Sun and Moon aligned), neap tides at the quarters (90° apart)."
+      },
+      "axis": {
+        "tilt": "Axial tilt",
+        "elapsed": "Simulated time",
+        "kyr": "{n} kyr",
+        "myr": "{n} Myr",
+        "chartLabel": "Axial tilt over the last 400,000 years",
+        "precession": "Precession period",
+        "stable": "Stable",
+        "chaotic": "Wandering",
+        "stableNote": "With the Moon the tilt only breathes gently: 23.4° ± 1.3° every 41,000 years, while the axis traces a neat cone once every 25,800 years.",
+        "schematic": "Simplified, schematic model: the real chaotic wandering of the tilt unfolds over millions of years and depends on many factors. Here it is compressed to seconds and stylised (0°–60°).",
+        "schematicTag": "Schematic",
+        "stableBand": "Stable band with Moon: 22.1°–24.5°"
+      },
+      "comparison": {
+        "title": "How large is our Moon?",
+        "intro": "The Moon’s diameter of 3,474 km is about 27 % of Earth’s 12,742 km. No other planet has a moon anywhere near that large in relation to itself:",
+        "system": "System",
+        "diameters": "Moon / planet Ø",
+        "ratio": "Ratio",
+        "note": "Only the dwarf planet Pluto with Charon (≈ 51 %) beats this ratio. Our Moon most likely formed from the debris of a giant impact 4.5 billion years ago.",
+        "names": {
+          "earth": "Earth",
+          "moon": "Moon",
+          "mars": "Mars",
+          "phobos": "Phobos",
+          "jupiter": "Jupiter",
+          "ganymede": "Ganymede",
+          "saturn": "Saturn",
+          "titan": "Titan",
+          "neptune": "Neptune",
+          "triton": "Triton"
+        }
+      },
+      "info": {
+        "title": "Why the Moon matters",
+        "body": "Our Moon is unusually large relative to its planet. It drives the tides — vital for coastal ecosystems — and acts like a stabilizing gyroscope that keeps Earth’s axial tilt from wandering chaotically."
+      },
+      "physics": {
+        "title": "Physics",
+        "accelerationLabel": "Tidal acceleration",
+        "accelerationFormula": "a = 2 · G · M · R / r³",
+        "accelerationNote": "M = mass of the tide-raising body, R = Earth’s radius, r = its distance. The difference between the body’s pull at the surface and at Earth’s centre – it falls off with the cube of the distance: half the distance, eight times the tide.",
+        "heightLabel": "Height of the equilibrium bulge",
+        "heightFormula": "h₀ = a · R / (2 g) = (M / M_E) · (R / r)³ · R",
+        "heightNote": "Moon today: h₀ ≈ 0.36 m, Sun: ≈ 0.16 m (ratio 0.46). The surface is h(θ) = h₀ · (3 cos² θ − 1) / 2, so the trough sits at −h₀/2 and the bulge-to-trough range is 1.5 · h₀ ≈ 0.54 m. Real coastal tides are amplified by ocean basins and shelves.",
+        "rangeLabel": "Spring and neap tides",
+        "rangeFormula": "range = 1.5 · √(hₘ² + hₛ² + 2 hₘ hₛ cos 2ε)",
+        "rangeNote": "ε = angle between Moon and Sun. Aligned (new and full moon): 1.5 (hₘ + hₛ) ≈ 0.78 m; at 90° (quarters): 1.5 (hₘ − hₛ) ≈ 0.29 m.",
+        "keplerLabel": "Orbital period when the distance changes",
+        "keplerFormula": "P = 27.3 d · (r / r₀)^{3/2}",
+        "keplerNote": "Kepler’s third law. The tide cycle follows from the synodic month: one lunar day = 24 h · P_syn / (P_syn − 1 d) ≈ 24 h 50 min.",
+        "stabilityLabel": "Axis stability",
+        "stabilityFormula": "ε(t) = 23.3° + 1.2° · sin(2π t / 41,000 yr)",
+        "stabilityNote": "With the Moon (Milankovitch obliquity cycle). The Moon supplies about two thirds of the torque that makes Earth’s axis precess; this fast precession keeps the spin axis clear of resonances with the slow wobbles of Earth’s orbit. Without the Moon those resonances would let the tilt wander chaotically between about 0° and 60° over millions of years (Laskar, Joutel & Robutel 1993). The wobble shown here is a schematic stand-in.",
+        "scaleNote": "Simplifications: equilibrium tide without lag, friction or coastlines; Moon and Sun in Earth’s equatorial plane; the Sun direction is held fixed (Earth’s annual motion is ignored). Earth and Moon are drawn to the same size scale; the Moon’s distance is compressed unless “to scale” is on."
+      },
+      "legend": {
+        "bulge": "Ocean surface (exaggerated)",
+        "seaLevel": "Undisturbed sea level",
+        "marker": "Tide gauge",
+        "moonLine": "Direction to the Moon",
+        "axis": "Rotation axis",
+        "trace": "Path of the axis (precession)",
+        "eclipticPole": "Ecliptic pole (orbit normal)"
+      },
+      "labels": {
+        "moon": "Moon",
+        "sun": "Sun",
+        "marker": "Tide gauge",
+        "north": "N",
+        "south": "S",
+        "eclipticPole": "Ecliptic pole"
+      },
+      "hint": "Switch between “Tides” and “Axis stability” in the panel",
+      "credit": "Earth texture: Solar System Scope (CC BY 4.0)"
     }
   }
 }

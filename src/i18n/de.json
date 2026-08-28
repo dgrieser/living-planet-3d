@@ -65,7 +65,12 @@
     "solarFlux": "S☉",
     "gigayears": "Mrd. Jahre",
     "minutes": "min",
-    "wattsPerSquareMeter": "W/m²"
+    "wattsPerSquareMeter": "W/m²",
+    "hoursPerSecond": "h/s",
+    "kyrPerSecond": "Jt./s",
+    "meters": "m",
+    "metersPerSecondSquared": "m/s²",
+    "kyr": "Jt."
   },
   "sims": {
     "axialTilt": {
@@ -410,6 +415,162 @@
         "september": "22. Sep",
         "december": "21. Dez"
       }
+    },
+    "moonTides": {
+      "title": "Der Mond & die Gezeiten",
+      "description": "Beobachte, wie der Mond zwei Flutberge aufwirft, schalte die Sonne für Spring- und Nipptiden zu, rücke den Mond näher oder weiter weg – und entferne ihn, um zu sehen, wie die Erdachse zu wandern beginnt.",
+      "views": {
+        "label": "Ansicht",
+        "tides": "Gezeiten",
+        "axis": "Achsenstabilität"
+      },
+      "sections": {
+        "moon": "Mond",
+        "tides": "Gezeiten",
+        "axis": "Achsenstabilität",
+        "view": "Ansicht"
+      },
+      "controls": {
+        "distance": "Mondentfernung",
+        "exaggeration": "Überhöhung der Flutberge",
+        "speed": "Rotationsgeschwindigkeit",
+        "axisSpeed": "Zeitraffer",
+        "play": "Abspielen",
+        "pause": "Pausieren",
+        "sun": "Sonnenanteil (Spring- & Nipptiden)",
+        "elongation": "Mondposition (Winkel zur Sonne)",
+        "phases": "Mondphasen-Vorgaben",
+        "removeMoon": "Mond entfernen",
+        "restoreMoon": "Mond zurückholen",
+        "toScale": "Mondentfernung maßstabsgetreu",
+        "labels": "Beschriftungen",
+        "trace": "Präzessionsspur",
+        "cone": "Präzessionskegel",
+        "orbitPlane": "Ekliptikebene & Mondbahn",
+        "camera": "Kamera",
+        "cameraSide": "Seitenansicht",
+        "cameraTop": "Draufsicht"
+      },
+      "phases": {
+        "new": "Neumond",
+        "waxingCrescent": "Zunehmende Sichel",
+        "firstQuarter": "Erstes Viertel",
+        "waxingGibbous": "Zunehmender Dreiviertelmond",
+        "full": "Vollmond",
+        "waningGibbous": "Abnehmender Dreiviertelmond",
+        "lastQuarter": "Letztes Viertel",
+        "waningCrescent": "Abnehmende Sichel"
+      },
+      "moonFacts": {
+        "distance": "Entfernung",
+        "acceleration": "Gezeitenbeschleunigung",
+        "height": "Höhe des Flutbergs",
+        "relative": "Im Vergleich zu heute",
+        "month": "Umlaufzeit (siderisch)",
+        "lunarDay": "Mondtag (Gezeitenzyklus)",
+        "removed": "Mond entfernt – keine Mondgezeiten, kein stabilisierendes Drehmoment",
+        "none": "–"
+      },
+      "tides": {
+        "range": "Tidenhub entlang des Äquators",
+        "rangeKind": {
+          "spring": "Springtide",
+          "neap": "Nipptide",
+          "between": "Dazwischen",
+          "lunarOnly": "Nur Mond",
+          "solarOnly": "Nur Sonne",
+          "none": "Keine Gezeiten"
+        },
+        "gaugeTitle": "Pegel (Marker am Äquator)",
+        "level": "Wasserstand am Marker",
+        "rising": "Steigend",
+        "falling": "Fallend",
+        "high": "Hochwasser",
+        "low": "Niedrigwasser",
+        "chartLabel": "Wasserstand am Marker über die letzten 48 simulierten Stunden",
+        "simTime": "Simulierte Zeit",
+        "time": "{days} d {hours} h",
+        "realHeightNote": "Die Anzeige nennt reale Höhen; der 3D-Flutberg ist um den Schieberegler-Faktor überhöht.",
+        "noMoon": "Ohne den Mond bleibt nur die schwache Sonnentide (Hub ≈ 0,25 m).",
+        "noBodies": "Nichts erzeugt eine Tide: der Ozean ruht.",
+        "sunHint": "Springtiden bei Neu- und Vollmond (Sonne und Mond in einer Linie), Nipptiden bei den Vierteln (90° versetzt)."
+      },
+      "axis": {
+        "tilt": "Achsneigung",
+        "elapsed": "Simulierte Zeit",
+        "kyr": "{n} Jt.",
+        "myr": "{n} Mio. J.",
+        "chartLabel": "Achsneigung über die letzten 400.000 Jahre",
+        "precession": "Präzessionsperiode",
+        "stable": "Stabil",
+        "chaotic": "Wandernd",
+        "stableNote": "Mit dem Mond atmet die Neigung nur sanft: 23,4° ± 1,3° alle 41.000 Jahre, während die Achse alle 25.800 Jahre einen sauberen Kegel beschreibt.",
+        "schematic": "Vereinfachtes, schematisches Modell: Das echte chaotische Wandern der Achsneigung spielt sich über Millionen Jahre ab und hängt von vielen Faktoren ab. Hier ist es auf Sekunden verdichtet und stilisiert (0°–60°).",
+        "schematicTag": "Schematisch",
+        "stableBand": "Stabiles Band mit Mond: 22,1°–24,5°"
+      },
+      "comparison": {
+        "title": "Wie groß ist unser Mond?",
+        "intro": "Der Monddurchmesser von 3.474 km entspricht etwa 27 % der 12.742 km der Erde. Kein anderer Planet hat im Verhältnis zu sich selbst einen auch nur annähernd so großen Mond:",
+        "system": "System",
+        "diameters": "Mond / Planet Ø",
+        "ratio": "Verhältnis",
+        "note": "Nur der Zwergplanet Pluto mit Charon (≈ 51 %) übertrifft dieses Verhältnis. Unser Mond entstand sehr wahrscheinlich aus den Trümmern eines Rieseneinschlags vor 4,5 Milliarden Jahren.",
+        "names": {
+          "earth": "Erde",
+          "moon": "Mond",
+          "mars": "Mars",
+          "phobos": "Phobos",
+          "jupiter": "Jupiter",
+          "ganymede": "Ganymed",
+          "saturn": "Saturn",
+          "titan": "Titan",
+          "neptune": "Neptun",
+          "triton": "Triton"
+        }
+      },
+      "info": {
+        "title": "Warum der Mond so wichtig ist",
+        "body": "Unser Mond ist im Verhältnis zu seinem Planeten ungewöhnlich groß. Er verursacht die Gezeiten — lebenswichtig für Küstenökosysteme — und wirkt wie ein stabilisierender Kreisel, der verhindert, dass die Erdachse chaotisch auswandert."
+      },
+      "physics": {
+        "title": "Physik",
+        "accelerationLabel": "Gezeitenbeschleunigung",
+        "accelerationFormula": "a = 2 · G · M · R / r³",
+        "accelerationNote": "M = Masse des gezeitenerzeugenden Körpers, R = Erdradius, r = seine Entfernung. Die Differenz zwischen seiner Anziehung an der Oberfläche und im Erdmittelpunkt – sie fällt mit der dritten Potenz der Entfernung ab: halbe Entfernung, achtfache Tide.",
+        "heightLabel": "Höhe des Gleichgewichts-Flutbergs",
+        "heightFormula": "h₀ = a · R / (2 g) = (M / M_E) · (R / r)³ · R",
+        "heightNote": "Mond heute: h₀ ≈ 0,36 m, Sonne: ≈ 0,16 m (Verhältnis 0,46). Die Oberfläche ist h(θ) = h₀ · (3 cos² θ − 1) / 2, das Tal liegt also bei −h₀/2 und der Hub von Berg zu Tal beträgt 1,5 · h₀ ≈ 0,54 m. Reale Küstentiden werden durch Ozeanbecken und Schelfe verstärkt.",
+        "rangeLabel": "Spring- und Nipptiden",
+        "rangeFormula": "Hub = 1,5 · √(hₘ² + hₛ² + 2 hₘ hₛ cos 2ε)",
+        "rangeNote": "ε = Winkel zwischen Mond und Sonne. In einer Linie (Neu- und Vollmond): 1,5 (hₘ + hₛ) ≈ 0,78 m; bei 90° (Viertel): 1,5 (hₘ − hₛ) ≈ 0,29 m.",
+        "keplerLabel": "Umlaufzeit bei veränderter Entfernung",
+        "keplerFormula": "P = 27,3 d · (r / r₀)^{3/2}",
+        "keplerNote": "Drittes Kepler-Gesetz. Der Gezeitenzyklus folgt aus dem synodischen Monat: ein Mondtag = 24 h · P_syn / (P_syn − 1 d) ≈ 24 h 50 min.",
+        "stabilityLabel": "Achsenstabilität",
+        "stabilityFormula": "ε(t) = 23,3° + 1,2° · sin(2π t / 41.000 J.)",
+        "stabilityNote": "Mit dem Mond (Milanković-Zyklus der Achsneigung). Der Mond liefert rund zwei Drittel des Drehmoments, das die Erdachse präzedieren lässt; diese schnelle Präzession hält die Drehachse von Resonanzen mit den langsamen Schwankungen der Erdbahn fern. Ohne Mond würden diese Resonanzen die Neigung über Millionen Jahre chaotisch zwischen etwa 0° und 60° wandern lassen (Laskar, Joutel & Robutel 1993). Das hier gezeigte Taumeln ist ein schematischer Platzhalter.",
+        "scaleNote": "Vereinfachungen: Gleichgewichtsflut ohne Verzögerung, Reibung oder Küsten; Mond und Sonne in der Äquatorebene der Erde; die Sonnenrichtung ist festgehalten (der Jahreslauf der Erde wird vernachlässigt). Erde und Mond sind im gleichen Größenmaßstab gezeichnet; die Mondentfernung ist verkürzt, solange „maßstabsgetreu“ aus ist."
+      },
+      "legend": {
+        "bulge": "Meeresoberfläche (überhöht)",
+        "seaLevel": "Ungestörter Meeresspiegel",
+        "marker": "Pegel",
+        "moonLine": "Richtung zum Mond",
+        "axis": "Rotationsachse",
+        "trace": "Bahn der Achse (Präzession)",
+        "eclipticPole": "Ekliptikpol (Bahnnormale)"
+      },
+      "labels": {
+        "moon": "Mond",
+        "sun": "Sonne",
+        "marker": "Pegel",
+        "north": "N",
+        "south": "S",
+        "eclipticPole": "Ekliptikpol"
+      },
+      "hint": "Im Bedienfeld zwischen „Gezeiten“ und „Achsenstabilität“ wechseln",
+      "credit": "Erdtextur: Solar System Scope (CC BY 4.0)"
     }
   }
 }

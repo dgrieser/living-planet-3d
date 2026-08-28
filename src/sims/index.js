@@ -31,6 +31,13 @@ export const simulations = [
     icon: '🌡️',
     load: () => import('./habitable-zone/index.js'),
   },
+  {
+    id: 'moon-tides',
+    titleKey: 'sims.moonTides.title',
+    descriptionKey: 'sims.moonTides.description',
+    icon: '🌕',
+    load: () => import('./moon-tides/index.js'),
+  },
 ];
 
 export function findSimulation(id) {

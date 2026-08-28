@@ -14,6 +14,7 @@ npm run check:i18n # verify de.json mirrors en.json 1:1
 npm run check:orbits # validate planet-position algorithm against known events
 npm run check:hz     # validate habitable-zone physics (zone edges, T_eq, stellar evolution)
 npm run check:seasons # validate seasons physics (declination, day length, insolation, calendar mapping)
+npm run check:tides   # validate moon-tides physics (2GMR/r³, 1/r³ scaling, spring/neap, periods, tilt models)
 ```
 
 ## Project structure
@@ -37,12 +38,14 @@ src/
   sims/solar-orbit/  kepler.js (JPL approximate elements, pure JS), planets.js (physical data), index.js
   sims/habitable-zone/ physics.js (zone edges, T_eq, stellar evolution, star relations – pure JS), index.js
   sims/seasons/      physics.js (declination, day length, insolation, energy-balance temperature – pure JS), index.js
+  sims/moon-tides/   physics.js (tidal acceleration, equilibrium bulge, spring/neap, Kepler periods, tilt models – pure JS), index.js
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
   check-i18n.mjs     key-parity check for locale files
   check-orbits.mjs   validates kepler.js against equinoxes, oppositions, transits (npm run check:orbits)
   check-habitable-zone.mjs validates physics.js against reference values (npm run check:hz)
   check-seasons.mjs  validates the seasons physics against textbook values (npm run check:seasons)
+  check-moon-tides.mjs validates the moon-tides physics (npm run check:tides)
 ```
 
 ## Simulations
@@ -52,6 +55,7 @@ scripts/
 | `axial-tilt` | Axial tilt & rotation | Tilt a planet's axis, watch the terminator move. |
 | `solar-orbit` | Earth's orbit & the habitable zone | All 8 planets from JPL Keplerian elements (1800–2050), habitable-zone annulus (0.95–1.37 AU), Earth highlight, hypothetical e = 0.3 orbit, true/visual scale, date picker, camera presets, bilingual planet info cards. |
 | `seasons` | Seasons, axial tilt & day length | Earth orbiting an emissive Sun with adjustable tilt (0–90°) and rotation period (6–300 h); shader day/night terminator, insolation heat map, live tropics/polar circles/subsolar point, draggable orbit position with season stops, annual-cycle animation, day-length/insolation/temperature readout for any latitude, bilingual what-if presets (0°, 23.4°, 90°, 300 h, 6 h). |
+| `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate appearance, draggable planet (0.1–5 AU) whose surface morphs frozen / habitable / scorched from T_eq, live Kopparapu zone (annulus or 3D shell), evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, bilingual physics card. |
 
 ### solar-orbit notes
@@ -95,6 +99,25 @@ scripts/
   the Sun keeps its place on screen while the tilt geometry changes through the year. Dragging Earth along the
   orbit freezes the follow and catches up with a short tween afterwards.
 - Earth's visual spin (one turn in ≈ 6.7 s at 24 h, scaled by 24 h/P) is decoupled from the annual animation.
+
+### moon-tides notes
+
+- Tidal acceleration `a = 2GMR/r³`; equilibrium bulge height `h₀ = a·R/(2g) = (M/M_E)(R/r)³·R` (Moon today ≈ 0.36 m,
+  Sun ≈ 0.16 m, ratio 0.46 – computed from the masses/distances, not hard-coded). The ocean shell is
+  `r(n̂) = 1.03 + k·[h₀ₘ·P₂(n̂·m̂) + h₀ₛ·P₂(n̂·ŝ)]` in a vertex shader (`P₂(c) = (3c² − 1)/2`), normals corrected with the
+  tangential gradient. `k` is the exaggeration slider (10⁵–10⁷, default 10⁶): the real 0.36 m bulge is 5.6·10⁻⁸ Earth radii,
+  so only a factor of about a million makes it visible on a unit sphere. Readouts always show real metres.
+- Frame: Sun direction fixed at +x, Moon and Sun in the equatorial plane. Earth spins once per 24 h solar day; the Moon
+  moves once per synodic month (Kepler III for other distances: `P_sid = 27.32 d·k^{3/2}`, `1/P_syn = 1/P_sid − 1/yr`),
+  so the tide gauge on the equator sees two highs per lunar day (24 h 50 min today). Spring/neap range along the equator:
+  `1.5·√(h₀ₘ² + h₀ₛ² + 2h₀ₘh₀ₛ cos 2ε)`.
+- The Moon's size relative to Earth (27 %) is always to scale; its distance is compressed (6 units at 1×) unless
+  "to scale" is on (60.3 units).
+- View B: ecliptic pole = +y. With the Moon the tilt follows `23.3° + 1.2°·sin(2πt/41 kyr)` and the axis precesses
+  once per 25,772 yr (cone + fading trace). "Remove Moon" hands over (30 kyr smoothstep) to a **schematic** sum of
+  incommensurate sinusoids wandering between 0° and 60° with a 60 kyr time scale, precession slowed 3×; flagged as
+  simplified in the UI. Real chaos (Laskar et al. 1993) unfolds over millions of years.
+- Removing the Moon also switches off the lunar tide in view A (only the solar tide remains if enabled).
 
 ## Adding a simulation
 
