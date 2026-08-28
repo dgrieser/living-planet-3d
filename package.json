@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "check:i18n": "node scripts/check-i18n.mjs",
     "check:orbits": "node scripts/check-orbits.mjs",
-    "check:hz": "node scripts/check-habitable-zone.mjs"
+    "check:hz": "node scripts/check-habitable-zone.mjs",
+    "check:seasons": "node scripts/check-seasons.mjs"
   },
   "dependencies": {
     "three": "^0.185.1"

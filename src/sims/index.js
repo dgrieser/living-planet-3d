@@ -18,6 +18,13 @@ export const simulations = [
     load: () => import('./solar-orbit/index.js'),
   },
   {
+    id: 'seasons',
+    titleKey: 'sims.seasons.title',
+    descriptionKey: 'sims.seasons.description',
+    icon: '🍂',
+    load: () => import('./seasons/index.js'),
+  },
+  {
     id: 'habitable-zone',
     titleKey: 'sims.habitableZone.title',
     descriptionKey: 'sims.habitableZone.description',

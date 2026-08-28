@@ -13,6 +13,7 @@ npm run lint       # ESLint
 npm run check:i18n # verify de.json mirrors en.json 1:1
 npm run check:orbits # validate planet-position algorithm against known events
 npm run check:hz     # validate habitable-zone physics (zone edges, T_eq, stellar evolution)
+npm run check:seasons # validate seasons physics (declination, day length, insolation, calendar mapping)
 ```
 
 ## Project structure
@@ -35,11 +36,13 @@ src/
   sims/<name>/       one folder per simulation
   sims/solar-orbit/  kepler.js (JPL approximate elements, pure JS), planets.js (physical data), index.js
   sims/habitable-zone/ physics.js (zone edges, T_eq, stellar evolution, star relations – pure JS), index.js
+  sims/seasons/      physics.js (declination, day length, insolation, energy-balance temperature – pure JS), index.js
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
   check-i18n.mjs     key-parity check for locale files
   check-orbits.mjs   validates kepler.js against equinoxes, oppositions, transits (npm run check:orbits)
   check-habitable-zone.mjs validates physics.js against reference values (npm run check:hz)
+  check-seasons.mjs  validates the seasons physics against textbook values (npm run check:seasons)
 ```
 
 ## Simulations
@@ -48,6 +51,7 @@ scripts/
 |----|--------|---------|
 | `axial-tilt` | Axial tilt & rotation | Tilt a planet's axis, watch the terminator move. |
 | `solar-orbit` | Earth's orbit & the habitable zone | All 8 planets from JPL Keplerian elements (1800–2050), habitable-zone annulus (0.95–1.37 AU), Earth highlight, hypothetical e = 0.3 orbit, true/visual scale, date picker, camera presets, bilingual planet info cards. |
+| `seasons` | Seasons, axial tilt & day length | Earth orbiting an emissive Sun with adjustable tilt (0–90°) and rotation period (6–300 h); shader day/night terminator, insolation heat map, live tropics/polar circles/subsolar point, draggable orbit position with season stops, annual-cycle animation, day-length/insolation/temperature readout for any latitude, bilingual what-if presets (0°, 23.4°, 90°, 300 h, 6 h). |
 | `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate appearance, draggable planet (0.1–5 AU) whose surface morphs frozen / habitable / scorched from T_eq, live Kopparapu zone (annulus or 3D shell), evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, bilingual physics card. |
 
 ### solar-orbit notes
@@ -72,6 +76,25 @@ scripts/
   with a minimum on-screen size; distances are to scale (1 AU = 10 units).
 - The planet can be dragged in the orbital plane; the pointerdown handler is registered in the capture
   phase and disables OrbitControls for the duration of the drag.
+
+### seasons notes
+
+- Scene: Sun at the origin, ecliptic plane y = 0, Earth orbits counter-clockwise at radius 9 (not to scale).
+  The rotation axis leans towards −x, so orbit angle θ = 0° is the June solstice, 90° the September equinox,
+  180° the December solstice and 270° the March equinox. Declination `δ = arcsin(sin ε · cos θ)`.
+- The orbit is treated as circular; the day-of-year slider maps to θ piecewise-linearly between the real
+  equinox/solstice dates (20 Mar, 21 Jun, 22 Sep, 21 Dec) so the season stops land on the right calendar dates.
+- Day length uses the geometric horizon: `cos H₀ = −tan φ · tan δ`, day = (H₀/180°) · P. The "polar circle"
+  quick button follows the tilt (90° − ε) so it always shows a full polar day/night at the solstices.
+- Daily mean insolation `Q̄ = (S₀/π)(H₀ sin φ sin δ + cos φ cos δ sin H₀)` with S₀ = 1361 W/m² drives the
+  heat-map shader (computed per fragment from the object-space latitude) and the readout.
+- Temperatures are a deliberately simple energy-balance estimate (North 1975 constants A = 203.3 W/m²,
+  B = 2.09, C = 3.8 W/m²/K; albedo 0.31 → 0.62 where the annual mean would drop below 0 °C; seasonal excursion
+  damped to 60 %). The day–night swing scales with √(P/24 h) and vanishes during polar day/night.
+- Camera "Earth" mode follows Earth in its co-rotating frame (camera offset is rotated by Δθ each frame), so
+  the Sun keeps its place on screen while the tilt geometry changes through the year. Dragging Earth along the
+  orbit freezes the follow and catches up with a short tween afterwards.
+- Earth's visual spin (one turn in ≈ 6.7 s at 24 h, scaled by 24 h/P) is decoupled from the annual animation.
 
 ## Adding a simulation
 
