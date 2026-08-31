@@ -8,6 +8,8 @@ import { createScene } from '../../lib/scene.js';
 import { createPanel, createSlider, createToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { bindText } from '../../lib/i18n.js';
 
+const TEXTURE_BASE = `${import.meta.env.BASE_URL}textures/`;
+
 const DEFAULTS = Object.freeze({
   tilt: 23.4, // degrees
   rotationSpeed: 30, // degrees per second (visual, not to scale)
@@ -27,8 +29,9 @@ export default function mount(container, _meta) {
     cameraPosition: [0, 1.6, 6.5],
     controls: { minDistance: 2.5, maxDistance: 30 },
   });
-  const { scene, camera } = sim;
+  const { scene, camera, renderer } = sim;
   camera.lookAt(0, 0, 0);
+  const maxAnisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
   // --- lighting: a distant sun along +X ----------------------------------------
   const sun = new THREE.DirectionalLight(0xfff4e0, 3.2);
@@ -55,15 +58,29 @@ export default function mount(container, _meta) {
   tiltGroup.add(spinGroup);
   scene.add(tiltGroup);
 
-  const planet = new THREE.Mesh(
-    new THREE.SphereGeometry(1, 64, 48),
-    new THREE.MeshStandardMaterial({
-      map: createPlanetTexture(),
-      roughness: 0.85,
-      metalness: 0.0,
-    }),
-  );
+  // Earth's day map; the procedural texture stays as a fallback if the asset is missing.
+  const fallbackTexture = createPlanetTexture();
+  const planetMaterial = new THREE.MeshStandardMaterial({
+    map: fallbackTexture,
+    roughness: 0.85,
+    metalness: 0.0,
+  });
+  const planet = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), planetMaterial);
   spinGroup.add(planet);
+
+  new THREE.TextureLoader().load(
+    `${TEXTURE_BASE}2k_earth_daymap.jpg`,
+    (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = maxAnisotropy;
+      planetMaterial.map = tex;
+      planetMaterial.needsUpdate = true;
+      fallbackTexture.dispose();
+      sim.requestRender();
+    },
+    undefined,
+    () => console.warn('[axial-tilt] earth texture not available - using procedural fallback'),
+  );
 
   // faint atmosphere rim
   const atmosphere = new THREE.Mesh(
@@ -184,7 +201,11 @@ export default function mount(container, _meta) {
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
   hint.append(bindText(el('span'), 'panel.hint'));
-  container.append(hint);
+  const credit = el('div', 'lp-sim__credit');
+  const creditLink = el('a', '', { href: 'https://www.solarsystemscope.com/textures/', target: '_blank', rel: 'noopener noreferrer license' });
+  bindText(creditLink, 'sims.axialTilt.credit');
+  credit.append(creditLink);
+  container.append(hint, credit);
 
   applyState();
   sim.start();
@@ -192,12 +213,13 @@ export default function mount(container, _meta) {
   return () => {
     panel.dispose();
     hint.remove();
+    credit.remove();
     sim.dispose();
     viewport.remove();
   };
 }
 
-// --- procedural textures (no external assets) -------------------------------------
+// --- procedural textures (fallbacks, no external assets) --------------------------
 function createPlanetTexture(size = 512) {
   const canvas = document.createElement('canvas');
   canvas.width = size * 2;
