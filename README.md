@@ -2,6 +2,8 @@
 
 Educational, bilingual (English / German) interactive 3D astronomy simulations built with [Vite](https://vite.dev) and [Three.js](https://threejs.org).
 
+**Live demo:** <https://dgrieser.github.io/living-planet-3d/>
+
 ## Getting started
 
 ```bash
@@ -220,3 +222,32 @@ scripts/
   the view can still be rotated and zoomed.
 - Graceful bilingual fallback message when WebGL is unavailable.
 - Dark space theme; semi-transparent panel with WCAG AA contrast.
+
+## Deployment
+
+Every push to `main` runs [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml),
+which lints, builds and publishes `dist/` to GitHub Pages. The workflow can also be started
+manually from the *Actions* tab (`workflow_dispatch`).
+
+Pages must be configured once in **Settings → Pages → Build and deployment → Source:
+GitHub Actions**.
+
+The Vite `base` is `'./'`, so all assets are referenced relatively and the build works both at
+a domain root and under the `/living-planet-3d/` project-page path. Routing is hash based
+(`#/sim/<id>`), so deep links need no SPA 404 fallback.
+
+## Licence
+
+The code in this repository is released under the
+[BSD Zero Clause License](LICENSE) (SPDX `0BSD`) – use, copy, modify and
+redistribute it for any purpose, with no attribution and no notice-retention
+requirement.
+
+Two things in the tree are **not** covered by that grant and keep their own terms:
+
+- `public/textures/` – planet and Sun maps by
+  [Solar System Scope](https://www.solarsystemscope.com/textures/), licensed
+  **CC BY 4.0**. Reusing them requires keeping the attribution (already shown in
+  the home footer and inside each simulation).
+- `three` and the other npm dependencies, which ship under their own licences
+  (Three.js is MIT).
