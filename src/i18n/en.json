@@ -98,7 +98,8 @@
           "Because the axis keeps pointing in the same direction while the planet orbits the Sun, each hemisphere is tilted towards the Sun for one half of the year and away from it for the other – this is what causes the seasons.",
           "Try setting the tilt to 0° (no seasons) or 90° (extreme seasons, like Uranus) and observe how the day/night boundary changes."
         ]
-      }
+      },
+      "credit": "Earth texture: Solar System Scope (CC BY 4.0)"
     },
     "solarOrbit": {
       "title": "Earth's orbit & the habitable zone",

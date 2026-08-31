@@ -98,7 +98,8 @@
           "Da die Achse während des Umlaufs um die Sonne stets in dieselbe Richtung zeigt, ist jede Hemisphäre eine Hälfte des Jahres zur Sonne hin und die andere Hälfte von ihr weg geneigt – so entstehen die Jahreszeiten.",
           "Stelle die Neigung auf 0° (keine Jahreszeiten) oder 90° (extreme Jahreszeiten wie beim Uranus) und beobachte, wie sich die Tag-Nacht-Grenze verändert."
         ]
-      }
+      },
+      "credit": "Erdtextur: Solar System Scope (CC BY 4.0)"
     },
     "solarOrbit": {
       "title": "Erdbahn & bewohnbare Zone",
