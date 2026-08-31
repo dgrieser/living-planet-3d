@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "license": "0BSD",
   "description": "Educational, bilingual (EN/DE) interactive 3D astronomy simulations built with Vite and Three.js.",
   "scripts": {
     "dev": "vite",
