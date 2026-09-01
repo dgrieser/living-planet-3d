@@ -139,7 +139,7 @@
           "At 0° tilt there are no seasons: climate zones are locked in place and the poles, which never see a high sun, stay frozen. Near Earth's 23.4°, mild seasons keep almost the whole surface livable. At 90° (like Uranus) each pole roasts under months of midnight sun and then freezes through months of polar night – most of the planet becomes uninhabitable."
         ]
       },
-      "credit": "Earth texture: Solar System Scope (CC BY 4.0)"
+      "credit": "Earth textures: Solar System Scope (CC BY 4.0)"
     },
     "solarOrbit": {
       "title": "Earth's orbit & the habitable zone",
@@ -618,7 +618,7 @@
         "eclipticPole": "Ecliptic pole"
       },
       "hint": "Switch between “Tides” and “Axis stability” in the panel",
-      "credit": "Earth texture: Solar System Scope (CC BY 4.0)"
+      "credit": "Earth textures: Solar System Scope (CC BY 4.0)"
     },
     "magnetosphere": {
       "title": "Earth's magnetosphere",
@@ -735,7 +735,7 @@
         "scaleNote": "Lengths are in Earth radii (1 R⊕ = 6371 km) and Earth is drawn to scale. The field-line deformation, the particle streamlines and the CME are qualitative: the dipole is drawn aligned with the rotation axis (the real offset is 11°), and there is no interplanetary magnetic field, no reconnection and no ring current."
       },
       "hint": "Move the sliders, then launch a CME",
-      "credit": "Earth texture: Solar System Scope (CC BY 4.0)"
+      "credit": "Earth textures: Solar System Scope (CC BY 4.0)"
     },
     "galacticZone": {
       "title": "The galactic habitable zone",

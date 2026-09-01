@@ -139,7 +139,7 @@
           "Bei 0° Neigung gibt es keine Jahreszeiten: Die Klimazonen stehen fest, und die Pole, die nie hohen Sonnenstand sehen, bleiben vereist. Nahe der irdischen 23,4° halten milde Jahreszeiten fast die gesamte Oberfläche bewohnbar. Bei 90° (wie Uranus) brät jeder Pol monatelang unter der Mitternachtssonne und friert dann in monatelanger Polarnacht – der größte Teil des Planeten wird unbewohnbar."
         ]
       },
-      "credit": "Erdtextur: Solar System Scope (CC BY 4.0)"
+      "credit": "Erdtexturen: Solar System Scope (CC BY 4.0)"
     },
     "solarOrbit": {
       "title": "Erdbahn & bewohnbare Zone",
@@ -618,7 +618,7 @@
         "eclipticPole": "Ekliptikpol"
       },
       "hint": "Im Bedienfeld zwischen „Gezeiten“ und „Achsenstabilität“ wechseln",
-      "credit": "Erdtextur: Solar System Scope (CC BY 4.0)"
+      "credit": "Erdtexturen: Solar System Scope (CC BY 4.0)"
     },
     "magnetosphere": {
       "title": "Die Magnetosphäre der Erde",
@@ -735,7 +735,7 @@
         "scaleNote": "Längen sind in Erdradien angegeben (1 R⊕ = 6371 km); die Erde ist maßstabsgetreu. Die Verformung der Feldlinien, die Teilchenbahnen und der CME sind qualitativ: Der Dipol liegt hier auf der Rotationsachse (in Wirklichkeit 11° versetzt), und es gibt kein interplanetares Magnetfeld, keine Rekonnexion und keinen Ringstrom."
       },
       "hint": "Regler bewegen, dann einen CME auslösen",
-      "credit": "Erdtextur: Solar System Scope (CC BY 4.0)"
+      "credit": "Erdtexturen: Solar System Scope (CC BY 4.0)"
     },
     "galacticZone": {
       "title": "Die galaktische habitable Zone",

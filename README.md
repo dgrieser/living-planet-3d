@@ -80,6 +80,14 @@ scripts/
   circles it at radius 40 – the equivalent view of the axis keeping its direction while the planet orbits.
   The axis leans towards +x, so orbit angle θ = 0° is the June solstice; declination `δ = arcsin(sin ε · cos θ)`.
   The terminator ring is kept perpendicular to the current Sun direction.
+- The night side shows real city lights (NASA Black Marble data via Solar System Scope's
+  `2k_earth_nightmap.jpg`, CC BY 4.0) as the standard material's emissive map; an `onBeforeCompile` patch
+  multiplies the emissive term by a smoothstep of the sun direction against the surface normal, so the
+  lights fade in across the terminator and vanish in daylight.
+- Ice cover is drawn live: latitude bands frost over as their current seasonal mean drops below 0 °C
+  (fully white at −5 °C – the EBM's own `iceOnsetC`/`iceFullC` thresholds, exposed as `iceFraction()` in
+  `climate.js`) and thaw when warm, so 0° tilt grows permanent caps, Earth's tilt breathes seasonally and
+  90° bares the sunlit pole. A slight emissive keeps ice readable through the polar night.
 - The temperature overlay is a 128-row canvas texture (one row per latitude band) on a slightly larger,
   Lambert-lit sphere: each row is coloured by the seasonal-mean temperature of the seasons energy-balance
   model (`sims/seasons/physics.js`) at the current declination, on a −40 … +60 °C ramp matching the legend.

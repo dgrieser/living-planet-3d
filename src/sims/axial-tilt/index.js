@@ -15,7 +15,7 @@ import { createScene } from '../../lib/scene.js';
 import { createPanel, createSlider, createToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { bindText, t, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import { declinationDeg, seasonAt, normalizeDeg, annualMeanInsolation, temperatureEstimate, EARTH_ROTATION_H } from '../seasons/physics.js';
-import { seasonalExtremes, isLivable, livableBands, bandsFraction, verdictFor, temperatureColor } from './climate.js';
+import { seasonalExtremes, isLivable, livableBands, bandsFraction, verdictFor, temperatureColor, iceFraction } from './climate.js';
 
 const TEXTURE_BASE = `${import.meta.env.BASE_URL}textures/`;
 const KEYS = 'sims.axialTilt';
@@ -106,10 +106,25 @@ export default function mount(container, _meta) {
     roughness: 0.85,
     metalness: 0.0,
   });
+  // City lights (NASA Black Marble data via Solar System Scope) as an emissive map,
+  // gated to the night side: the emissive term is faded out across the terminator.
+  const sunDirUniform = { value: new THREE.Vector3(1, 0, 0) }; // world-space, updated with the orbit
+  planetMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.uSunDir = sunDirUniform;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uSunDir;')
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        vec3 sunViewDir = normalize((viewMatrix * vec4(uSunDir, 0.0)).xyz);
+        totalEmissiveRadiance *= smoothstep(0.08, -0.12, dot(normalize(normal), sunViewDir));`,
+      );
+  };
   const planet = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), planetMaterial);
   spinGroup.add(planet);
 
-  new THREE.TextureLoader().load(
+  const textureLoader = new THREE.TextureLoader();
+  textureLoader.load(
     `${TEXTURE_BASE}2k_earth_daymap.jpg`,
     (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
@@ -122,6 +137,39 @@ export default function mount(container, _meta) {
     undefined,
     () => console.warn('[axial-tilt] earth texture not available - using procedural fallback'),
   );
+  textureLoader.load(
+    `${TEXTURE_BASE}2k_earth_nightmap.jpg`,
+    (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = maxAnisotropy;
+      planetMaterial.emissiveMap = tex;
+      planetMaterial.emissive.set(0xffffff);
+      planetMaterial.emissiveIntensity = 2.8; // punch through the climate overlay and ACES tone mapping
+      planetMaterial.needsUpdate = true; // recompile with USE_EMISSIVEMAP
+      sim.requestRender();
+    },
+    undefined,
+    () => console.warn('[axial-tilt] night texture not available - night side stays dark'),
+  );
+
+  // ice cover: latitude bands whose current seasonal mean drops below 0 °C frost
+  // over (fully white at −5 °C, the EBM's own ice thresholds) and thaw when warm –
+  // so high tilts melt the polar caps and 0° tilt freezes them permanently
+  const iceCanvas = document.createElement('canvas');
+  iceCanvas.width = 2;
+  iceCanvas.height = CLIMATE_ROWS;
+  const iceCtx = iceCanvas.getContext('2d');
+  const iceTexture = new THREE.CanvasTexture(iceCanvas);
+  // slight self-glow so ice stays readable through the polar night
+  const iceOverlay = new THREE.Mesh(
+    new THREE.SphereGeometry(1.004, 96, 64),
+    new THREE.MeshLambertMaterial({
+      map: iceTexture, transparent: true, depthWrite: false,
+      emissive: 0x9fc0dd, emissiveMap: iceTexture, emissiveIntensity: 0.35,
+    }),
+  );
+  iceOverlay.renderOrder = 1;
+  tiltGroup.add(iceOverlay);
 
   // temperature overlay: one canvas row per latitude band, tinted by the model
   const climateCanvas = document.createElement('canvas');
@@ -135,6 +183,7 @@ export default function mount(container, _meta) {
     new THREE.SphereGeometry(1.008, 96, 64),
     new THREE.MeshLambertMaterial({ map: climateTexture, transparent: true, opacity: 0.4, depthWrite: false }),
   );
+  climateOverlay.renderOrder = 2;
   tiltGroup.add(climateOverlay);
 
   // livable-region view: darken the latitude bands that are not livable year-round …
@@ -147,6 +196,7 @@ export default function mount(container, _meta) {
     new THREE.SphereGeometry(1.012, 96, 64),
     new THREE.MeshBasicMaterial({ map: shadeTexture, transparent: true, depthWrite: false }),
   );
+  livableShade.renderOrder = 3;
   tiltGroup.add(livableShade);
 
   // … and mark its borders with latitude rings (a fixed pool, repositioned per tilt)
@@ -169,6 +219,7 @@ export default function mount(container, _meta) {
     new THREE.SphereGeometry(1.03, 48, 32),
     new THREE.MeshBasicMaterial({ color: 0x6fb6ff, transparent: true, opacity: 0.08, side: THREE.BackSide }),
   );
+  atmosphere.renderOrder = 4;
   tiltGroup.add(atmosphere);
 
   // rotation axis (line through poles) – in tiltGroup so it tilts but doesn't spin
@@ -201,29 +252,30 @@ export default function mount(container, _meta) {
   ecliptic.rotation.x = -Math.PI / 2;
   scene.add(ecliptic);
 
-  // pin marker (a "map pin" on the surface) – in spinGroup so it rotates with the planet
+  // pin marker: a small 3D red map pin (needle + ball head), leaning slightly,
+  // its tip anchored at the pinned surface point – in spinGroup so it rotates
+  // with the planet. Slight emissive keeps it readable on the night side.
   const pinMarker = new THREE.Group();
-  const pinStalk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.006, 0.006, 0.09, 8),
-    new THREE.MeshBasicMaterial({ color: 0xe8ecf5 }),
-  );
-  pinStalk.position.y = 1.045;
-  const pinHead = new THREE.Mesh(
-    new THREE.SphereGeometry(0.028, 16, 12),
-    new THREE.MeshBasicMaterial({ color: 0xff5b5b }),
-  );
-  pinHead.position.y = 1.1;
-  pinMarker.add(pinStalk, pinHead);
+  const pinHeadMaterial = new THREE.MeshStandardMaterial({ color: 0xe23a2e, roughness: 0.35, metalness: 0.15, emissive: 0x6b1611 });
+  const pinNeedleMaterial = new THREE.MeshStandardMaterial({ color: 0xcfd4dc, roughness: 0.25, metalness: 0.9, emissive: 0x2a2d33 });
+  const pinNeedle = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.075, 10), pinNeedleMaterial);
+  pinNeedle.position.y = 0.0375; // tip at the group origin
+  const pinHead = new THREE.Mesh(new THREE.SphereGeometry(0.018, 20, 14), pinHeadMaterial);
+  pinHead.position.y = 0.082; // resting on the needle top
+  pinMarker.add(pinNeedle, pinHead);
   pinMarker.visible = false;
   spinGroup.add(pinMarker);
+  const PIN_LEAN = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0.85); // ≈49° off the vertical, so the needle stays visible from above
 
   // --- climate & livable-region textures ---------------------------------------
   // annual-mean insolation per latitude row depends only on the tilt – cache it
   let annualCache = { tilt: NaN, values: new Float64Array(CLIMATE_ROWS) };
   const rowLatitude = (row) => 90 - ((row + 0.5) / CLIMATE_ROWS) * 180; // canvas top = north pole
 
-  function updateClimateTexture() {
-    if (!state.showClimate) return;
+  const rowMeanC = new Float64Array(CLIMATE_ROWS);
+
+  /** Recomputes the per-row seasonal mean temps, then redraws ice (always) and heat bands (if shown). */
+  function updateSurfaceTextures() {
     if (annualCache.tilt !== state.tilt) {
       annualCache.tilt = state.tilt;
       for (let row = 0; row < CLIMATE_ROWS; row++) {
@@ -232,12 +284,26 @@ export default function mount(container, _meta) {
     }
     const decl = declinationDeg(state.tilt, state.orbitAngle);
     for (let row = 0; row < CLIMATE_ROWS; row++) {
-      const { meanC } = temperatureEstimate(rowLatitude(row), state.tilt, decl, EARTH_ROTATION_H, annualCache.values[row]);
-      const [r, g, b] = temperatureColor(meanC);
-      climateCtx.fillStyle = `rgb(${r},${g},${b})`;
-      climateCtx.fillRect(0, row, climateCanvas.width, 1);
+      rowMeanC[row] = temperatureEstimate(rowLatitude(row), state.tilt, decl, EARTH_ROTATION_H, annualCache.values[row]).meanC;
     }
-    climateTexture.needsUpdate = true;
+
+    iceCtx.clearRect(0, 0, iceCanvas.width, CLIMATE_ROWS);
+    for (let row = 0; row < CLIMATE_ROWS; row++) {
+      const cover = iceFraction(rowMeanC[row]);
+      if (cover <= 0) continue;
+      iceCtx.fillStyle = `rgba(228, 240, 252, ${(cover * 0.9).toFixed(3)})`;
+      iceCtx.fillRect(0, row, iceCanvas.width, 1);
+    }
+    iceTexture.needsUpdate = true;
+
+    if (state.showClimate) {
+      for (let row = 0; row < CLIMATE_ROWS; row++) {
+        const [r, g, b] = temperatureColor(rowMeanC[row]);
+        climateCtx.fillStyle = `rgb(${r},${g},${b})`;
+        climateCtx.fillRect(0, row, climateCanvas.width, 1);
+      }
+      climateTexture.needsUpdate = true;
+    }
   }
 
   function updateLivableVisuals(bands) {
@@ -302,7 +368,8 @@ export default function mount(container, _meta) {
       annual: 0,
       annualTilt: NaN,
     };
-    pinMarker.quaternion.setFromUnitVectors(UP, dirLocal);
+    pinMarker.position.copy(dirLocal); // tip on the surface (radius 1)
+    pinMarker.quaternion.setFromUnitVectors(UP, dirLocal).multiply(PIN_LEAN);
     pinMarker.visible = true;
     controls.enableRotate = false;
     syncPinnedCamera();
@@ -335,6 +402,7 @@ export default function mount(container, _meta) {
     raycaster.setFromCamera(pointerNdc, camera);
     const hit = raycaster.intersectObject(planet, false)[0];
     if (hit) setPin(hit.point);
+    else if (pin) unpin(); // clicking past the planet releases the pin
   };
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
   renderer.domElement.addEventListener('pointerup', onPointerUp);
@@ -344,7 +412,8 @@ export default function mount(container, _meta) {
     const theta = THREE.MathUtils.degToRad(state.orbitAngle);
     sunGroup.rotation.y = theta;
     terminator.rotation.y = Math.PI / 2 + theta; // keep the ring perpendicular to the sun
-    updateClimateTexture();
+    sunDirUniform.value.set(Math.cos(theta), 0, -Math.sin(theta)); // for the city-lights shader
+    updateSurfaceTextures();
     updateSeasonReadout();
     updatePinReadout();
     sim.requestRender();
