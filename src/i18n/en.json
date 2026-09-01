@@ -82,21 +82,61 @@
   "sims": {
     "axialTilt": {
       "title": "Axial tilt & rotation",
-      "description": "Tilt a planet's rotation axis and watch how sunlight falls on its surface as it spins.",
+      "description": "Tilt a planet's rotation axis and watch the seasons emerge: how temperatures and the livable share of the surface change over the year.",
       "controls": {
         "tilt": "Axial tilt",
         "rotationSpeed": "Rotation speed",
+        "yearSpeed": "Year speed",
+        "showClimate": "Show temperature bands",
+        "showLivable": "Show livable region",
         "showAxis": "Show rotation axis",
         "showEquator": "Show equator",
         "showTerminator": "Show day/night boundary",
         "sunLabel": "Sun"
       },
+      "seasonStops": {
+        "june": "June",
+        "september": "September",
+        "december": "December",
+        "march": "March"
+      },
+      "readout": {
+        "season": "Current seasons",
+        "pinned": "Pinned place",
+        "habitable": "Livable surface (year-round)",
+        "midLatitude": "45° latitude: summer / winter",
+        "modelNote": "Simple energy-balance estimate – a teaching aid, not a climate model."
+      },
+      "pin": {
+        "hint": "Click the planet to pin a place – the camera follows it.",
+        "unpin": "Unpin",
+        "livable": "Livable",
+        "notLivable": "Not livable"
+      },
+      "verdictLabel": {
+        "uniform": "No seasons",
+        "moderate": "Moderate seasons",
+        "severe": "Severe seasons",
+        "extreme": "Extreme seasons"
+      },
+      "verdict": {
+        "uniform": "Climate stands still: every latitude keeps the same weather all year, and the poles never thaw.",
+        "moderate": "Earth-like: mild seasonal swings spread warmth across the globe – almost the entire surface stays livable.",
+        "severe": "Mid-latitudes swing between scorching summers and hard winters; large regions turn hostile.",
+        "extreme": "Uranus-like: months of midnight sun roast one hemisphere while the other freezes in darkness – most of the planet is uninhabitable."
+      },
+      "legend": {
+        "title": "Seasonal mean temperature",
+        "low": "−40 °C",
+        "high": "+60 °C"
+      },
       "info": {
         "title": "What is axial tilt?",
         "body": [
           "The axial tilt (obliquity) is the angle between a planet's rotation axis and the perpendicular to its orbital plane. Earth's axis is tilted by about 23.4°.",
-          "Because the axis keeps pointing in the same direction while the planet orbits the Sun, each hemisphere is tilted towards the Sun for one half of the year and away from it for the other – this is what causes the seasons.",
-          "Try setting the tilt to 0° (no seasons) or 90° (extreme seasons, like Uranus) and observe how the day/night boundary changes."
+          "The axis keeps pointing at the same spot among the stars while the planet orbits the Sun – shown here from the planet's point of view, with the Sun circling once per year. Whichever hemisphere leans towards the Sun gets long days and a high sun: summer. Half a year later it leans away: winter.",
+          "The coloured bands show an energy-balance estimate of each latitude's seasonal mean temperature (blue = frozen, green = livable, red = scorching), and the readout reports how much of the surface stays livable all year.",
+          "At 0° tilt there are no seasons: climate zones are locked in place and the poles, which never see a high sun, stay frozen. Near Earth's 23.4°, mild seasons keep almost the whole surface livable. At 90° (like Uranus) each pole roasts under months of midnight sun and then freezes through months of polar night – most of the planet becomes uninhabitable."
         ]
       },
       "credit": "Earth texture: Solar System Scope (CC BY 4.0)"

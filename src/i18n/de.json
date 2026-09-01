@@ -82,21 +82,61 @@
   "sims": {
     "axialTilt": {
       "title": "Achsneigung & Rotation",
-      "description": "Neige die Rotationsachse eines Planeten und beobachte, wie das Sonnenlicht auf seine Oberfläche fällt, während er sich dreht.",
+      "description": "Neige die Rotationsachse eines Planeten und beobachte, wie Jahreszeiten entstehen: wie sich Temperaturen und der bewohnbare Anteil der Oberfläche übers Jahr verändern.",
       "controls": {
         "tilt": "Achsneigung",
         "rotationSpeed": "Rotationsgeschwindigkeit",
+        "yearSpeed": "Jahrestempo",
+        "showClimate": "Temperaturbänder anzeigen",
+        "showLivable": "Bewohnbare Region anzeigen",
         "showAxis": "Rotationsachse anzeigen",
         "showEquator": "Äquator anzeigen",
         "showTerminator": "Tag-Nacht-Grenze anzeigen",
         "sunLabel": "Sonne"
       },
+      "seasonStops": {
+        "june": "Juni",
+        "september": "September",
+        "december": "Dezember",
+        "march": "März"
+      },
+      "readout": {
+        "season": "Aktuelle Jahreszeiten",
+        "pinned": "Angehefteter Ort",
+        "habitable": "Bewohnbare Fläche (ganzjährig)",
+        "midLatitude": "45° Breite: Sommer / Winter",
+        "modelNote": "Einfache Energiebilanz-Abschätzung – ein Lehrmodell, kein Klimamodell."
+      },
+      "pin": {
+        "hint": "Klicke auf den Planeten, um einen Ort anzuheften – die Kamera folgt ihm.",
+        "unpin": "Lösen",
+        "livable": "Bewohnbar",
+        "notLivable": "Nicht bewohnbar"
+      },
+      "verdictLabel": {
+        "uniform": "Keine Jahreszeiten",
+        "moderate": "Gemäßigte Jahreszeiten",
+        "severe": "Starke Jahreszeiten",
+        "extreme": "Extreme Jahreszeiten"
+      },
+      "verdict": {
+        "uniform": "Das Klima steht still: Jeder Breitengrad behält das ganze Jahr dasselbe Wetter, und die Pole tauen nie auf.",
+        "moderate": "Wie auf der Erde: Milde jahreszeitliche Schwankungen verteilen die Wärme über den Globus – fast die gesamte Oberfläche bleibt bewohnbar.",
+        "severe": "Die mittleren Breiten pendeln zwischen glühenden Sommern und harten Wintern; große Regionen werden lebensfeindlich.",
+        "extreme": "Wie auf Uranus: Monatelange Mitternachtssonne röstet eine Hemisphäre, während die andere im Dunkeln erstarrt – der größte Teil des Planeten ist unbewohnbar."
+      },
+      "legend": {
+        "title": "Saisonale Mitteltemperatur",
+        "low": "−40 °C",
+        "high": "+60 °C"
+      },
       "info": {
         "title": "Was ist die Achsneigung?",
         "body": [
           "Die Achsneigung (Obliquität) ist der Winkel zwischen der Rotationsachse eines Planeten und der Senkrechten auf seine Bahnebene. Die Erdachse ist um etwa 23,4° geneigt.",
-          "Da die Achse während des Umlaufs um die Sonne stets in dieselbe Richtung zeigt, ist jede Hemisphäre eine Hälfte des Jahres zur Sonne hin und die andere Hälfte von ihr weg geneigt – so entstehen die Jahreszeiten.",
-          "Stelle die Neigung auf 0° (keine Jahreszeiten) oder 90° (extreme Jahreszeiten wie beim Uranus) und beobachte, wie sich die Tag-Nacht-Grenze verändert."
+          "Die Achse zeigt immer auf denselben Punkt am Sternenhimmel, während der Planet die Sonne umrundet – hier aus Sicht des Planeten gezeigt: Die Sonne wandert einmal pro Jahr um ihn herum. Die Hemisphäre, die sich der Sonne zuneigt, bekommt lange Tage und hohen Sonnenstand: Sommer. Ein halbes Jahr später neigt sie sich weg: Winter.",
+          "Die farbigen Bänder zeigen eine Energiebilanz-Abschätzung der saisonalen Mitteltemperatur je Breitengrad (blau = gefroren, grün = lebensfreundlich, rot = glühend heiß), und die Anzeige verrät, wie viel der Oberfläche das ganze Jahr über bewohnbar bleibt.",
+          "Bei 0° Neigung gibt es keine Jahreszeiten: Die Klimazonen stehen fest, und die Pole, die nie hohen Sonnenstand sehen, bleiben vereist. Nahe der irdischen 23,4° halten milde Jahreszeiten fast die gesamte Oberfläche bewohnbar. Bei 90° (wie Uranus) brät jeder Pol monatelang unter der Mitternachtssonne und friert dann in monatelanger Polarnacht – der größte Teil des Planeten wird unbewohnbar."
         ]
       },
       "credit": "Erdtextur: Solar System Scope (CC BY 4.0)"

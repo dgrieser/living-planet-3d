@@ -13,6 +13,7 @@ npm run build      # production build into dist/
 npm run preview    # serve the production build
 npm run lint       # ESLint
 npm run check:i18n # verify de.json mirrors en.json 1:1
+npm run check:axial  # validate axial-tilt climate module (habitable fraction vs. tilt, seasonal extremes, verdict tiers)
 npm run check:orbits # validate planet-position algorithm against known events
 npm run check:hz     # validate habitable-zone physics (zone edges, T_eq, stellar evolution)
 npm run check:seasons # validate seasons physics (declination, day length, insolation, calendar mapping)
@@ -39,6 +40,8 @@ src/
   lib/webgl.js       WebGL availability check (no Three.js import)
   sims/index.js      simulation registry (lazy-loaded modules)
   sims/<name>/       one folder per simulation
+  sims/axial-tilt/   climate.js (seasonal extremes, habitable fraction, verdict tiers, colour ramp – pure JS,
+                     built on the seasons physics), index.js
   sims/solar-orbit/  kepler.js (JPL approximate elements, pure JS), planets.js (physical data), index.js
   sims/habitable-zone/ physics.js (zone edges, T_eq, stellar evolution, star relations – pure JS), index.js
   sims/seasons/      physics.js (declination, day length, insolation, energy-balance temperature – pure JS), index.js
@@ -50,6 +53,7 @@ src/
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
   check-i18n.mjs     key-parity check for locale files
+  check-axial-tilt.mjs validates the axial-tilt climate module (npm run check:axial)
   check-orbits.mjs   validates kepler.js against equinoxes, oppositions, transits (npm run check:orbits)
   check-habitable-zone.mjs validates physics.js against reference values (npm run check:hz)
   check-seasons.mjs  validates the seasons physics against textbook values (npm run check:seasons)
@@ -62,13 +66,38 @@ scripts/
 
 | id | Module | Content |
 |----|--------|---------|
-| `axial-tilt` | Axial tilt & rotation | Tilt a planet's axis, watch the terminator move. |
+| `axial-tilt` | Axial tilt & rotation | Tilt a planet's axis (0–90°) while the Sun circles it once per visual year (planet-centric view); lit temperature-band overlay of the seasonal-mean energy-balance temperature per latitude, livable-region view (green border rings + darkened hostile bands), click-to-pin a place (camera follows it with a live latitude/season/temperature readout and a livable verdict), season-stop buttons (Jun/Sep/Dec/Mar), live readouts for the current seasons, the year-round livable surface fraction with a verdict (no / moderate / severe / extreme seasons) and the 45°-latitude summer/winter means – showing that 0° tilt freezes the poles, ~23.4° keeps almost everything livable and 90° turns most of the planet hostile. |
 | `solar-orbit` | Earth's orbit & the habitable zone | All 8 planets from JPL Keplerian elements (1800–2050), habitable-zone annulus (0.95–1.37 AU), Earth highlight, hypothetical e = 0.3 orbit, true/visual scale, date picker, camera presets, bilingual planet info cards. |
 | `seasons` | Seasons, axial tilt & day length | Earth orbiting an emissive Sun with adjustable tilt (0–90°) and rotation period (6–300 h); shader day/night terminator, insolation heat map, live tropics/polar circles/subsolar point, draggable orbit position with season stops, annual-cycle animation, day-length/insolation/temperature readout for any latitude, bilingual what-if presets (0°, 23.4°, 90°, 300 h, 6 h). |
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout, and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
 | `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc), translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
 | `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate appearance, draggable planet (0.1–5 AU) whose surface morphs frozen / habitable / scorched from T_eq, live Kopparapu zone (annulus or 3D shell), evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, bilingual physics card. |
+
+### axial-tilt notes
+
+- Planet-centric frame: the planet sits at the origin, the ecliptic is y = 0 and the Sun (light, disc, glow)
+  circles it at radius 40 – the equivalent view of the axis keeping its direction while the planet orbits.
+  The axis leans towards +x, so orbit angle θ = 0° is the June solstice; declination `δ = arcsin(sin ε · cos θ)`.
+  The terminator ring is kept perpendicular to the current Sun direction.
+- The temperature overlay is a 128-row canvas texture (one row per latitude band) on a slightly larger,
+  Lambert-lit sphere: each row is coloured by the seasonal-mean temperature of the seasons energy-balance
+  model (`sims/seasons/physics.js`) at the current declination, on a −40 … +60 °C ramp matching the legend.
+  Annual-mean insolation per row is cached per tilt.
+- `climate.js` derives the headline numbers: seasonal extremes are the solstice means; a latitude band counts
+  as livable when its winter mean stays above −25 °C and its summer mean between 0 and 45 °C; the habitable
+  fraction is the area-weighted share of livable bands. The model peaks near Earth's tilt (~100 % livable at
+  20–35°), drops to ~87 % at 0° (permanently frozen poles) and ~45 % at 90° (Uranus-like extremes; the equator
+  even ices over because its annual insolation minimises while ice albedo kicks in). Verdict tiers are
+  pedagogical labels over fixed tilt ranges (≤10° / ≤35° / ≤55° / >55°); all displayed numbers come from the model.
+- The livable-region view draws `livableBands()` (contiguous livable latitude ranges, edges refined by
+  bisection so they move smoothly with the tilt slider) as green latitude rings from a fixed mesh pool and
+  darkens the hostile bands with a second canvas-texture sphere; the displayed fraction is the exact band
+  area `Δsin φ / 2`, which the check script keeps within 3 % of the sampled area-weighted fraction.
+- Clicking the planet (click, not drag) raycasts the surface and pins that place: a marker in the spinning
+  group, the camera held above the point every frame (zoom preserved, orbit rotation disabled until unpinned)
+  and a live readout of latitude, the hemisphere's current season, the seasonal-mean temperature at the
+  current declination and whether the place is livable year-round.
 
 ### solar-orbit notes
 
