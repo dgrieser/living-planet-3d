@@ -7,7 +7,7 @@
  * the two solstices – the annual extremes on a circular orbit. A teaching
  * aid, not a climate model.
  */
-import { declinationDeg, annualMeanInsolation, temperatureEstimate, EARTH_ROTATION_H, EBM, clamp } from '../seasons/physics.js';
+import { declinationDeg, annualMeanInsolation, temperatureEstimate, EARTH_ROTATION_H } from '../seasons/physics.js';
 
 const DEG = Math.PI / 180;
 
@@ -99,15 +99,6 @@ export function livableBands(tiltDeg, stepDeg = 2) {
 /** Area fraction of the sphere covered by latitude bands (exact: ∫cos φ dφ = Δsin φ). */
 export function bandsFraction(bands) {
   return bands.reduce((sum, [lo, hi]) => sum + (Math.sin(hi * DEG) - Math.sin(lo * DEG)) / 2, 0);
-}
-
-/**
- * Visible ice/snow cover fraction for a seasonal-mean temperature, using the
- * energy-balance model's own ice thresholds (onset at 0 °C, full cover at −5 °C)
- * so the drawn ice matches the albedo feedback in the temperature estimate.
- */
-export function iceFraction(tempC) {
-  return clamp((EBM.iceOnsetC - tempC) / (EBM.iceOnsetC - EBM.iceFullC), 0, 1);
 }
 
 // --- temperature colour ramp (matches .lp-heat-legend__bar in style.css) ---------

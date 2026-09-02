@@ -87,12 +87,6 @@ assert('23.4° → moderate', C.verdictFor(EARTH_TILT_DEG) === 'moderate');
 assert('45° → severe', C.verdictFor(45) === 'severe');
 assert('90° → extreme', C.verdictFor(90) === 'extreme');
 
-console.log('— ice cover —');
-check('no ice above 0 °C', C.iceFraction(5), 0, 1e-9);
-check('full ice at −5 °C', C.iceFraction(-5), 1, 1e-9);
-check('half ice at −2.5 °C', C.iceFraction(-2.5), 0.5, 1e-9);
-assert('ice fraction clamped', C.iceFraction(-100) === 1 && C.iceFraction(100) === 0);
-
 console.log('— colour ramp —');
 const validRgb = (c) => Array.isArray(c) && c.length === 3 && c.every((v) => Number.isInteger(v) && v >= 0 && v <= 255);
 assert('ramp endpoints are valid colours', validRgb(C.temperatureColor(-100)) && validRgb(C.temperatureColor(100)));

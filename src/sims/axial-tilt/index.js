@@ -15,7 +15,7 @@ import { createScene } from '../../lib/scene.js';
 import { createPanel, createSlider, createToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { bindText, t, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import { declinationDeg, seasonAt, normalizeDeg, annualMeanInsolation, temperatureEstimate, EARTH_ROTATION_H } from '../seasons/physics.js';
-import { seasonalExtremes, isLivable, livableBands, bandsFraction, verdictFor, temperatureColor, iceFraction } from './climate.js';
+import { seasonalExtremes, isLivable, livableBands, bandsFraction, verdictFor, temperatureColor } from './climate.js';
 
 const TEXTURE_BASE = `${import.meta.env.BASE_URL}textures/`;
 const KEYS = 'sims.axialTilt';
@@ -152,25 +152,6 @@ export default function mount(container, _meta) {
     () => console.warn('[axial-tilt] night texture not available - night side stays dark'),
   );
 
-  // ice cover: latitude bands whose current seasonal mean drops below 0 °C frost
-  // over (fully white at −5 °C, the EBM's own ice thresholds) and thaw when warm –
-  // so high tilts melt the polar caps and 0° tilt freezes them permanently
-  const iceCanvas = document.createElement('canvas');
-  iceCanvas.width = 2;
-  iceCanvas.height = CLIMATE_ROWS;
-  const iceCtx = iceCanvas.getContext('2d');
-  const iceTexture = new THREE.CanvasTexture(iceCanvas);
-  // slight self-glow so ice stays readable through the polar night
-  const iceOverlay = new THREE.Mesh(
-    new THREE.SphereGeometry(1.004, 96, 64),
-    new THREE.MeshLambertMaterial({
-      map: iceTexture, transparent: true, depthWrite: false,
-      emissive: 0x9fc0dd, emissiveMap: iceTexture, emissiveIntensity: 0.35,
-    }),
-  );
-  iceOverlay.renderOrder = 1;
-  tiltGroup.add(iceOverlay);
-
   // temperature overlay: one canvas row per latitude band, tinted by the model
   const climateCanvas = document.createElement('canvas');
   climateCanvas.width = 2;
@@ -183,7 +164,7 @@ export default function mount(container, _meta) {
     new THREE.SphereGeometry(1.008, 96, 64),
     new THREE.MeshLambertMaterial({ map: climateTexture, transparent: true, opacity: 0.4, depthWrite: false }),
   );
-  climateOverlay.renderOrder = 2;
+  climateOverlay.renderOrder = 1;
   tiltGroup.add(climateOverlay);
 
   // livable-region view: darken the latitude bands that are not livable year-round …
@@ -196,7 +177,7 @@ export default function mount(container, _meta) {
     new THREE.SphereGeometry(1.012, 96, 64),
     new THREE.MeshBasicMaterial({ map: shadeTexture, transparent: true, depthWrite: false }),
   );
-  livableShade.renderOrder = 3;
+  livableShade.renderOrder = 2;
   tiltGroup.add(livableShade);
 
   // … and mark its borders with latitude rings (a fixed pool, repositioned per tilt)
@@ -219,7 +200,7 @@ export default function mount(container, _meta) {
     new THREE.SphereGeometry(1.03, 48, 32),
     new THREE.MeshBasicMaterial({ color: 0x6fb6ff, transparent: true, opacity: 0.08, side: THREE.BackSide }),
   );
-  atmosphere.renderOrder = 4;
+  atmosphere.renderOrder = 3;
   tiltGroup.add(atmosphere);
 
   // rotation axis (line through poles) – in tiltGroup so it tilts but doesn't spin
@@ -272,10 +253,8 @@ export default function mount(container, _meta) {
   let annualCache = { tilt: NaN, values: new Float64Array(CLIMATE_ROWS) };
   const rowLatitude = (row) => 90 - ((row + 0.5) / CLIMATE_ROWS) * 180; // canvas top = north pole
 
-  const rowMeanC = new Float64Array(CLIMATE_ROWS);
-
-  /** Recomputes the per-row seasonal mean temps, then redraws ice (always) and heat bands (if shown). */
-  function updateSurfaceTextures() {
+  function updateClimateTexture() {
+    if (!state.showClimate) return;
     if (annualCache.tilt !== state.tilt) {
       annualCache.tilt = state.tilt;
       for (let row = 0; row < CLIMATE_ROWS; row++) {
@@ -284,26 +263,12 @@ export default function mount(container, _meta) {
     }
     const decl = declinationDeg(state.tilt, state.orbitAngle);
     for (let row = 0; row < CLIMATE_ROWS; row++) {
-      rowMeanC[row] = temperatureEstimate(rowLatitude(row), state.tilt, decl, EARTH_ROTATION_H, annualCache.values[row]).meanC;
+      const { meanC } = temperatureEstimate(rowLatitude(row), state.tilt, decl, EARTH_ROTATION_H, annualCache.values[row]);
+      const [r, g, b] = temperatureColor(meanC);
+      climateCtx.fillStyle = `rgb(${r},${g},${b})`;
+      climateCtx.fillRect(0, row, climateCanvas.width, 1);
     }
-
-    iceCtx.clearRect(0, 0, iceCanvas.width, CLIMATE_ROWS);
-    for (let row = 0; row < CLIMATE_ROWS; row++) {
-      const cover = iceFraction(rowMeanC[row]);
-      if (cover <= 0) continue;
-      iceCtx.fillStyle = `rgba(228, 240, 252, ${(cover * 0.9).toFixed(3)})`;
-      iceCtx.fillRect(0, row, iceCanvas.width, 1);
-    }
-    iceTexture.needsUpdate = true;
-
-    if (state.showClimate) {
-      for (let row = 0; row < CLIMATE_ROWS; row++) {
-        const [r, g, b] = temperatureColor(rowMeanC[row]);
-        climateCtx.fillStyle = `rgb(${r},${g},${b})`;
-        climateCtx.fillRect(0, row, climateCanvas.width, 1);
-      }
-      climateTexture.needsUpdate = true;
-    }
+    climateTexture.needsUpdate = true;
   }
 
   function updateLivableVisuals(bands) {
@@ -413,7 +378,7 @@ export default function mount(container, _meta) {
     sunGroup.rotation.y = theta;
     terminator.rotation.y = Math.PI / 2 + theta; // keep the ring perpendicular to the sun
     sunDirUniform.value.set(Math.cos(theta), 0, -Math.sin(theta)); // for the city-lights shader
-    updateSurfaceTextures();
+    updateClimateTexture();
     updateSeasonReadout();
     updatePinReadout();
     sim.requestRender();
