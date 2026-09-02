@@ -24,7 +24,8 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createSlider, createToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createSection, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as M from './model.js';
 
@@ -56,6 +57,10 @@ const DEFAULTS = Object.freeze({
   sunRadiusKly: CONFIG.sun.radiusKly,
   timeMyr: 0,
   playing: true,
+});
+
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+const VIEW_DEFAULTS = Object.freeze({
   showRing: true,
   showZones: true,
   showArmLabels: true,
@@ -73,8 +78,9 @@ const { clamp, TAU } = M;
 const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const fmt = (v, digits = 1, min = 0) => formatNumber(v, { maximumFractionDigits: digits, minimumFractionDigits: Math.min(min, digits) });
 
-export default function mount(container, _meta) {
-  const state = { ...DEFAULTS };
+export default function mount(container, meta) {
+  const viewPrefs = createViewPrefs(meta.id, VIEW_DEFAULTS);
+  const state = { ...DEFAULTS, ...viewPrefs.values };
   const disposers = [];
   let time = 0; // seconds of animated time (pulse, twinkle)
   let model = null;
@@ -435,31 +441,11 @@ export default function mount(container, _meta) {
   timeSection.add(timeSlider, playRow, timeFacts, timeHint);
 
   const viewSection = createSection(`${KEYS}.sections.view`);
+  const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
   const toggles = {
-    showRing: createToggle({
-      labelKey: `${KEYS}.controls.ring`,
-      checked: state.showRing,
-      onChange: (v) => {
-        state.showRing = v;
-        refresh();
-      },
-    }),
-    showZones: createToggle({
-      labelKey: `${KEYS}.controls.zones`,
-      checked: state.showZones,
-      onChange: (v) => {
-        state.showZones = v;
-        refresh();
-      },
-    }),
-    showArmLabels: createToggle({
-      labelKey: `${KEYS}.controls.armLabels`,
-      checked: state.showArmLabels,
-      onChange: (v) => {
-        state.showArmLabels = v;
-        refresh();
-      },
-    }),
+    showRing: viewToggle('showRing', `${KEYS}.controls.ring`),
+    showZones: viewToggle('showZones', `${KEYS}.controls.zones`),
+    showArmLabels: viewToggle('showArmLabels', `${KEYS}.controls.armLabels`),
   };
   const cameraTitle = bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`);
   const cameraRow = el('div', 'lp-presets lp-presets--2', { role: 'group' });
@@ -618,7 +604,6 @@ export default function mount(container, _meta) {
     time = 0;
     radiusSlider.setValue(state.sunRadiusKly, { silent: true });
     timeSlider.setValue(state.timeMyr, { silent: true });
-    for (const [key, toggle] of Object.entries(toggles)) toggle.setChecked(state[key], { silent: true });
     syncPlayButton();
     hideTooltip();
     refresh();

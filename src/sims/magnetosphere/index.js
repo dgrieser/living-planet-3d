@@ -22,7 +22,8 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createSlider, createToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createSection, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as P from './physics.js';
 
@@ -84,6 +85,10 @@ const DEFAULTS = Object.freeze({
   density: P.DENSITY_RANGE.default,
   speed: P.SPEED_RANGE.default,
   fieldOn: true,
+});
+
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+const VIEW_DEFAULTS = Object.freeze({
   showFieldLines: true,
   showBoundaries: true,
   showAurora: true,
@@ -100,8 +105,9 @@ const { clamp } = P;
 const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const fmt = (v, digits = 1, min = 0) => formatNumber(v, { maximumFractionDigits: digits, minimumFractionDigits: Math.min(min, digits) });
 
-export default function mount(container, _meta) {
-  const state = { ...DEFAULTS };
+export default function mount(container, meta) {
+  const viewPrefs = createViewPrefs(meta.id, VIEW_DEFAULTS);
+  const state = { ...DEFAULTS, ...viewPrefs.values };
   const disposers = [];
   let time = 0; // seconds of animated time
   let cme = null; // { t, x, impacted, sinceImpact }
@@ -596,31 +602,11 @@ export default function mount(container, _meta) {
   const fieldRow = el('div', 'lp-button-row');
   fieldRow.append(fieldButton.el);
   const fieldOffNotice = createNotice({ textKey: `${KEYS}.warn.fieldOff`, tone: 'warn' });
+  const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
   const toggles = {
-    showFieldLines: createToggle({
-      labelKey: `${KEYS}.controls.fieldLines`,
-      checked: state.showFieldLines,
-      onChange: (v) => {
-        state.showFieldLines = v;
-        refresh();
-      },
-    }),
-    showBoundaries: createToggle({
-      labelKey: `${KEYS}.controls.boundaries`,
-      checked: state.showBoundaries,
-      onChange: (v) => {
-        state.showBoundaries = v;
-        refresh();
-      },
-    }),
-    showAurora: createToggle({
-      labelKey: `${KEYS}.controls.aurora`,
-      checked: state.showAurora,
-      onChange: (v) => {
-        state.showAurora = v;
-        refresh();
-      },
-    }),
+    showFieldLines: viewToggle('showFieldLines', `${KEYS}.controls.fieldLines`),
+    showBoundaries: viewToggle('showBoundaries', `${KEYS}.controls.boundaries`),
+    showAurora: viewToggle('showAurora', `${KEYS}.controls.aurora`),
   };
   shieldSection.add(fieldRow, fieldOffNotice, toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora);
 
@@ -637,14 +623,7 @@ export default function mount(container, _meta) {
   function syncCameraButtons() {
     for (const { id, el: btn } of cameraButtons) btn.setAttribute('aria-pressed', String(cameraMode === id));
   }
-  const labelsToggle = createToggle({
-    labelKey: `${KEYS}.controls.labels`,
-    checked: state.showLabels,
-    onChange: (v) => {
-      state.showLabels = v;
-      refresh();
-    },
-  });
+  const labelsToggle = viewToggle('showLabels', `${KEYS}.controls.labels`);
   const legend = createLegend([
     [`${KEYS}.legend.fieldLines`, COLORS.fieldInner],
     [`${KEYS}.legend.compressed`, COLORS.fieldCompressed],
@@ -724,8 +703,6 @@ export default function mount(container, _meta) {
     earthSpin.rotation.y = 0;
     densitySlider.setValue(state.density, { silent: true });
     speedSlider.setValue(state.speed, { silent: true });
-    labelsToggle.setChecked(state.showLabels, { silent: true });
-    for (const [key, toggle] of Object.entries(toggles)) toggle.setChecked(state[key], { silent: true });
     syncFieldButton();
     syncCmeButton();
     setCamera('side');

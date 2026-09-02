@@ -18,7 +18,8 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createSlider, createToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createSection, createSlider, createToggle, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as P from './physics.js';
 
@@ -61,6 +62,10 @@ const DEFAULTS = Object.freeze({
   axisSpeed: P.AXIS_SPEED_RANGE_KYR_PER_S.default, // simulated kyr per second
   playing: true,
   sunTide: false,
+});
+
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+const VIEW_DEFAULTS = Object.freeze({
   toScale: false,
   showLabels: true,
   showTrace: true,
@@ -80,8 +85,9 @@ const PHASE_PRESETS = Object.freeze([
   { id: 'lastQuarter', elongation: 1.5 * Math.PI },
 ]);
 
-export default function mount(container, _meta) {
-  const state = { ...DEFAULTS };
+export default function mount(container, meta) {
+  const viewPrefs = createViewPrefs(meta.id, VIEW_DEFAULTS);
+  const state = { ...DEFAULTS, ...viewPrefs.values };
   // simulated clocks
   let tideTimeH = 0; // hours (view A)
   let elongation0 = DEFAULT_ELONGATION; // Moon–Sun angle at tideTimeH = 0
@@ -589,6 +595,7 @@ export default function mount(container, _meta) {
   }
   function setToScale(v) {
     state.toScale = v;
+    viewPrefs.set('toScale', v);
     if (state.view === 'tides') tweenCamera(cameraFor());
     refresh();
   }
@@ -760,16 +767,17 @@ export default function mount(container, _meta) {
   tiltReadout.append(tiltLabel, tiltValue, tiltPill, tiltChart.el, bandNote);
   const stableNote = createNotice({ textKey: `${KEYS}.axis.stableNote`, tone: 'info' });
   const schematicNotice = createNotice({ textKey: `${KEYS}.axis.schematic`, tone: 'warn' });
+  const viewToggle = (name, labelKey, onChange = refresh) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
   const axisToggles = {
-    showTrace: createToggle({ labelKey: `${KEYS}.controls.trace`, checked: state.showTrace, onChange: (v) => { state.showTrace = v; refresh(); } }),
-    showCone: createToggle({ labelKey: `${KEYS}.controls.cone`, checked: state.showCone, onChange: (v) => { state.showCone = v; refresh(); } }),
-    showOrbitPlane: createToggle({ labelKey: `${KEYS}.controls.orbitPlane`, checked: state.showOrbitPlane, onChange: (v) => { state.showOrbitPlane = v; refresh(); } }),
+    showTrace: viewToggle('showTrace', `${KEYS}.controls.trace`),
+    showCone: viewToggle('showCone', `${KEYS}.controls.cone`),
+    showOrbitPlane: viewToggle('showOrbitPlane', `${KEYS}.controls.orbitPlane`),
   };
   axisSection.add(axisSpeedSlider, playRowB, tiltReadout, axisFacts, stableNote, schematicNotice, axisToggles.showTrace, axisToggles.showCone, axisToggles.showOrbitPlane);
 
   // View section (shared)
   const viewSection = createSection(`${KEYS}.sections.view`);
-  const labelsToggle = createToggle({ labelKey: `${KEYS}.controls.labels`, checked: state.showLabels, onChange: (v) => { state.showLabels = v; refresh(); } });
+  const labelsToggle = viewToggle('showLabels', `${KEYS}.controls.labels`);
   const tidesLegend = createLegend([
     [`${KEYS}.legend.bulge`, COLORS.ocean],
     [`${KEYS}.legend.seaLevel`, COLORS.seaLevel, 'dashed'],
@@ -833,9 +841,6 @@ export default function mount(container, _meta) {
     axisSpeedSlider.setValue(state.axisSpeed, { silent: true });
     elongationSlider.setValue(normalizeDeg(DEFAULT_ELONGATION / DEG), { silent: true });
     sunToggle.setChecked(state.sunTide, { silent: true });
-    toScaleToggle.setChecked(state.toScale, { silent: true });
-    labelsToggle.setChecked(state.showLabels, { silent: true });
-    for (const [key, toggle] of Object.entries(axisToggles)) toggle.setChecked(state[key], { silent: true });
     syncMoonButton();
     syncPlayButtons();
     syncViewButtons();

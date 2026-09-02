@@ -13,6 +13,7 @@ npm run build      # production build into dist/
 npm run preview    # serve the production build
 npm run lint       # ESLint
 npm run check:i18n # verify de.json mirrors en.json 1:1
+npm run check:prefs # verify the remembered view toggles (src/lib/prefs.js)
 npm run check:axial  # validate axial-tilt climate module (habitable fraction vs. tilt, seasonal extremes, verdict tiers)
 npm run check:orbits # validate planet-position algorithm against known events
 npm run check:hz     # validate habitable-zone physics (zone edges, T_eq, stellar evolution)
@@ -32,8 +33,11 @@ src/
   i18n/de.json       all German UI strings (1:1 mirror of en.json)
   lib/i18n.js        t(), tList(), setLanguage(), getLanguage(), onLanguageChange(),
                      applyTranslations(), bindText(), bindAttr(), formatNumber()
-  lib/ui.js          UI kit: createPanel, createSlider, createToggle, createButton,
-                     createInfoCard, createNotice, createMessage, createSection, el()
+  lib/ui.js          UI kit: createPanel, createSlider, createToggle, createStateToggle,
+                     createButton, createInfoCard, createNotice, createMessage,
+                     createSection, el()
+  lib/prefs.js       createViewPrefs(): remembers a simulation's display toggles
+                     (legends, labels, helper lines, overlays) in localStorage
   lib/scene.js       scene bootstrap: renderer (DPR ≤ 2), camera, OrbitControls,
                      starfield, resize, delta-time loop, tab-hidden pause,
                      prefers-reduced-motion handling
@@ -53,6 +57,7 @@ src/
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
   check-i18n.mjs     key-parity check for locale files
+  check-prefs.mjs    validates the remembered view toggles (npm run check:prefs)
   check-axial-tilt.mjs validates the axial-tilt climate module (npm run check:axial)
   check-orbits.mjs   validates kepler.js against equinoxes, oppositions, transits (npm run check:orbits)
   check-habitable-zone.mjs validates physics.js against reference values (npm run check:hz)
@@ -234,6 +239,28 @@ scripts/
 3. Add all UI strings under `sims.<camelName>` in **both** `en.json` and `de.json`.
    Run `npm run check:i18n` to verify parity.
 4. Register the module in `src/sims/index.js`.
+5. Split the panel's initial state: simulation parameters go in `DEFAULTS`, display
+   toggles in `VIEW_DEFAULTS` (see *Remembered view* below).
+
+## Remembered view
+
+Display toggles – legends, labels, helper lines, overlays, heat maps – are remembered
+per visitor so a reload or a trip back to the overview keeps the view they set up.
+Simulation parameters (tilt, date, speed, luminosity, playing, …) are deliberately not
+remembered: every visit starts from the teaching defaults.
+
+- Each simulation therefore splits its initial state into two frozen objects:
+  `DEFAULTS` (simulation) and `VIEW_DEFAULTS` (display). `createViewPrefs(meta.id,
+  VIEW_DEFAULTS)` from `lib/prefs.js` hydrates the display half, and the toggles are
+  built with `createStateToggle({ labelKey, state, name, prefs, onChange })` so state,
+  storage and checkbox stay in sync.
+- Storage is `localStorage`, one JSON entry per simulation under `lp-view:<sim-id>`.
+  Unknown, retyped or corrupt entries fall back to the defaults, and a blocked
+  `localStorage` (privacy mode) degrades to in-memory only. `npm run check:prefs`
+  covers all of that.
+- **Reset** restores the simulation defaults only; the remembered view survives it.
+  That falls out of the split, since `Object.assign(state, DEFAULTS)` no longer
+  mentions the display keys.
 
 ## Bilingual UI rules
 

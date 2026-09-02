@@ -162,6 +162,26 @@ export function createToggle({ labelKey, checked = false, onChange }) {
   };
 }
 
+/**
+ * Toggle wired to a state object and, optionally, persisted view prefs.
+ * Keeps `state[name]`, storage and the checkbox in sync; `onChange` only has to
+ * carry the side effects (a refresh, hiding a legend, …).
+ * @param {{ labelKey: string, state: object, name: string,
+ *           prefs?: { set: (name: string, value: boolean) => void },
+ *           onChange?: (v: boolean) => void }} opts
+ */
+export function createStateToggle({ labelKey, state, name, prefs, onChange }) {
+  return createToggle({
+    labelKey,
+    checked: state[name],
+    onChange: (v) => {
+      state[name] = v;
+      prefs?.set(name, v);
+      onChange?.(v);
+    },
+  });
+}
+
 /** Button. variant: 'primary' | 'ghost' */
 export function createButton({ labelKey, ariaKey, onClick, variant = 'ghost', icon }) {
   const btn = el('button', `lp-button lp-button--${variant}`, { type: 'button' });
