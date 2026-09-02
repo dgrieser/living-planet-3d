@@ -20,7 +20,7 @@ npm run check:hz     # validate habitable-zone physics (zone edges, T_eq, stella
 npm run check:seasons # validate seasons physics (declination, day length, insolation, calendar mapping)
 npm run check:tides   # validate moon-tides physics (2GMR/r³, 1/r³ scaling, spring/neap, periods, tilt models)
 npm run check:mag     # validate magnetosphere physics (ram pressure, standoff, boundary fits, field-line deformation, Kp, aurora)
-npm run check:galaxy  # validate galactic-zone model (Sun's orbit, zone edges, metallicity gradient, spiral geometry, point cloud statistics)
+npm run check:galaxy  # validate galactic-zone model (Sun's orbit, zone edges, metallicity gradient, spiral geometry, point cloud statistics, "life on Earth" scalings, haze/dust/globular generators)
 ```
 
 ## Project structure
@@ -53,7 +53,8 @@ src/
   sims/magnetosphere/ physics.js (ram pressure, magnetopause standoff, Shue boundary, dipole lines,
                      field-line deformation, streamlines, Kp-style index, aurora oval – pure JS), index.js
   sims/galactic-zone/ model.js (config object with zone edges, Sun's orbit, metallicity gradient, log-spiral
-                     arms, seeded 50 000-point galaxy generator – pure JS), index.js
+                     arms, seeded 50 000-point galaxy generator, haze / dust-lane / globular-cluster generators,
+                     "life on Earth" neighbourhood scalings – pure JS), index.js
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
   check-i18n.mjs     key-parity check for locale files
@@ -76,7 +77,7 @@ scripts/
 | `seasons` | Seasons, axial tilt & day length | Earth orbiting an emissive Sun with adjustable tilt (0–90°) and rotation period (6–300 h); shader day/night terminator, insolation heat map, live tropics/polar circles/subsolar point, draggable orbit position with season stops, annual-cycle animation, day-length/insolation/temperature readout for any latitude, bilingual what-if presets (0°, 23.4°, 90°, 300 h, 6 h). |
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout, and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
-| `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc), translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
+| `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes drawn as multiplicative extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts plus a sourced "life on Earth at this distance" list (night sky, stellar passages, ozone-damaging supernovae, planet formation, arm crossings, galactic year), 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
 | `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate appearance, draggable planet (0.1–5 AU) whose surface morphs frozen / habitable / scorched from T_eq, live Kopparapu zone (annulus or 3D shell), evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, bilingual physics card. |
 
 ### axial-tilt notes
@@ -227,9 +228,31 @@ scripts/
   exponential blob squashed to 0.42 × 0.6 axis ratios and aligned with the major-arm roots. Colours: warm
   bulge, blue-white arm cores, pink HII regions, dim inter-arm disc; brightness fades with radius.
 - Rendering: one `THREE.Points` with per-point colour, size and twinkle phase; the vertex shader adds
-  perspective sizing, a faint twinkle and a near-camera fade. Zone overlays are flat radial shaders
+  perspective sizing, a very faint shimmer and a near-camera fade. Zone overlays are flat radial shaders
   (soft band between two radii, rims, pulsing core) with `depthTest` off so they read as overlays; hit meshes
   on layer 1 drive the tooltips. Labels are canvas sprites; arm labels are children of the rotating group.
+- Dressing (all real constituents, placed with the same geometry): a **haze** of 4 000 additive billboards
+  (`generateHaze()`: 30 % bulge, 40 % arm ridges at 1.6× the arm width, 30 % exponential disc) stands for
+  unresolved starlight; **dust lanes** are 6 000 billboards (`generateDust()`) drawn with custom blend factors
+  `Zero / SrcColor` so the fragment is a *transmission* – framebuffer × mix(1, reddening tint, k) – i.e. a
+  physical extinction that also dims the background; 60 % sit on the concave (inner) edge of the arms
+  (−0.6 arm widths) inside corotation and fade out over the next 5 kly, the rest form a diffuse disc
+  5–35 kly with σ_z = 0.3 kly. Both clouds are instanced camera-facing quads sized in kly (point sprites are
+  capped at 64 device pixels on some GPUs and pop at the viewport edge); instances within 3–8 kly of the
+  camera fade and are moved outside the clip volume, and both thin out when the camera dips into the disc:
+  the haze would otherwise stack up along grazing lines of sight, and the dust, which writes no depth, would
+  darken foreground stars. The dust shader deliberately skips tone mapping (ACES would darken even a
+  clear fragment). Two additive sprites give the **nucleus** its glow; 150 **globular clusters**
+  (`generateGlobularClusters()`, ρ ∝ (r² + a²)^(−7/4), a = 6 kly, median ≈ 5 kpc like the Harris catalogue)
+  sit in a static spheroidal halo outside the rotating group.
+- "Life on Earth at this distance" (`neighbourhoodState()`) scales published present-day anchors
+  (`NEIGHBOURHOOD`) with the same stellar density ρ(r) = exp[(r☉ − r)/h] and metallicity Z(r): nearest-star
+  spacing 4.25 ly · ρ^(−1/3) and ≈ 9 000 naked-eye stars · ρ; stellar passages within 1 pc 19.7 per Myr · ρ
+  (Bailer-Jones et al. 2018), Oort-cloud edge ∝ ρ^(−1/3); ozone-damaging supernovae within 8 pc 1.5 per Gyr ·
+  hazard (Gehrels et al. 2003); giant-planet occurrence 10^(2·[Fe/H]) = Z² (Fischer & Valenti 2005); arm
+  crossings every 2π / (4 · |Ω(r) − Ω_p|) – never at corotation, shown as "practically never" above 1 Gyr;
+  galactic year and orbits in 4.6 Gyr. An explicit note says Earth's orbit, year, seasons and sunlight are
+  unchanged. All rows inherit the schematic caveat and are checked at 13 / 27 / 33 kly by `check:galaxy`.
 
 ## Adding a simulation
 

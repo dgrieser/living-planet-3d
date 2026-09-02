@@ -4,7 +4,9 @@
 // hazard, the logarithmic-arm geometry (Sun on the Orion spur, trailing arms,
 // arm order along the Sun's radius) and the statistical properties of the
 // generated 50 000-point galaxy (density falling with radius, arm contrast,
-// thin disc, determinism).
+// thin disc, determinism), the "life on Earth" neighbourhood numbers scaled from
+// published present-day anchors, and the haze / dust-lane / globular-cluster
+// generators that dress the picture.
 import * as M from '../src/sims/galactic-zone/model.js';
 
 let failed = 0;
@@ -252,6 +254,161 @@ assert('HII regions are the largest points and sit in the arms', (() => {
   return minHii >= 2.2 && maxOther < 4 && inArm / nHii > 0.85;
 })());
 assert('the mix fractions add up to one', Math.abs(Object.values(cfg.mix).reduce((a, b) => a + b, 0) - 1) < 1e-12);
+
+console.log('— life on Earth at another radius (neighbourhood) —');
+const N = M.NEIGHBOURHOOD;
+const today = M.neighbourhoodState(27);
+check('today: nearest star 4.25 ly', today.nearestStarLy, N.nearestStarLy, 1e-12);
+check('today: 9 000 naked-eye stars', today.nakedEyeStars, N.nakedEyeStars, 1e-9);
+checkRel('today: a star within 1 pc every ≈ 51 kyr (19.7 per Myr, Bailer-Jones 2018)', today.encounterIntervalKyr, 50.76, 0.001);
+checkRel('today: an ozone-damaging supernova (< 8 pc) every ≈ 670 Myr (1.5 per Gyr, Gehrels 2003)', today.supernovaIntervalMyr, 666.7, 0.001);
+check('today: Oort cloud edge factor 1', today.oortCloudFactor, 1, 1e-12);
+check('today: giant-planet factor 1', today.giantPlanetFactor, 1, 1e-12);
+assert('today: no arm crossings at corotation (Infinity)', !Number.isFinite(today.armCrossingIntervalMyr) && today.armCrossingIntervalMyr > 0);
+check('today: galactic year 230 Myr', today.periodMyr, 230, 1e-9);
+const inner = M.neighbourhoodState(13);
+checkRel('13 kly: stellar density 5.2×', inner.density, 5.212, 0.001);
+checkRel('13 kly: nearest star ≈ 2.45 ly (∝ ρ^−1/3)', inner.nearestStarLy, 2.451, 0.001);
+checkRel('13 kly: ≈ 47 000 naked-eye stars', inner.nakedEyeStars, 46906, 0.001);
+checkRel('13 kly: a passage within 1 pc every ≈ 9.7 kyr', inner.encounterIntervalKyr, 9.74, 0.002);
+checkRel('13 kly: an ozone-damaging supernova every ≈ 128 Myr', inner.supernovaIntervalMyr, 127.9, 0.001);
+checkRel('13 kly: Oort cloud shrinks to 0.58×', inner.oortCloudFactor, 0.5768, 0.001);
+checkRel('13 kly: giant planets 3.3× as likely (10^(2·[Fe/H]))', inner.giantPlanetFactor, 3.274, 0.001);
+checkRel('13 kly: arm crossing every ≈ 53 Myr', inner.armCrossingIntervalMyr, 53.4, 0.002);
+const outer = M.neighbourhoodState(33);
+checkRel('33 kly: stellar density 0.49×', outer.density, 0.4929, 0.001);
+checkRel('33 kly: nearest star ≈ 5.4 ly', outer.nearestStarLy, 5.38, 0.001);
+checkRel('33 kly: ≈ 4 400 naked-eye stars', outer.nakedEyeStars, 4436, 0.001);
+checkRel('33 kly: a passage within 1 pc every ≈ 103 kyr', outer.encounterIntervalKyr, 103.0, 0.002);
+checkRel('33 kly: an ozone-damaging supernova every ≈ 1.35 Gyr', outer.supernovaIntervalMyr, 1352.7, 0.001);
+checkRel('33 kly: Oort cloud grows to 1.27×', outer.oortCloudFactor, 1.266, 0.001);
+checkRel('33 kly: giant planets 0.6× as likely', outer.giantPlanetFactor, 0.6015, 0.001);
+checkRel('33 kly: arm crossing every ≈ 316 Myr', outer.armCrossingIntervalMyr, 316.2, 0.002);
+checkRel('20 kly: arm crossing every ≈ 164 Myr (T = 57.5 Myr / |27/r − 1|)', M.armCrossingIntervalMyr(20), 164.3, 0.002);
+check('giant-planet factor is the square of the metallicity', M.giantPlanetFactor(19), Math.pow(M.relativeMetallicity(19), 2), 1e-12);
+assert('the crossing interval grows monotonically towards corotation from both sides', (() => {
+  let prev = 0;
+  for (let r = 3; r < 27; r += 0.5) {
+    const v = M.armCrossingIntervalMyr(r);
+    if (v <= prev) return false;
+    prev = v;
+  }
+  prev = 0;
+  for (let r = 50; r > 27; r -= 0.5) {
+    const v = M.armCrossingIntervalMyr(r);
+    if (v <= prev) return false;
+    prev = v;
+  }
+  return true;
+})());
+assert('every neighbourhood value is finite and positive across the slider range (except the crossing interval at corotation)', (() => {
+  for (let r = cfg.sunRadiusRangeKly.min; r <= cfg.sunRadiusRangeKly.max; r += 0.5) {
+    const n = M.neighbourhoodState(r);
+    for (const [k, v] of Object.entries(n)) {
+      if (k === 'zone') continue;
+      if (k === 'armCrossingIntervalMyr' && r === 27) continue;
+      if (!Number.isFinite(v) || v <= 0) return false;
+    }
+  }
+  return true;
+})());
+assert('nearest-star distance and Oort factor grow outward, star counts and encounter rates fall', (() => {
+  for (let r = 4; r <= 50; r += 1) {
+    if (!(M.nearestStarLy(r) > M.nearestStarLy(r - 1))) return false;
+    if (!(M.oortCloudTidalFactor(r) > M.oortCloudTidalFactor(r - 1))) return false;
+    if (!(M.nakedEyeStarCount(r) < M.nakedEyeStarCount(r - 1))) return false;
+    if (!(M.stellarEncounterRatePerMyr(r) < M.stellarEncounterRatePerMyr(r - 1))) return false;
+    if (!(M.ozoneSupernovaIntervalMyr(r) > M.ozoneSupernovaIntervalMyr(r - 1))) return false;
+  }
+  return true;
+})());
+assert('sunState() carries the same neighbourhood numbers', (() => {
+  const s = M.sunState(20, 0);
+  const n = M.neighbourhoodState(20);
+  return Object.keys(n).every((k) => s.neighbourhood[k] === n[k]);
+})());
+
+console.log('— haze, dust lanes and globular clusters —');
+const t1 = Date.now();
+const haze = M.generateHaze(cfg, 4000);
+const dust = M.generateDust(cfg, 6000);
+const gcs = M.generateGlobularClusters(cfg);
+const dressMs = Date.now() - t1;
+assert('the three extra generators are fast (< 100 ms together)', dressMs < 100);
+console.log(`  (generated in ${dressMs} ms)`);
+check('haze count', haze.count, 4000, 0);
+check('dust count', dust.count, 6000, 0);
+check('globular-cluster count follows the config', gcs.count, cfg.globulars.count, 0);
+assert('no NaN in haze / dust / globulars', [haze.positions, haze.colors, haze.sizes, dust.positions, dust.sizes, dust.strengths, gcs.positions, gcs.sizes].every((arr) => arr.every((v) => Number.isFinite(v))));
+assert('deterministic for the same seed', (() => {
+  const a = M.generateDust(cfg, 500);
+  const b = M.generateDust(cfg, 500);
+  const c = M.generateHaze(cfg, 500);
+  const d = M.generateHaze(cfg, 500);
+  return a.positions.every((v, i) => v === b.positions[i]) && c.positions.every((v, i) => v === d.positions[i]) && M.generateGlobularClusters(cfg, 50, 1).positions[0] !== M.generateGlobularClusters(cfg, 50, 2).positions[0];
+})());
+assert('haze lies inside the disc radius and its sizes are a few kly', (() => {
+  for (let i = 0; i < haze.count; i++) {
+    if (Math.hypot(haze.positions[i * 3], haze.positions[i * 3 + 2]) > cfg.discRadiusKly + 1e-6) return false;
+    if (haze.sizes[i] < 1 || haze.sizes[i] > 7) return false;
+  }
+  return true;
+})());
+assert('haze colours are positive and never brighter than the palette', haze.colors.every((c) => c >= 0 && c <= 1.0001));
+assert('dust is thin: ≥ 90 % within ±1 kly of the plane (σ_z = 0.3 kly)', (() => {
+  let n = 0;
+  for (let i = 0; i < dust.count; i++) if (Math.abs(dust.positions[i * 3 + 1]) <= 1) n++;
+  return n / dust.count >= 0.9;
+})());
+assert('dust strengths are in 0…1', dust.strengths.every((v) => v > 0 && v <= 1));
+between('dust lanes are three fifths of the dust budget', dust.kinds.filter((k) => k === M.DUST_KIND.lane).length / dust.count, 0.58, 0.62);
+assert('dust lanes stay inside corotation + fade width and the diffuse disc within its radii', (() => {
+  for (let i = 0; i < dust.count; i++) {
+    const r = dust.radii[i];
+    if (dust.kinds[i] === M.DUST_KIND.lane && r > cfg.sun.radiusKly + cfg.dust.fadeBeyondCorotationKly + 1e-6) return false;
+    if (dust.kinds[i] === M.DUST_KIND.disc && (r < cfg.dust.discFromKly - 1e-6 || r > cfg.dust.discToKly + 1e-6)) return false;
+  }
+  return true;
+})());
+between('dust lanes hug the concave (inner) edge of the arms: mean signed offset ≈ −0.6 arm widths', (() => {
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i < dust.count; i++) {
+    if (dust.kinds[i] !== M.DUST_KIND.lane) continue;
+    const x = dust.positions[i * 3];
+    const z = dust.positions[i * 3 + 2];
+    const r = Math.hypot(x, z);
+    const phi = Math.atan2(z, x);
+    let best = Infinity;
+    let width = 1;
+    for (const arm of cfg.arms) {
+      const d = M.distanceToArm(r, phi, arm);
+      if (Math.abs(d) < Math.abs(best)) {
+        best = d;
+        width = arm.widthKly * (0.85 + 0.006 * r);
+      }
+    }
+    sum += best / width;
+    n++;
+  }
+  return sum / n;
+})(), -0.75, -0.45);
+between('globular clusters: median galactocentric radius ≈ 5 kpc (Harris catalogue)', (() => {
+  const r = [...gcs.radii].sort((a, b) => a - b);
+  return r[Math.floor(r.length / 2)];
+})(), 13, 19);
+between('globular clusters: two thirds or more inside the Sun’s radius', gcs.radii.filter((r) => r < cfg.sun.radiusKly).length / gcs.count, 0.65, 0.9);
+assert('globular clusters stay within the configured halo radii', gcs.radii.every((r) => r >= cfg.globulars.minKly - 1e-6 && r <= cfg.globulars.maxKly + 1e-6));
+between('globular clusters form a spheroid, not a disc (RMS |y| / RMS |x|)', (() => {
+  let y2 = 0;
+  let x2 = 0;
+  for (let i = 0; i < gcs.count; i++) {
+    y2 += gcs.positions[i * 3 + 1] ** 2;
+    x2 += gcs.positions[i * 3] ** 2;
+  }
+  return Math.sqrt(y2 / x2);
+})(), 0.6, 1.6);
+assert('haze / dust / globular budgets do not touch the point mix (still sums to one)', Math.abs(Object.values(cfg.mix).reduce((a, b) => a + b, 0) - 1) < 1e-12 && Math.abs(cfg.haze.bulge + cfg.haze.arms + cfg.haze.disc - 1) < 1e-12);
 
 console.log('— sampling helpers —');
 const rnd = M.createRandom(7);

@@ -8,13 +8,21 @@
  *    Orion spur that carries the Sun, pink HII regions strung along the arm cores
  *    and a smooth exponential disc. Point positions, colours and sizes are
  *    generated once in ./model.js; per frame only a few uniforms change.
+ *  - Dressing that makes it read as a galaxy rather than a dot diagram, each a real
+ *    constituent placed with the same geometry: a haze of unresolved starlight
+ *    (instanced additive billboards), dust lanes as multiplicative extinction on the
+ *    concave edge of the arms and in a thin disc, a warm nucleus glow, and ≈150
+ *    globular clusters in a static spheroidal halo.
  *  - Three flat overlays at y = 0: the red "hostile core" inside the zone's inner
  *    edge, the translucent green habitable annulus and the blue-grey metal-poor
  *    outer region. Their radii come from the config object, so the zone edges
  *    are adjustable (and the dev hook can rebuild them at run time).
  *  - The Sun is a pulsing gold sprite at 27 kly on the Orion spur. The radius
  *    slider moves it along its azimuth for what-if exploration; the readouts
- *    (zone, period, supernova hazard, heavy-element abundance) follow.
+ *    (zone, period, supernova hazard, heavy-element abundance) follow, and a
+ *    "life on Earth at this distance" list scales present-day anchors (night sky,
+ *    stellar passages, ozone-damaging supernovae, planet formation, arm crossings)
+ *    with the same stellar density and metallicity relations.
  *  - Timeline: the spiral pattern rotates rigidly once per 230 Myr and the Sun
  *    orbits with the period of its current radius (flat rotation curve), so at
  *    27 kly it stays on the spur, further in it overtakes the arms, further out
@@ -37,6 +45,10 @@ const CONFIG = M.createConfig({});
 
 const POINT_COUNT = 50000;
 const POINT_COUNT_SMALL = 30000; // phones: fewer points keeps the rotation smooth
+const HAZE_COUNT = 4000;
+const HAZE_COUNT_SMALL = 2000;
+const DUST_COUNT = 6000;
+const DUST_COUNT_SMALL = 3000;
 const TIME_MAX_MYR = 2 * CONFIG.patternPeriodMyr; // the timeline covers two pattern rotations
 const ORBIT_SECONDS = 60; // scene seconds for one 230 Myr pattern rotation while playing (6°/s – a subtle turn)
 const MYR_PER_SECOND = CONFIG.patternPeriodMyr / ORBIT_SECONDS;
@@ -51,7 +63,12 @@ const COLORS = Object.freeze({
   label: 0xf0f4ff,
   armLabel: 0xbcd3ff,
   centre: 0xffd9a0,
+  nucleus: 0xffc98a,
+  dust: 0x9a7660,
+  globular: 0xf2e2c4,
 });
+/** Dust transmission at full strength – reddening: red passes, blue is absorbed. */
+const DUST_TINT = new THREE.Color(0.55, 0.42, 0.32);
 
 const DEFAULTS = Object.freeze({
   sunRadiusKly: CONFIG.sun.radiusKly,
@@ -86,6 +103,8 @@ export default function mount(container, meta) {
   let model = null;
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
   const pointCount = isSmallScreen ? POINT_COUNT_SMALL : POINT_COUNT;
+  const hazeCount = isSmallScreen ? HAZE_COUNT_SMALL : HAZE_COUNT;
+  const dustCount = isSmallScreen ? DUST_COUNT_SMALL : DUST_COUNT;
 
   const viewport = el('div', 'lp-sim__viewport');
   container.append(viewport);
@@ -103,7 +122,8 @@ export default function mount(container, meta) {
   const starfield = scene.getObjectByName('starfield');
   if (starfield) {
     starfield.material.size = 1.0;
-    starfield.material.opacity = 0.45;
+    starfield.material.opacity = 0.35; // from outside the Milky Way the background is faint distant galaxies
+    starfield.renderOrder = -1; // before the haze, so the dust can dim it too
   }
   controls.target.set(...CAMERA_OVERVIEW.target);
   controls.update();
@@ -138,12 +158,86 @@ export default function mount(container, meta) {
   points.renderOrder = 1;
   galaxy.add(points);
 
+  // --- haze: unresolved starlight (additive billboards, drawn under the stars) -----------------------
+  const hazeData = M.generateHaze(CONFIG, hazeCount);
+  const hazeUniforms = { uOpacity: { value: 0.07 }, uFade: { value: 1 } };
+  const haze = createBillboardCloud({
+    count: hazeData.count,
+    attributes: { aOffset: [hazeData.positions, 3], aColor: [hazeData.colors, 3], aSize: [hazeData.sizes, 1] },
+    material: new THREE.ShaderMaterial({
+      uniforms: hazeUniforms,
+      vertexShader: HAZE_VERTEX,
+      fragmentShader: HAZE_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    }),
+  });
+  haze.mesh.renderOrder = 0;
+  galaxy.add(haze.mesh);
+
+  // --- dust lanes: extinction billboards (framebuffer × transmission) ------------------------------
+  const dustData = M.generateDust(CONFIG, dustCount);
+  const dustUniforms = { uTint: { value: DUST_TINT }, uFade: { value: 1 }, uStrength: { value: 0.6 } };
+  const dust = createBillboardCloud({
+    count: dustData.count,
+    attributes: { aOffset: [dustData.positions, 3], aStrength: [dustData.strengths, 1], aSize: [dustData.sizes, 1] },
+    material: new THREE.ShaderMaterial({
+      uniforms: dustUniforms,
+      vertexShader: DUST_VERTEX,
+      fragmentShader: DUST_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      // result = framebuffer × fragment colour: the fragment is a transmission, 1 = clear
+      blending: THREE.CustomBlending,
+      blendEquation: THREE.AddEquation,
+      blendSrc: THREE.ZeroFactor,
+      blendDst: THREE.SrcColorFactor,
+      blendSrcAlpha: THREE.ZeroFactor,
+      blendDstAlpha: THREE.OneFactor,
+    }),
+  });
+  dust.mesh.renderOrder = 2;
+  galaxy.add(dust.mesh);
+
+  // --- nucleus: the bright, warm centre (world-sized sprites, tone mapped with the points) ------------
+  const glowTexture = createGlowTexture();
+  const nucleusGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: COLORS.nucleus, transparent: true, opacity: 0.2, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+  nucleusGlow.scale.set(9, 9, 1);
+  const nucleusCore = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: 0xfff0d0, transparent: true, opacity: 0.22, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending }));
+  nucleusCore.scale.set(2.4, 2.4, 1);
+  nucleusGlow.renderOrder = 0;
+  nucleusCore.renderOrder = 0;
+  scene.add(nucleusGlow, nucleusCore);
+
+  // --- globular clusters: a static spheroidal halo (they do not follow the pattern) -------------------
+  const globularData = M.generateGlobularClusters(CONFIG);
+  const globularGeometry = new THREE.BufferGeometry();
+  globularGeometry.setAttribute('position', new THREE.BufferAttribute(globularData.positions, 3));
+  const globularColors = new Float32Array(globularData.count * 3);
+  const globularPhases = new Float32Array(globularData.count);
+  const globularColor = new THREE.Color(COLORS.globular);
+  for (let i = 0; i < globularData.count; i++) {
+    globularColors[i * 3] = globularColor.r * 0.95;
+    globularColors[i * 3 + 1] = globularColor.g * 0.95;
+    globularColors[i * 3 + 2] = globularColor.b * 0.95;
+    globularPhases[i] = (i * 0.618) % 1;
+  }
+  globularGeometry.setAttribute('aColor', new THREE.BufferAttribute(globularColors, 3));
+  globularGeometry.setAttribute('aSize', new THREE.BufferAttribute(globularData.sizes, 1));
+  globularGeometry.setAttribute('aPhase', new THREE.BufferAttribute(globularPhases, 1));
+  const globulars = new THREE.Points(globularGeometry, pointMaterial);
+  globulars.frustumCulled = false;
+  globulars.renderOrder = 1;
+  scene.add(globulars);
+
   // --- zone overlays (static: they are radial, the pattern rotates underneath) --------------------
   const overlays = createZoneOverlays(CONFIG);
   scene.add(overlays.group);
 
   // --- the Sun ------------------------------------------------------------------------------------
-  const glowTexture = createGlowTexture();
   const sunGroup = new THREE.Group();
   const sunGlow = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: glowTexture, color: COLORS.sun, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false, sizeAttenuation: false, blending: THREE.AdditiveBlending, toneMapped: false }),
@@ -165,7 +259,7 @@ export default function mount(container, meta) {
     circleGeometry(1, 256),
     new THREE.LineBasicMaterial({ color: COLORS.orbit, transparent: true, opacity: 0.35, depthWrite: false }),
   );
-  orbitRing.renderOrder = 3;
+  orbitRing.renderOrder = 4;
   scene.add(orbitRing);
 
   // --- labels ------------------------------------------------------------------------------------
@@ -254,6 +348,11 @@ export default function mount(container, meta) {
       l.setScale(clamp(camDist / Math.max(camera.position.distanceTo(labelWorld), 1e-3), 0.5, 1));
     }
     overlays.uniforms.uFade.value = clamp((Math.abs(camera.position.y) - 1.5) / 14, 0.22, 1);
+    // inside the disc the resolved stars carry the picture: the haze would stack up along grazing lines of
+    // sight and burn out, and the depth-less dust would darken foreground stars – both thin out there
+    const camHeight = Math.abs(camera.position.y);
+    hazeUniforms.uFade.value = clamp((camHeight - 1.0) / 10, 0.12, 1);
+    dustUniforms.uFade.value = clamp((camHeight - 1.0) / 12, 0.2, 1);
     const near = clamp(camDist * 0.01, 0.05, 4);
     if (Math.abs(camera.near - near) / near > 0.2) {
       camera.near = near;
@@ -421,6 +520,13 @@ export default function mount(container, meta) {
   sunRow.append(sunHome.el);
   sunSection.add(radiusSlider, zoneReadout, sunFacts, sunRow);
 
+  const earthSection = createSection(`${KEYS}.sections.earth`);
+  const earthIntro = el('p', 'lp-earth__intro');
+  const earthList = createConsequenceList(['sky', 'encounters', 'supernova', 'planets', 'arms', 'year'].map((id) => [id, `${KEYS}.earth.${id}`]));
+  const earthUnchanged = bindText(el('p', 'lp-earth__unchanged'), `${KEYS}.earth.unchanged`);
+  const earthCaveat = bindText(el('p', 'lp-section__note'), `${KEYS}.earth.caveat`);
+  earthSection.add(earthIntro, earthList, earthUnchanged, earthCaveat);
+
   const timeSection = createSection(`${KEYS}.sections.time`);
   const timeSlider = createSlider({
     labelKey: `${KEYS}.controls.time`,
@@ -463,6 +569,8 @@ export default function mount(container, meta) {
     [`${KEYS}.legend.bulge`, 0xffc98a],
     [`${KEYS}.legend.arms`, 0xa9c4ff],
     [`${KEYS}.legend.hii`, 0xff80ad],
+    [`${KEYS}.legend.dust`, COLORS.dust, 'dust'],
+    [`${KEYS}.legend.globulars`, COLORS.globular, 'dot'],
     [`${KEYS}.legend.habitable`, COLORS.habitable, 'zone'],
     [`${KEYS}.legend.danger`, COLORS.danger, 'zone'],
     [`${KEYS}.legend.metalPoor`, COLORS.metalPoor, 'zone'],
@@ -475,7 +583,7 @@ export default function mount(container, meta) {
   const resetRow = el('div', 'lp-button-row');
   resetRow.append(resetBtn.el);
 
-  panel.add(createNotice({ textKey: `${KEYS}.notice`, tone: 'info' }), sunSection, timeSection, viewSection, resetRow);
+  panel.add(createNotice({ textKey: `${KEYS}.notice`, tone: 'info' }), sunSection, earthSection, timeSection, viewSection, resetRow);
   if (sim.reducedMotion) panel.add(createNotice({ textKey: 'motion.reducedNotice' }));
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const modelCard = createModelCard(CONFIG);
@@ -597,6 +705,28 @@ export default function mount(container, meta) {
     sunFacts.set('supernova', `${fmt(m.sun.supernovaRate, m.sun.supernovaRate < 10 ? 1 : 0, 1)}×`);
     sunFacts.set('metals', `${fmt(m.sun.metallicity, 2, 2)}×`);
     timeFacts.set('orbits', fmt(m.sun.orbits, 2, 2));
+    updateEarthReadouts(m.sun.neighbourhood, m.sun.zone);
+  }
+
+  /** The "life on Earth at this distance" list – every value is a scaled present-day anchor (see model.js). */
+  function updateEarthReadouts(n, zone) {
+    const E = `${KEYS}.earth`;
+    earthIntro.textContent = t(`${E}.intro${zone[0].toUpperCase()}${zone.slice(1)}`);
+    earthList.set('sky', t(`${E}.skyValue`, { distance: fmt(n.nearestStarLy, 2, 1), stars: fmt(roundSignificant(n.nakedEyeStars, 2), 0) }), t(`${E}.skyNote`));
+    earthList.set('encounters', t(`${E}.encountersValue`, { interval: fmtDuration(n.encounterIntervalKyr / 1000) }), t(`${E}.encountersNote`, { oort: fmt(n.oortCloudFactor, 2, 2) }));
+    earthList.set('supernova', t(`${E}.supernovaValue`, { interval: fmtDuration(n.supernovaIntervalMyr) }), t(`${E}.supernovaNote`));
+    earthList.set('planets', t(`${E}.planetsValue`, { factor: fmt(n.giantPlanetFactor, n.giantPlanetFactor < 1 ? 2 : 1, 1) }), t(`${E}.planetsNote`));
+    const crossing = n.armCrossingIntervalMyr > M.NEIGHBOURHOOD.neverCrossingMyr ? t(`${E}.armsNever`) : t(`${E}.armsValue`, { interval: fmtDuration(n.armCrossingIntervalMyr) });
+    earthList.set('arms', crossing, t(`${E}.armsNote`));
+    earthList.set('year', t(`${E}.yearValue`, { period: fmtDuration(n.periodMyr), orbits: fmt(n.galacticYears, n.galacticYears < 10 ? 1 : 0) }), t(`${E}.yearNote`));
+  }
+
+  /** Durations in Myr rendered as "51,000 years" / "128 million years" / "1.35 billion years". */
+  function fmtDuration(myr) {
+    const E = `${KEYS}.earth`;
+    if (myr < 1) return t(`${E}.years`, { n: fmt(roundSignificant(myr * 1e6, 2), 0) });
+    if (myr < 1000) return t(`${E}.millionYears`, { n: fmt(myr, myr < 10 ? 1 : 0) });
+    return t(`${E}.billionYears`, { n: fmt(myr / 1000, 2) });
   }
 
   function reset() {
@@ -668,6 +798,12 @@ export default function mount(container, meta) {
       frame,
       refresh,
       overlays,
+      haze,
+      dust,
+      globulars,
+      hazeData,
+      dustData,
+      globularData,
     };
   }
 
@@ -681,6 +817,9 @@ export default function mount(container, meta) {
     for (const l of Object.values(labels)) l.dispose();
     for (const l of Object.values(armLabels)) l.dispose();
     overlays.dispose();
+    haze.dispose();
+    dust.dispose();
+    globularGeometry.dispose();
     glowTexture.dispose();
     sim.dispose();
     viewport.remove();
@@ -722,19 +861,20 @@ function createZoneOverlays(cfg) {
       side: THREE.DoubleSide,
     });
 
-  const core = new THREE.Mesh(new THREE.BufferGeometry(), makeMaterial(COLORS.danger, { r0: -5, r1: 1, fadeIn: 0.5, fadeOut: 2.5, opacity: 0.3, pulse: 1, core: 1.4 }));
-  const ring = new THREE.Mesh(new THREE.BufferGeometry(), makeMaterial(COLORS.habitable, { r0: 1, r1: 2, fadeIn: 1.2, fadeOut: 1.2, opacity: 0.13, rim: 0.6 }, THREE.AdditiveBlending));
-  const outer = new THREE.Mesh(new THREE.BufferGeometry(), makeMaterial(COLORS.metalPoor, { r0: 1, r1: 2, fadeIn: 3, fadeOut: 12, opacity: 0.16 }, THREE.AdditiveBlending));
+  // opacities are kept low so the galaxy's own light reads first; the toggles hide the overlays entirely
+  const core = new THREE.Mesh(new THREE.BufferGeometry(), makeMaterial(COLORS.danger, { r0: -5, r1: 1, fadeIn: 0.5, fadeOut: 2.5, opacity: 0.26, pulse: 1, core: 1.0 }));
+  const ring = new THREE.Mesh(new THREE.BufferGeometry(), makeMaterial(COLORS.habitable, { r0: 1, r1: 2, fadeIn: 1.2, fadeOut: 1.2, opacity: 0.1, rim: 0.6 }, THREE.AdditiveBlending));
+  const outer = new THREE.Mesh(new THREE.BufferGeometry(), makeMaterial(COLORS.metalPoor, { r0: 1, r1: 2, fadeIn: 3, fadeOut: 12, opacity: 0.12 }, THREE.AdditiveBlending));
   const ringEdges = new THREE.Group();
   const edgeMaterial = new THREE.LineBasicMaterial({ color: COLORS.habitable, transparent: true, opacity: 0.55, depthWrite: false, depthTest: false });
   const edgeInner = new THREE.LineLoop(new THREE.BufferGeometry(), edgeMaterial);
   const edgeOuter = new THREE.LineLoop(new THREE.BufferGeometry(), edgeMaterial);
   ringEdges.add(edgeInner, edgeOuter);
   ringEdges.rotation.x = Math.PI / 2; // undo the group rotation: circleGeometry() already lies in xz
-  core.renderOrder = 2;
-  ring.renderOrder = 2;
-  outer.renderOrder = 2;
-  ringEdges.renderOrder = 3;
+  core.renderOrder = 3; // after the dust: extinction must not dim the overlays
+  ring.renderOrder = 3;
+  outer.renderOrder = 3;
+  ringEdges.renderOrder = 4;
 
   const hitMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
   const hitMeshes = ['inner', 'habitable', 'outer'].map((kind) => {
@@ -800,6 +940,35 @@ function circleGeometry(radius, segments) {
   return geometry;
 }
 
+/**
+ * Instanced camera-facing quads – one draw call for thousands of soft blobs whose
+ * size is in world units. Used for the haze and the dust; point sprites would be
+ * capped at 64 device pixels on some GPUs and pop when their centre leaves the view.
+ * `attributes` maps instanced attribute names to [typedArray, itemSize].
+ */
+function createBillboardCloud({ count, attributes, material }) {
+  const base = new THREE.PlaneGeometry(1, 1);
+  const geometry = new THREE.InstancedBufferGeometry();
+  geometry.index = base.index;
+  geometry.setAttribute('position', base.getAttribute('position'));
+  for (const [name, [array, itemSize]] of Object.entries(attributes)) {
+    geometry.setAttribute(name, new THREE.InstancedBufferAttribute(array, itemSize));
+  }
+  geometry.instanceCount = count;
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  return {
+    mesh,
+    geometry,
+    material,
+    dispose() {
+      base.dispose();
+      geometry.dispose();
+      material.dispose();
+    },
+  };
+}
+
 // ============================================================================================================
 // DOM helpers
 // ============================================================================================================
@@ -821,6 +990,42 @@ function createFacts(rows) {
   };
 }
 
+/**
+ * The "life on Earth" list: one row per effect with a headline value and a one-line
+ * note underneath. `set(id, value, note)` updates a row in place.
+ */
+function createConsequenceList(rows) {
+  const list = el('ol', 'lp-earth');
+  const cells = new Map();
+  for (const [id, labelKey] of rows) {
+    const li = el('li', 'lp-earth__row');
+    const head = el('div', 'lp-earth__head');
+    const value = el('span', 'lp-earth__value');
+    const note = el('p', 'lp-earth__note');
+    head.append(bindText(el('span', 'lp-earth__label'), labelKey), value);
+    li.append(head, note);
+    list.append(li);
+    cells.set(id, { value, note });
+  }
+  return {
+    el: list,
+    set(id, value, note) {
+      const c = cells.get(id);
+      if (!c) return;
+      if (c.value.textContent !== value) c.value.textContent = value;
+      if (c.note.textContent !== note) c.note.textContent = note;
+    },
+    dispose() {},
+  };
+}
+
+/** Round to `digits` significant figures (for "≈ 47,000 stars"). */
+function roundSignificant(v, digits) {
+  if (v === 0) return 0;
+  const p = Math.pow(10, Math.floor(Math.log10(Math.abs(v))) - digits + 1);
+  return Math.round(v / p) * p;
+}
+
 function createLegend(items) {
   const wrap = el('div', 'lp-legend');
   for (const [key, color, style] of items) {
@@ -829,6 +1034,7 @@ function createLegend(items) {
     const hex = `#${new THREE.Color(color).getHexString()}`;
     swatch.style.color = hex;
     if (style === 'zone') swatch.style.background = `${hex}55`;
+    if (style === 'dust') swatch.style.background = `${hex}99`;
     li.append(swatch, bindText(el('span'), key));
     wrap.append(li);
   }
@@ -842,7 +1048,7 @@ function createModelCard(cfg) {
   summary.append(bindText(el('span', 'lp-info__title'), `${KEYS}.model.title`));
   const body = el('div', 'lp-info__body');
   details.append(summary, body);
-  const entries = ['zone', 'period', 'galacticYear', 'supernova', 'metals', 'spiral'];
+  const entries = ['zone', 'period', 'galacticYear', 'supernova', 'metals', 'spiral', 'nearestStar', 'encounters', 'supernovaInterval', 'giantPlanets', 'armCrossings'];
   function render() {
     body.replaceChildren();
     const params = {
@@ -857,6 +1063,12 @@ function createModelCard(cfg) {
       scaleLength: fmt(cfg.discScaleLengthKly, 1, 1),
       pitch: fmt(cfg.pitchDeg, 1, 1),
       arms: String(cfg.arms.length),
+      nearest: fmt(M.NEIGHBOURHOOD.nearestStarLy, 2, 2),
+      nakedEye: fmt(M.NEIGHBOURHOOD.nakedEyeStars, 0),
+      encounters: fmt(M.NEIGHBOURHOOD.encountersPerMyr, 1, 1),
+      snPerGyr: fmt(M.NEIGHBOURHOOD.supernovaPerGyr, 1, 1),
+      slope: fmt(M.NEIGHBOURHOOD.giantPlanetSlopeDex, 1, 1),
+      patternPeriod: fmt(cfg.patternPeriodMyr, 0),
     };
     for (const id of entries) {
       const block = el('div', 'lp-formula');
@@ -968,7 +1180,8 @@ const GALAXY_VERTEX = /* glsl */ `
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * mv;
     float d = max(-mv.z, 0.3);
-    float twinkle = 0.86 + 0.14 * sin(uTime * 1.7 + aPhase * 6.28318530718);
+    // stars do not scintillate in space – a very faint shimmer only keeps the picture alive
+    float twinkle = 0.95 + 0.05 * sin(uTime * 1.7 + aPhase * 6.28318530718);
     float px = aSize * uSizeScale * twinkle * (90.0 / d);
     gl_PointSize = clamp(px, 1.0, 9.0) * uPixelRatio;
     vColor = aColor;
@@ -983,10 +1196,95 @@ const GALAXY_FRAGMENT = /* glsl */ `
   void main() {
     float d = length(gl_PointCoord - vec2(0.5));
     if (d > 0.5) discard;
-    float a = smoothstep(0.5, 0.04, d);
-    a *= a;
+    // sharp core with a faint wider halo, like a slightly defocused star image
+    float core = smoothstep(0.5, 0.04, d);
+    float a = core * core * 0.85 + 0.15 * (1.0 - smoothstep(0.1, 0.5, d));
     gl_FragColor = vec4(vColor * (0.5 + 0.6 * (1.0 - 2.0 * d)), a * vAlpha);
     #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+/**
+ * Shared billboard vertex code: the quad is expanded in view space around the
+ * instance offset (so it always faces the camera), sized in world units. Instances
+ * closer than a few kly to the camera fade out and are moved outside the clip
+ * volume, so the Sun's-location view never rasterises giant near blobs.
+ */
+const BILLBOARD_VERTEX_COMMON = /* glsl */ `
+  attribute vec3 aOffset;
+  attribute float aSize;
+  varying vec2 vUv;
+  varying float vNear;
+  vec4 billboard() {
+    vec4 centre = modelViewMatrix * vec4(aOffset, 1.0);
+    float d = length(centre.xyz);
+    vNear = smoothstep(3.0, 8.0, d);
+    vUv = position.xy;
+    if (vNear <= 0.001) return vec4(0.0, 0.0, 2.0, 1.0);
+    return projectionMatrix * vec4(centre.xyz + vec3(position.xy * aSize, 0.0), 1.0);
+  }
+`;
+
+/** Soft radial profile on the unit quad (position.xy in −0.5…0.5): a Gaussian that reaches zero at the edge. */
+const BILLBOARD_PROFILE = /* glsl */ `
+  float profile(vec2 uv) {
+    float r2 = dot(uv, uv) * 4.0;
+    return clamp((exp(-4.5 * r2) - 0.0111) / 0.9889, 0.0, 1.0);
+  }
+`;
+
+const HAZE_VERTEX = /* glsl */ `
+  ${BILLBOARD_VERTEX_COMMON}
+  attribute vec3 aColor;
+  varying vec3 vColor;
+  void main() {
+    gl_Position = billboard();
+    vColor = aColor;
+  }
+`;
+
+const HAZE_FRAGMENT = /* glsl */ `
+  uniform float uOpacity;
+  uniform float uFade;
+  varying vec3 vColor;
+  varying vec2 vUv;
+  varying float vNear;
+  ${BILLBOARD_PROFILE}
+  void main() {
+    float a = profile(vUv) * uOpacity * uFade * vNear;
+    gl_FragColor = vec4(vColor, a);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+const DUST_VERTEX = /* glsl */ `
+  ${BILLBOARD_VERTEX_COMMON}
+  attribute float aStrength;
+  varying float vStrength;
+  void main() {
+    gl_Position = billboard();
+    vStrength = aStrength;
+  }
+`;
+
+/**
+ * Dust is drawn with framebuffer × fragment blending, so the fragment is a
+ * transmission: 1 leaves the light alone, uTint is full extinction (red passes,
+ * blue is absorbed). No tone mapping – that would darken even a clear fragment.
+ */
+const DUST_FRAGMENT = /* glsl */ `
+  uniform vec3 uTint;
+  uniform float uFade;
+  uniform float uStrength;
+  varying float vStrength;
+  varying vec2 vUv;
+  varying float vNear;
+  ${BILLBOARD_PROFILE}
+  void main() {
+    float k = profile(vUv) * vStrength * uStrength * uFade * vNear;
+    gl_FragColor = vec4(mix(vec3(1.0), uTint, k), 1.0);
     #include <colorspace_fragment>
   }
 `;
