@@ -21,6 +21,13 @@
  *   corotation radius) and the "supernova hazard" is simply the stellar density
  *   relative to the solar neighbourhood. All of this is labelled as schematic
  *   in the UI.
+ * - The "life on Earth" numbers (neighbourhoodState) scale published present-day
+ *   anchors (NEIGHBOURHOOD) with those same two relations – stellar density and
+ *   metallicity – so they inherit the schematic caveat.
+ * - The extra visual components (haze, dust lanes, globular clusters) are real
+ *   Milky Way constituents placed with the same geometry: unresolved starlight
+ *   follows the stars, dust lanes sit on the concave edge of the arms inside
+ *   corotation and in a thin disc, the globular clusters form a spheroidal halo.
  */
 
 // ---------- physical constants -------------------------------------------------
@@ -83,6 +90,16 @@ export const DEFAULT_CONFIG = Object.freeze({
   mix: Object.freeze({ bulge: 0.2, arms: 0.5, disc: 0.24, hii: 0.06 }),
   /** Azimuth of the Sun today (−90° puts it at the top of the overview). */
   sunAzimuth: -Math.PI / 2,
+  /** Unresolved starlight (soft haze billboards): fractions of the haze budget; arm ridges are wider than the star lanes. */
+  haze: Object.freeze({ bulge: 0.12, arms: 0.55, disc: 0.33, armWidthFactor: 1.6 }),
+  /**
+   * Interstellar dust: lanes on the concave (inner) edge of the arms inside corotation –
+   * gas overtakes the pattern there and is compressed on the inner side – plus a thin
+   * diffuse disc (dust is far thinner than the stars, σ_z ≈ 100 pc).
+   */
+  dust: Object.freeze({ laneFraction: 0.6, laneOffsetWidths: 0.6, laneScatterWidths: 0.5, fadeBeyondCorotationKly: 5, discFromKly: 8, discToKly: 35, scaleHeightKly: 0.3 }),
+  /** Globular-cluster halo: ρ(r) ∝ (r² + a²)^(−7/4); a = 6 kly puts the median at ≈ 5 kpc like the Harris catalogue. */
+  globulars: Object.freeze({ count: 150, coreKly: 6, minKly: 1, maxKly: 60 }),
 });
 
 /** Deep-merge overrides into a copy of DEFAULT_CONFIG (one level for nested objects). */
@@ -170,6 +187,92 @@ export function relativeMetallicity(rKly, cfg = DEFAULT_CONFIG) {
   return Math.pow(10, cfg.metallicityGradientDexPerKly * (rKly - cfg.sun.radiusKly));
 }
 
+// ---------- life on Earth at another radius ------------------------------------
+/**
+ * Present-day anchors that the "life on Earth" readouts scale with the stellar
+ * density ρ(r) and the metallicity Z(r). Sources are given per value.
+ */
+export const NEIGHBOURHOOD = Object.freeze({
+  /** Proxima Centauri; the typical spacing of a Poisson field scales as n^(−1/3). */
+  nearestStarLy: 4.25,
+  /** Yale Bright Star Catalogue: ≈ 9 100 stars to V = 6.5 over the whole sky. */
+  nakedEyeStars: 9000,
+  /** Stellar passages within 1 pc: 19.7 ± 2.2 per Myr (Bailer-Jones et al. 2018, A&A 616, A37). */
+  encountersPerMyr: 19.7,
+  /** Core-collapse supernovae within 8 pc – close enough to damage the ozone layer: ≈ 1.5 per Gyr (Gehrels et al. 2003, ApJ 585, 1169). */
+  supernovaPerGyr: 1.5,
+  /** Giant-planet occurrence P ∝ 10^(2.0·[Fe/H]) (Fischer & Valenti 2005, ApJ 622, 1102). */
+  giantPlanetSlopeDex: 2.0,
+  /** Crossing intervals above this are shown as "practically never" (the Sun is near corotation). */
+  neverCrossingMyr: 1000,
+});
+
+/** Typical distance to the nearest star (ly): spacing ∝ ρ^(−1/3). */
+export function nearestStarLy(rKly, cfg = DEFAULT_CONFIG) {
+  return NEIGHBOURHOOD.nearestStarLy * Math.pow(relativeStellarDensity(rKly, cfg), -1 / 3);
+}
+
+/** Stars visible to the naked eye – a density-limited count, ∝ ρ. */
+export function nakedEyeStarCount(rKly, cfg = DEFAULT_CONFIG) {
+  return NEIGHBOURHOOD.nakedEyeStars * relativeStellarDensity(rKly, cfg);
+}
+
+/** Stellar passages within 1 pc per Myr, ∝ ρ (a lower bound: the velocity dispersion also grows inward). */
+export function stellarEncounterRatePerMyr(rKly, cfg = DEFAULT_CONFIG) {
+  return NEIGHBOURHOOD.encountersPerMyr * relativeStellarDensity(rKly, cfg);
+}
+
+/** Mean interval between passages within 1 pc, in kyr. */
+export function stellarEncounterIntervalKyr(rKly, cfg = DEFAULT_CONFIG) {
+  return 1000 / stellarEncounterRatePerMyr(rKly, cfg);
+}
+
+/** Outer edge of the Oort cloud relative to today: the tidal truncation radius scales as (M☉/ρ)^(1/3). */
+export function oortCloudTidalFactor(rKly, cfg = DEFAULT_CONFIG) {
+  return Math.pow(relativeStellarDensity(rKly, cfg), -1 / 3);
+}
+
+/** Mean interval (Myr) between ozone-damaging supernovae within 8 pc, from the schematic hazard. */
+export function ozoneSupernovaIntervalMyr(rKly, cfg = DEFAULT_CONFIG) {
+  return 1000 / (NEIGHBOURHOOD.supernovaPerGyr * relativeSupernovaRate(rKly, cfg));
+}
+
+/** Giant-planet occurrence relative to today: 10^(2.0·[Fe/H]) = Z². */
+export function giantPlanetFactor(rKly, cfg = DEFAULT_CONFIG) {
+  return Math.pow(relativeMetallicity(rKly, cfg), NEIGHBOURHOOD.giantPlanetSlopeDex);
+}
+
+/**
+ * Mean time between spiral-arm crossings: T = 2π / (m·|Ω(r) − Ω_p|) for m arms.
+ * Infinity at corotation, where the Sun keeps its place in the pattern.
+ */
+export function armCrossingIntervalMyr(rKly, cfg = DEFAULT_CONFIG) {
+  const dOmega = Math.abs(angularSpeed(rKly, cfg) - TAU / cfg.patternPeriodMyr);
+  if (dOmega < 1e-9) return Infinity;
+  return TAU / (cfg.arms.length * dOmega);
+}
+
+/** All "life on Earth" numbers for a Sun at radius r. */
+export function neighbourhoodState(rKly, cfg = DEFAULT_CONFIG) {
+  const r = clamp(rKly, cfg.sunRadiusRangeKly.min, cfg.sunRadiusRangeKly.max);
+  return {
+    radiusKly: r,
+    zone: classifyRadius(r, cfg),
+    density: relativeStellarDensity(r, cfg),
+    metallicity: relativeMetallicity(r, cfg),
+    nearestStarLy: nearestStarLy(r, cfg),
+    nakedEyeStars: nakedEyeStarCount(r, cfg),
+    encounterRatePerMyr: stellarEncounterRatePerMyr(r, cfg),
+    encounterIntervalKyr: stellarEncounterIntervalKyr(r, cfg),
+    oortCloudFactor: oortCloudTidalFactor(r, cfg),
+    supernovaIntervalMyr: ozoneSupernovaIntervalMyr(r, cfg),
+    giantPlanetFactor: giantPlanetFactor(r, cfg),
+    armCrossingIntervalMyr: armCrossingIntervalMyr(r, cfg),
+    periodMyr: orbitalPeriodMyr(r, cfg),
+    galacticYears: galacticYearsSinceFormation(r, cfg),
+  };
+}
+
 /** Everything the readouts show for a Sun placed at radius r, at time t. */
 export function sunState(rKly, tMyr, cfg = DEFAULT_CONFIG) {
   const r = clamp(rKly, cfg.sunRadiusRangeKly.min, cfg.sunRadiusRangeKly.max);
@@ -187,6 +290,7 @@ export function sunState(rKly, tMyr, cfg = DEFAULT_CONFIG) {
     metallicity: relativeMetallicity(r, cfg),
     azimuth: orbitAzimuth(tMyr, r, cfg.sunAzimuth, cfg),
     patternAngle: patternAngle(tMyr, cfg),
+    neighbourhood: neighbourhoodState(r, cfg),
   };
 }
 
@@ -283,6 +387,10 @@ const PALETTE = Object.freeze({
   spur: [0.66, 0.82, 1.0],
 });
 
+/** Haze tints are more saturated than the star palette: additive stacking and tone mapping wash colours out. */
+const HAZE_BLUE = [0.4, 0.58, 1.0];
+const HAZE_CREAM = [1.0, 0.78, 0.5];
+
 const mix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
 /**
@@ -367,7 +475,8 @@ export function generateGalaxy(cfg = DEFAULT_CONFIG, count = 50000, seed = 20250
     const z = along * sinB + across * cosB;
     const tCore = clamp(rr / cfg.bulge.maxKly, 0, 1);
     const col = mix3(PALETTE.bulgeCore, PALETTE.bulgeEdge, tCore);
-    write(x, vert, z, col, sizeSample() * (0.9 + 0.5 * (1 - tCore)), KIND.bulge, 0.55 + 0.45 * (1 - tCore));
+    // dimmer than before the haze existed: additive blending of ~10 000 points would otherwise burn the core to white
+    write(x, vert, z, col, sizeSample() * (0.9 + 0.5 * (1 - tCore)), KIND.bulge, 0.38 + 0.32 * (1 - tCore));
   }
 
   // spiral arms + the Orion spur
@@ -412,6 +521,187 @@ export function generateGalaxy(cfg = DEFAULT_CONFIG, count = 50000, seed = 20250
   }
 
   return { positions, colors, sizes, phases, kinds, radii, count: i };
+}
+
+/** Weighted pick among the arms (and the spur when `withSpur`). */
+function armPicker(rnd, cfg, withSpur = true) {
+  const arms = withSpur ? [...cfg.arms, cfg.spur] : cfg.arms;
+  const total = arms.reduce((s, a) => s + a.weight, 0);
+  return () => {
+    let u = rnd() * total;
+    for (const arm of arms) {
+      if (u < arm.weight) return arm;
+      u -= arm.weight;
+    }
+    return arms[arms.length - 1];
+  };
+}
+
+/** Bar/bulge position sampler shared by the stars and the haze: exponential radius, squashed into a bar. */
+function sampleBulge(rnd, cfg, cosB, sinB) {
+  let rr;
+  do rr = -cfg.bulge.scaleKly * Math.log(Math.max(rnd(), 1e-12));
+  while (rr > cfg.bulge.maxKly);
+  const u = rnd() * 2 - 1;
+  const th = rnd() * TAU;
+  const s = Math.sqrt(1 - u * u);
+  const along = rr * s * Math.cos(th);
+  const across = rr * s * Math.sin(th) * cfg.bulge.acrossRatio;
+  return { x: along * cosB - across * sinB, y: rr * u * cfg.bulge.verticalRatio, z: along * sinB + across * cosB, rr };
+}
+
+/**
+ * Unresolved starlight: a few thousand large, soft billboards that carry the
+ * smooth glow a galaxy shows from outside – warm bulge, blue-white arm ridges and
+ * a cream exponential disc. Sizes are in kly (world units).
+ * @returns {{ positions: Float32Array, colors: Float32Array, sizes: Float32Array, count: number }}
+ */
+export function generateHaze(cfg = DEFAULT_CONFIG, count = 4000, seed = 7) {
+  const rnd = createRandom(seed);
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const nBulge = Math.round(count * cfg.haze.bulge);
+  const nArms = Math.round(count * cfg.haze.arms);
+  const nDisc = count - nBulge - nArms;
+  const bar = barAngle(cfg);
+  const cosB = Math.cos(bar);
+  const sinB = Math.sin(bar);
+  const pickArm = armPicker(rnd, cfg, true);
+  const radialFade = (r) => 0.55 + 0.45 * Math.exp(-r / 25);
+  let i = 0;
+  const write = (x, y, z, rgb, brightness, size) => {
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
+    colors[i * 3] = rgb[0] * brightness;
+    colors[i * 3 + 1] = rgb[1] * brightness;
+    colors[i * 3 + 2] = rgb[2] * brightness;
+    sizes[i] = size;
+    i++;
+  };
+  for (let n = 0; n < nBulge; n++) {
+    const p = sampleBulge(rnd, cfg, cosB, sinB);
+    const tCore = clamp(p.rr / cfg.bulge.maxKly, 0, 1);
+    write(p.x, p.y * 0.9, p.z, mix3(PALETTE.bulgeCore, PALETTE.bulgeEdge, tCore), 0.12 + 0.28 * (1 - tCore), 2.5 + 3 * rnd());
+  }
+  for (let n = 0; n < nArms; n++) {
+    const arm = pickArm();
+    const r = arm === cfg.spur ? cfg.spur.fromKly + rnd() * (cfg.spur.toKly - cfg.spur.fromKly) : sampleDiscRadius(rnd, cfg, { min: cfg.armStartKly * 0.85, max: cfg.discRadiusKly * 0.95 });
+    const width = arm.widthKly * (0.85 + 0.006 * r) * cfg.haze.armWidthFactor;
+    const across = rnd.gauss() * width;
+    const phi = armAzimuth(r, arm, cfg) + across / r;
+    const y = rnd.gauss() * cfg.discScaleHeightKly * (1 + cfg.discFlarePerKly * r) * 0.8;
+    const core = Math.exp(-(across * across) / (2 * width * width * 0.5));
+    const col = arm === cfg.spur ? PALETTE.spur : mix3(PALETTE.armHot, HAZE_BLUE, 0.4 + 0.6 * core); // bluer than the stars: the ridge is young light
+    write(r * Math.cos(phi), y, r * Math.sin(phi), col, radialFade(r) * (0.45 + 0.55 * core) * (arm === cfg.spur ? 0.7 : 1), 1.4 + 1.8 * rnd());
+  }
+  for (let n = 0; n < nDisc; n++) {
+    const r = sampleDiscRadius(rnd, cfg, { min: 2, max: cfg.discRadiusKly });
+    const phi = rnd() * TAU;
+    const y = rnd.gauss() * cfg.discScaleHeightKly * (1 + cfg.discFlarePerKly * r) * 1.3;
+    // large and faint: the smooth inter-arm light, fading with the exponential disc so the outskirts stay dark
+    write(r * Math.cos(phi), y, r * Math.sin(phi), HAZE_CREAM, 0.4 * Math.min(1, Math.exp(-(r - 12) / 16)), 3.5 + 3 * rnd());
+  }
+  return { positions, colors, sizes, count: i };
+}
+
+export const DUST_KIND = Object.freeze({ lane: 0, disc: 1 });
+
+/**
+ * Interstellar dust as extinction billboards: lanes hugging the concave (inner)
+ * edge of the arms inside corotation, fading out over a few kly beyond it, plus a
+ * thin diffuse disc. `strengths` is the peak extinction of each billboard (0…1).
+ * @returns {{ positions: Float32Array, sizes: Float32Array, strengths: Float32Array,
+ *             radii: Float32Array, kinds: Uint8Array, count: number }}
+ */
+export function generateDust(cfg = DEFAULT_CONFIG, count = 6000, seed = 11) {
+  const rnd = createRandom(seed);
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const strengths = new Float32Array(count);
+  const radii = new Float32Array(count);
+  const kinds = new Uint8Array(count);
+  const d = cfg.dust;
+  const nLanes = Math.round(count * d.laneFraction);
+  const nDisc = count - nLanes;
+  const pickArm = armPicker(rnd, cfg, false);
+  const rCorotation = cfg.sun.radiusKly;
+  let i = 0;
+  const write = (x, y, z, size, strength, kind) => {
+    positions[i * 3] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
+    sizes[i] = size;
+    strengths[i] = strength;
+    radii[i] = Math.hypot(x, z);
+    kinds[i] = kind;
+    i++;
+  };
+  for (let n = 0; n < nLanes; n++) {
+    const arm = pickArm();
+    let r;
+    let weight;
+    do {
+      r = sampleDiscRadius(rnd, cfg, { min: cfg.armStartKly, max: rCorotation + d.fadeBeyondCorotationKly });
+      weight = r <= rCorotation ? 1 : 1 - (r - rCorotation) / d.fadeBeyondCorotationKly;
+    } while (rnd() > weight);
+    const width = arm.widthKly * (0.85 + 0.006 * r);
+    const across = -d.laneOffsetWidths * width + rnd.gauss() * d.laneScatterWidths * width;
+    const phi = armAzimuth(r, arm, cfg) + across / r;
+    const y = rnd.gauss() * d.scaleHeightKly;
+    write(r * Math.cos(phi), y, r * Math.sin(phi), 0.9 + 1.3 * rnd(), (0.45 + 0.55 * rnd()) * weight, DUST_KIND.lane);
+  }
+  for (let n = 0; n < nDisc; n++) {
+    const r = sampleDiscRadius(rnd, cfg, { min: d.discFromKly, max: d.discToKly });
+    const phi = rnd() * TAU;
+    const y = rnd.gauss() * d.scaleHeightKly;
+    write(r * Math.cos(phi), y, r * Math.sin(phi), 2 + 2.2 * rnd(), 0.12 + 0.2 * rnd(), DUST_KIND.disc);
+  }
+  return { positions, sizes, strengths, radii, kinds, count: i };
+}
+
+/**
+ * Globular clusters: a spheroidal halo with number density ρ(r) ∝ (r² + a²)^(−7/4),
+ * sampled through a tabulated inverse CDF. They do not take part in the pattern rotation.
+ * @returns {{ positions: Float32Array, sizes: Float32Array, radii: Float32Array, count: number }}
+ */
+export function generateGlobularClusters(cfg = DEFAULT_CONFIG, count = cfg.globulars.count, seed = 5) {
+  const rnd = createRandom(seed);
+  const { coreKly: a, minKly, maxKly } = cfg.globulars;
+  const steps = 256;
+  const cdf = new Float64Array(steps + 1);
+  for (let k = 1; k <= steps; k++) {
+    const r = minKly + ((maxKly - minKly) * (k - 0.5)) / steps;
+    cdf[k] = cdf[k - 1] + r * r * Math.pow(r * r + a * a, -1.75);
+  }
+  const sampleRadius = () => {
+    const u = rnd() * cdf[steps];
+    let lo = 0;
+    let hi = steps;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (cdf[mid] < u) lo = mid;
+      else hi = mid;
+    }
+    const f = (u - cdf[lo]) / Math.max(cdf[hi] - cdf[lo], 1e-12);
+    return minKly + ((maxKly - minKly) * (lo + f)) / steps;
+  };
+  const positions = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const radii = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    const r = sampleRadius();
+    const u = rnd() * 2 - 1;
+    const th = rnd() * TAU;
+    const s = Math.sqrt(1 - u * u);
+    positions[i * 3] = r * s * Math.cos(th);
+    positions[i * 3 + 1] = r * u;
+    positions[i * 3 + 2] = r * s * Math.sin(th);
+    sizes[i] = 1.3 + 0.9 * rnd();
+    radii[i] = r;
+  }
+  return { positions, sizes, radii, count };
 }
 
 /** Radial histogram of a point set: counts per annulus of width `binKly`, divided by annulus area. */

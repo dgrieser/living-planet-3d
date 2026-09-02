@@ -748,7 +748,8 @@
       "sections": {
         "sun": "Die Sonne",
         "time": "Galaktischer Umlauf",
-        "view": "Ansicht"
+        "view": "Ansicht",
+        "earth": "Leben auf der Erde in diesem Abstand"
       },
       "controls": {
         "sunRadius": "Abstand vom galaktischen Zentrum",
@@ -756,7 +757,7 @@
         "time": "Simulationszeit",
         "play": "Umlauf abspielen",
         "pause": "Pause",
-        "timeHint": "Ein Umlauf des Spiralmusters dauert 230 Millionen Jahre – hier etwa 40 Sekunden. Die Sonne kreist mit der Periode ihres aktuellen Radius, abseits von 27.000 Lj driftet sie also durch die Arme.",
+        "timeHint": "Ein Umlauf des Spiralmusters dauert 230 Millionen Jahre – hier etwa eine Minute. Die Sonne kreist mit der Periode ihres aktuellen Radius, abseits von 27.000 Lj driftet sie also durch die Arme.",
         "ring": "Habitabler Ring",
         "zones": "Gefahren- & metallarme Zonen",
         "armLabels": "Arm-Beschriftungen",
@@ -781,6 +782,35 @@
         "supernova": "Supernova-Rate ggü. Sonne heute",
         "metals": "Schwere Elemente ggü. Sonne heute",
         "orbits": "Umläufe auf der Zeitleiste"
+      },
+      "earth": {
+        "introHabitable": "Noch innerhalb der Zone: Die Erde bliebe bewohnbar, aber ihr Nachthimmel, ihre Risiken und ihr Rhythmus über Jahrmillionen würden sich ändern. Alle Werte im Vergleich zu heute.",
+        "introInner": "Außerhalb der Zone, zu nah am Zentrum: Komplexes Leben könnte sich hier vermutlich gar nicht erst lange halten. Zum Vergleich dieselben Was-wäre-wenn-Werte:",
+        "introOuter": "Außerhalb der Zone, zu weit draußen: Eine Gesteinserde wäre hier vermutlich gar nicht erst entstanden. Zum Vergleich dieselben Was-wäre-wenn-Werte:",
+        "sky": "Nachthimmel",
+        "skyValue": "nächster Stern ≈ {distance} Lj · ≈ {stars} Sterne mit bloßem Auge",
+        "skyNote": "Heute: 4,25 Lj und etwa 9.000 Sterne. Näher am Zentrum erscheinen das Band der Milchstraße und der Bulge größer und heller, während mehr Staub den Blick in die Ferne trübt.",
+        "encounters": "Nahe Sternpassagen",
+        "encountersValue": "ein Stern innerhalb von 1 Parsec alle ≈ {interval}",
+        "encountersNote": "Heute etwa alle 51.000 Jahre (Bailer-Jones et al. 2018). Jede Passage kann Kometen aus der Oortschen Wolke lösen, deren Außenrand bei etwa {oort}× des heutigen Abstands läge.",
+        "supernova": "Ozonschädigende Supernova",
+        "supernovaValue": "etwa eine alle {interval}",
+        "supernovaNote": "Eine Supernova innerhalb von 8 Parsec kann die Ozonschicht abtragen; heute passiert das grob alle 670 Millionen Jahre (Gehrels et al. 2003). Skaliert mit der schematischen Supernova-Gefahr.",
+        "planets": "Planetenentstehung",
+        "planetsValue": "Riesenplaneten {factor}× so wahrscheinlich",
+        "planetsNote": "Schwere Elemente bestimmen, was entsteht: Mit mehr davon würden wandernde Riesenplaneten häufiger die Bahnen von Gesteinsplaneten stören (Fischer & Valenti 2005; eine Hypothese hinter dem Innenrand der Zone, Lineweaver 2001). Mit weniger gibt es weniger Gestein und weniger Uran und Thorium, die das Planeteninnere heizen und die Plattentektonik antreiben.",
+        "arms": "Spiralarm-Durchgänge",
+        "armsValue": "alle ≈ {interval}",
+        "armsNever": "praktisch nie – die Sonne läuft mit dem Muster mit (Korotation)",
+        "armsNote": "In einem Arm sind Supernovae und riesige Molekülwolken weit häufiger. Ob frühere Durchgänge die Eiszeiten der Erde getaktet haben (Shaviv 2003), ist umstritten.",
+        "year": "Galaktisches Jahr",
+        "yearValue": "{period} · 4,6 Milliarden Jahre Erdgeschichte = {orbits} Umläufe",
+        "yearNote": "Weiter außen dauern die Jahre länger: Bei flacher Rotationskurve wächst die Umlaufzeit proportional zum Radius.",
+        "unchanged": "Unverändert: Bahn, Jahr, Jahreszeiten und Sonnenlicht der Erde bestimmt die Sonne, nicht ihr Platz in der Galaxis. Das Gedankenspiel ist nicht weit hergeholt – die Sonne ist seit ihrer Entstehung vermutlich um mehrere tausend Lichtjahre im Radius gewandert (Sellwood & Binney 2002).",
+        "caveat": "Alle Werte skalieren heutige Messwerte mit der schematischen exponentiellen Scheibe und dem Metallizitätsgradienten – als Größenordnungen zu lesen.",
+        "years": "{n} Jahre",
+        "millionYears": "{n} Millionen Jahre",
+        "billionYears": "{n} Milliarden Jahre"
       },
       "tooltip": {
         "innerTitle": "Innere Galaxis",
@@ -814,7 +844,9 @@
         "danger": "Innere Galaxis – Strahlung, Supernovae",
         "metalPoor": "Äußere Scheibe – zu wenige schwere Elemente",
         "sun": "Sonne",
-        "orbit": "Bahn der Sonne"
+        "orbit": "Bahn der Sonne",
+        "dust": "Staubbänder – interstellarer Staub",
+        "globulars": "Kugelsternhaufen – alte Sternhaufen im Halo"
       },
       "info": {
         "title": "Eine günstige Adresse",
@@ -844,7 +876,22 @@
         "spiralLabel": "Spiralarme",
         "spiralFormula": "r(φ) = r₀ · exp(k · Δφ),   k = tan({pitch}°)",
         "spiralNote": "{arms} logarithmische Arme (zwei Haupt-, zwei Nebenarme) plus der Orion-Sporn, der die Sonne trägt. Ihre Formen, der Balken und die Punktverteilung sind stilisiert; das Muster rotiert starr mit der Winkelgeschwindigkeit der Sonne, weil die Sonne nahe am Korotationsradius liegt.",
-        "scaleNote": "Eine Szeneneinheit entspricht 1.000 Lichtjahren; die Scheibe ist bis 50.000 Lichtjahre gezeichnet, mit einer Skalenhöhe der dünnen Scheibe von etwa 650 Lichtjahren. Punkthelligkeit und Farben sind stilisiert."
+        "scaleNote": "Eine Szeneneinheit entspricht 1.000 Lichtjahren; die Scheibe ist bis 50.000 Lichtjahre gezeichnet, mit einer Skalenhöhe der dünnen Scheibe von etwa 650 Lichtjahren. Punkthelligkeit und Farben sind stilisiert. Der Schleier steht für unaufgelöstes Sternlicht, die Staubbänder liegen am konkaven Rand der Arme innerhalb der Korotation und in einer nur etwa 300 Lichtjahre dicken Scheibe, und die 150 Kugelsternhaufen folgen einem sphäroidalen Halo-Profil mit einem mittleren Abstand von etwa 5 kpc.",
+        "nearestStarLabel": "Nachthimmel: Sternabstände und -zahlen",
+        "nearestStarFormula": "d ∝ ρ^(−1/3),   N ∝ ρ,   ρ(r) = exp[(r☉ − r) / h]",
+        "nearestStarNote": "Poisson-Abstände der Sterne, verankert an Proxima Centauri ({nearest} Lj) und den ≈ {nakedEye} Sternen heller als 6,5 mag (Yale Bright Star Catalogue).",
+        "encountersLabel": "Sternpassagen innerhalb von 1 pc",
+        "encountersFormula": "Rate = {encounters} pro Mio. Jahre · ρ,   Rand der Oortschen Wolke ∝ ρ^(−1/3)",
+        "encountersNote": "Bailer-Jones et al. (2018) aus Gaia DR2. Die Rate wächst auch mit der Geschwindigkeitsdispersion, ∝ ρ ist also eine Untergrenze; die galaktische Gezeitenkraft begrenzt die Oortsche Wolke bei einem Radius ∝ (M☉/ρ)^(1/3).",
+        "supernovaIntervalLabel": "Ozonschädigende Supernovae",
+        "supernovaIntervalFormula": "Intervall = 1 / ({snPerGyr} pro Mrd. Jahre · Gefahr(r))",
+        "supernovaIntervalNote": "Gehrels et al. (2003): Kernkollaps-Supernovae innerhalb von 8 pc treten etwa 1,5-mal pro Milliarde Jahre auf und würden die Ozonschicht abbauen. Skaliert mit der schematischen Gefahr oben.",
+        "giantPlanetsLabel": "Riesenplaneten und Metallizität",
+        "giantPlanetsFormula": "P(Riese) ∝ 10^({slope} · [Fe/H]) = Z²",
+        "giantPlanetsNote": "Fischer & Valenti (2005); spätere Arbeiten finden eine flachere Steigung (≈ 1,2), der Faktor ist daher als Richtwert zu verstehen. Lineweaver (2001) folgerte daraus, dass metallreiche innere Regionen wandernde Riesenplaneten begünstigen, die erdähnliche Bahnen stören.",
+        "armCrossingsLabel": "Spiralarm-Durchgänge",
+        "armCrossingsFormula": "T = 2π / ({arms} · |Ω(r) − Ω_p|),   Ω_p = 2π / {patternPeriod} Mio. Jahre",
+        "armCrossingsNote": "Bei starr rotierendem Muster durchquert die Sonne in Korotation nie einen Arm; die echte Sonne liegt nur nahe der Korotation und hat vermutlich alle 100–150 Mio. Jahre einen Arm durchquert. Ein Zusammenhang mit Eiszeitzyklen ist umstritten."
       },
       "hint": "Zonen mit der Maus erkunden · Abstandsregler ziehen"
     }
