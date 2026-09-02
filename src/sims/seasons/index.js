@@ -15,7 +15,8 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createSlider, createToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createSection, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
 import * as S from './physics.js';
 
@@ -50,6 +51,10 @@ const DEFAULTS = Object.freeze({
   playing: true,
   daysPerSecond: 10,
   latitudeDeg: 45,
+});
+
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+const VIEW_DEFAULTS = Object.freeze({
   showHeat: false,
   showTerminator: true,
   showCircles: true,
@@ -69,8 +74,9 @@ const rotateY = (v, angle) => {
   return v.set(v.x * c + v.z * s, v.y, -v.x * s + v.z * c);
 };
 
-export default function mount(container, _meta) {
-  const state = { ...DEFAULTS, activePreset: 'earth', cameraMode: 'earth' };
+export default function mount(container, meta) {
+  const viewPrefs = createViewPrefs(meta.id, VIEW_DEFAULTS);
+  const state = { ...DEFAULTS, ...viewPrefs.values, activePreset: 'earth', cameraMode: 'earth' };
   const disposers = [];
 
   const viewport = el('div', 'lp-sim__viewport');
@@ -737,14 +743,15 @@ export default function mount(container, _meta) {
 
   // View section
   const viewSection = createSection(`${KEYS}.sections.view`);
+  const viewToggle = (name, labelKey, onChange = refresh) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
   const toggles = {
-    showHeat: createToggle({ labelKey: `${KEYS}.view.heatMap`, checked: state.showHeat, onChange: (v) => { state.showHeat = v; heatLegend.hidden = !v; refresh(); } }),
-    showTerminator: createToggle({ labelKey: `${KEYS}.view.terminator`, checked: state.showTerminator, onChange: (v) => { state.showTerminator = v; refresh(); } }),
-    showCircles: createToggle({ labelKey: `${KEYS}.view.circles`, checked: state.showCircles, onChange: (v) => { state.showCircles = v; refresh(); } }),
-    showAxis: createToggle({ labelKey: `${KEYS}.view.axis`, checked: state.showAxis, onChange: (v) => { state.showAxis = v; refresh(); } }),
-    showSubsolar: createToggle({ labelKey: `${KEYS}.view.subsolar`, checked: state.showSubsolar, onChange: (v) => { state.showSubsolar = v; refresh(); } }),
-    showGrid: createToggle({ labelKey: `${KEYS}.view.grid`, checked: state.showGrid, onChange: (v) => { state.showGrid = v; refresh(); } }),
-    showLabels: createToggle({ labelKey: `${KEYS}.view.labels`, checked: state.showLabels, onChange: (v) => { state.showLabels = v; refresh(); } }),
+    showHeat: viewToggle('showHeat', `${KEYS}.view.heatMap`, (v) => { heatLegend.el.hidden = !v; refresh(); }),
+    showTerminator: viewToggle('showTerminator', `${KEYS}.view.terminator`),
+    showCircles: viewToggle('showCircles', `${KEYS}.view.circles`),
+    showAxis: viewToggle('showAxis', `${KEYS}.view.axis`),
+    showSubsolar: viewToggle('showSubsolar', `${KEYS}.view.subsolar`),
+    showGrid: viewToggle('showGrid', `${KEYS}.view.grid`),
+    showLabels: viewToggle('showLabels', `${KEYS}.view.labels`),
   };
   const heatLegend = createHeatLegend();
   heatLegend.el.hidden = !state.showHeat;
@@ -775,8 +782,6 @@ export default function mount(container, _meta) {
       daySlider.setValue(state.dayOfYear, { silent: true });
       speedSlider.setValue(state.daysPerSecond, { silent: true });
       latitudeSlider.setValue(state.latitudeDeg, { silent: true });
-      for (const [key, toggle] of Object.entries(toggles)) toggle.setChecked(state[key], { silent: true });
-      heatLegend.el.hidden = !state.showHeat;
       spinGroup.rotation.y = 0;
       syncPresets();
       syncLatitudeButtons();

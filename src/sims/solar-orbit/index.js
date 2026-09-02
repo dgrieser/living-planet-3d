@@ -11,7 +11,8 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createToggle, createButton, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createSection, createStateToggle, createButton, createNotice, el } from '../../lib/ui.js';
+import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
 import { planetPosition, orbitPath, orbitalPeriodDays, apsides, dateToJD, jdToDate, AU_KM, J2000_JD, DAYS_PER_YEAR, VALID_RANGE } from './kepler.js';
 import { SUN, PLANETS, HABITABLE_ZONE_AU, HYPOTHETICAL_ECCENTRICITY } from './planets.js';
@@ -27,6 +28,10 @@ const KEYS = 'sims.solarOrbit';
 
 const DEFAULTS = Object.freeze({
   speedSlider: 58, // ≈ 30 days/s
+});
+
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+const VIEW_DEFAULTS = Object.freeze({
   showZone: true,
   showLabels: true,
   trueScale: false,
@@ -40,9 +45,11 @@ const sliderToDaysPerSecond = (v) => (v <= 0 ? 0 : Math.pow(MAX_DAYS_PER_SECOND,
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
-export default function mount(container, _meta) {
+export default function mount(container, meta) {
+  const viewPrefs = createViewPrefs(meta.id, VIEW_DEFAULTS);
   const state = {
     ...DEFAULTS,
+    ...viewPrefs.values,
     jd: clamp(dateToJD(new Date()), VALID_RANGE.minJD, VALID_RANGE.maxJD),
     follow: false,
     selected: null,
@@ -477,10 +484,11 @@ export default function mount(container, _meta) {
   timeSection.add(speedControl, dateControl);
 
   const viewSection = createSection(`${KEYS}.sections.view`);
-  const zoneToggle = createToggle({ labelKey: `${KEYS}.controls.habitableZone`, checked: state.showZone, onChange: (v) => { state.showZone = v; applyView(); } });
-  const labelsToggle = createToggle({ labelKey: `${KEYS}.controls.labels`, checked: state.showLabels, onChange: (v) => { state.showLabels = v; applyView(); } });
-  const scaleToggle = createToggle({ labelKey: `${KEYS}.controls.trueScale`, checked: state.trueScale, onChange: (v) => { state.trueScale = v; applyView(); if (state.follow) presets.followEarth(); } });
-  const eccentricToggle = createToggle({ labelKey: `${KEYS}.controls.eccentricOrbit`, checked: state.showEccentric, onChange: (v) => { state.showEccentric = v; applyView(); renderInfo(); } });
+  const viewToggle = (name, labelKey, onChange) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
+  const zoneToggle = viewToggle('showZone', `${KEYS}.controls.habitableZone`, () => applyView());
+  const labelsToggle = viewToggle('showLabels', `${KEYS}.controls.labels`, () => applyView());
+  const scaleToggle = viewToggle('trueScale', `${KEYS}.controls.trueScale`, () => { applyView(); if (state.follow) presets.followEarth(); });
+  const eccentricToggle = viewToggle('showEccentric', `${KEYS}.controls.eccentricOrbit`, () => { applyView(); renderInfo(); });
   const legend = createLegend();
   viewSection.add(zoneToggle, labelsToggle, scaleToggle, eccentricToggle, legend);
 
@@ -499,10 +507,6 @@ export default function mount(container, _meta) {
       Object.assign(state, DEFAULTS);
       speedControl.setValue(state.speedSlider, { silent: true });
       daysPerSecond = sliderToDaysPerSecond(state.speedSlider);
-      zoneToggle.setChecked(state.showZone, { silent: true });
-      labelsToggle.setChecked(state.showLabels, { silent: true });
-      scaleToggle.setChecked(state.trueScale, { silent: true });
-      eccentricToggle.setChecked(state.showEccentric, { silent: true });
       selectBody(null);
       setJD(clamp(dateToJD(new Date()), VALID_RANGE.minJD, VALID_RANGE.maxJD), { fromInput: true });
       applyView();

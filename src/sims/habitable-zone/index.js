@@ -14,7 +14,8 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createSlider, createToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createSection, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as HZ from './physics.js';
 
@@ -38,6 +39,10 @@ const DEFAULTS = Object.freeze({
   distanceAU: 1,
   ageGyr: HZ.SUN_AGE_GYR,
   evolution: false,
+});
+
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+const VIEW_DEFAULTS = Object.freeze({
   showZone: true,
   showShell: false,
   showTempLabels: true,
@@ -48,8 +53,9 @@ const { clamp } = HZ;
 const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const fmt = (v, digits, min = digits) => formatNumber(v, { maximumFractionDigits: digits, minimumFractionDigits: min });
 
-export default function mount(container, _meta) {
-  const state = { ...DEFAULTS, playing: false, angle: Math.PI * 0.15 };
+export default function mount(container, meta) {
+  const viewPrefs = createViewPrefs(meta.id, VIEW_DEFAULTS);
+  const state = { ...DEFAULTS, ...viewPrefs.values, playing: false, angle: Math.PI * 0.15 };
   const disposers = [];
 
   const viewport = el('div', 'lp-sim__viewport');
@@ -602,10 +608,11 @@ export default function mount(container, _meta) {
 
   // view section
   const viewSection = createSection(`${KEYS}.sections.view`);
-  const zoneToggle = createToggle({ labelKey: `${KEYS}.view.zone`, checked: state.showZone, onChange: (v) => { state.showZone = v; refresh(); } });
-  const shellToggle = createToggle({ labelKey: `${KEYS}.view.shell`, checked: state.showShell, onChange: (v) => { state.showShell = v; refresh(); } });
-  const tempToggle = createToggle({ labelKey: `${KEYS}.view.tempLabels`, checked: state.showTempLabels, onChange: (v) => { state.showTempLabels = v; refresh(); } });
-  const gridToggle = createToggle({ labelKey: `${KEYS}.view.grid`, checked: state.showGrid, onChange: (v) => { state.showGrid = v; refresh(); } });
+  const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
+  const zoneToggle = viewToggle('showZone', `${KEYS}.view.zone`);
+  const shellToggle = viewToggle('showShell', `${KEYS}.view.shell`);
+  const tempToggle = viewToggle('showTempLabels', `${KEYS}.view.tempLabels`);
+  const gridToggle = viewToggle('showGrid', `${KEYS}.view.grid`);
   const cameraRow = el('div', 'lp-button-row');
   const frameBtn = createButton({ labelKey: `${KEYS}.view.frameZone`, icon: '◎', onClick: () => frameZone() });
   const overviewBtn = createButton({ labelKey: `${KEYS}.view.overview`, icon: '⤢', onClick: () => frameOverview() });
@@ -622,10 +629,6 @@ export default function mount(container, _meta) {
       luminositySlider.setValue(Math.log10(state.luminosity), { silent: true });
       distanceSlider.setValue(state.distanceAU, { silent: true });
       ageSlider.setValue(state.ageGyr, { silent: true });
-      zoneToggle.setChecked(state.showZone, { silent: true });
-      shellToggle.setChecked(state.showShell, { silent: true });
-      tempToggle.setChecked(state.showTempLabels, { silent: true });
-      gridToggle.setChecked(state.showGrid, { silent: true });
       syncPresetButtons();
       refresh();
       frameZone();

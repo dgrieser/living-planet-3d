@@ -12,7 +12,8 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSlider, createToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createViewPrefs } from '../../lib/prefs.js';
 import { bindText, t, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import { declinationDeg, seasonAt, normalizeDeg, annualMeanInsolation, temperatureEstimate, EARTH_ROTATION_H } from '../seasons/physics.js';
 import { seasonalExtremes, isLivable, livableBands, bandsFraction, verdictFor, temperatureColor } from './climate.js';
@@ -25,6 +26,10 @@ const DEFAULTS = Object.freeze({
   rotationSpeed: 30, // degrees per second (visual, not to scale)
   yearSpeed: 12, // orbit degrees per second (one year every 30 s)
   orbitAngle: 0, // 0° = June solstice (north pole towards the sun)
+});
+
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+const VIEW_DEFAULTS = Object.freeze({
   showClimate: true,
   showLivable: true,
   showAxis: true,
@@ -47,8 +52,9 @@ const CLIMATE_ROWS = 128; // latitude bands of the temperature overlay
 const BORDER_RING_POOL = 8; // enough for every livable/hostile boundary the model produces
 const UP = new THREE.Vector3(0, 1, 0);
 
-export default function mount(container, _meta) {
-  const state = { ...DEFAULTS };
+export default function mount(container, meta) {
+  const viewPrefs = createViewPrefs(meta.id, VIEW_DEFAULTS);
+  const state = { ...DEFAULTS, ...viewPrefs.values };
 
   const viewport = el('div', 'lp-sim__viewport');
   container.append(viewport);
@@ -519,11 +525,10 @@ export default function mount(container, _meta) {
     stopRow.append(btn);
   }
 
-  const climateToggle = createToggle({
+  const climateToggle = createStateToggle({
     labelKey: `${KEYS}.controls.showClimate`,
-    checked: state.showClimate,
+    state, name: 'showClimate', prefs: viewPrefs,
     onChange: (v) => {
-      state.showClimate = v;
       heatLegend.el.hidden = !v;
       applyState();
     },
@@ -531,25 +536,25 @@ export default function mount(container, _meta) {
   const heatLegend = createHeatLegend();
   heatLegend.el.hidden = !state.showClimate;
 
-  const livableToggle = createToggle({
+  const livableToggle = createStateToggle({
     labelKey: `${KEYS}.controls.showLivable`,
-    checked: state.showLivable,
-    onChange: (v) => { state.showLivable = v; applyState(); },
+    state, name: 'showLivable', prefs: viewPrefs,
+    onChange: () => applyState(),
   });
-  const axisToggle = createToggle({
+  const axisToggle = createStateToggle({
     labelKey: `${KEYS}.controls.showAxis`,
-    checked: state.showAxis,
-    onChange: (v) => { state.showAxis = v; applyState(); },
+    state, name: 'showAxis', prefs: viewPrefs,
+    onChange: () => applyState(),
   });
-  const equatorToggle = createToggle({
+  const equatorToggle = createStateToggle({
     labelKey: `${KEYS}.controls.showEquator`,
-    checked: state.showEquator,
-    onChange: (v) => { state.showEquator = v; applyState(); },
+    state, name: 'showEquator', prefs: viewPrefs,
+    onChange: () => applyState(),
   });
-  const terminatorToggle = createToggle({
+  const terminatorToggle = createStateToggle({
     labelKey: `${KEYS}.controls.showTerminator`,
-    checked: state.showTerminator,
-    onChange: (v) => { state.showTerminator = v; applyState(); },
+    state, name: 'showTerminator', prefs: viewPrefs,
+    onChange: () => applyState(),
   });
 
   const buttonRow = el('div', 'lp-button-row');
@@ -561,12 +566,6 @@ export default function mount(container, _meta) {
       tiltSlider.setValue(state.tilt, { silent: true });
       yearSlider.setValue(state.yearSpeed, { silent: true });
       speedSlider.setValue(state.rotationSpeed, { silent: true });
-      climateToggle.setChecked(state.showClimate, { silent: true });
-      livableToggle.setChecked(state.showLivable, { silent: true });
-      axisToggle.setChecked(state.showAxis, { silent: true });
-      equatorToggle.setChecked(state.showEquator, { silent: true });
-      terminatorToggle.setChecked(state.showTerminator, { silent: true });
-      heatLegend.el.hidden = !state.showClimate;
       spinGroup.rotation.y = 0;
       seasonQuadrant = -1;
       unpin();
