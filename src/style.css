@@ -407,6 +407,7 @@ a:hover { color: #a9d9ff; }
 .lp-state__hint { flex: 1 1 100%; margin: 2px 0 0; font-size: 0.8rem; color: var(--lp-text-muted); }
 .lp-state__hint + .lp-state__hint { margin-top: 8px; line-height: 1.45; }
 .lp-state__hint:empty { display: none; }
+.lp-state__figure { font-weight: 700; color: var(--lp-text); font-variant-numeric: tabular-nums; }
 
 .lp-drag-hint { margin: 2px 0 4px; font-size: 0.8rem; color: var(--lp-text-muted); }
 .lp-drag-hint::before { content: "✋ "; }

@@ -325,7 +325,6 @@ assert('nearest-star distance and Oort factor grow outward, star counts and enco
 checkRel('today: a 14 % chance of an ozone-damaging supernova in any 100 Myr (1 − e^(−100/667))', today.supernovaChancePercent, 13.9, 0.01);
 checkRel('13 kly: a 54 % chance in any 100 Myr', inner.supernovaChancePercent, 54.2, 0.01);
 check('an infinite interval means a 0 % chance', M.chanceWithinPercent(Infinity), 0, 1e-12);
-assert('similarity tiers: close near 27 kly, shifted around 20 and 33 kly, different at the inner edge', M.similarityTier(27) === 'close' && M.similarityTier(25) === 'close' && M.similarityTier(29) === 'close' && M.similarityTier(20) === 'shifted' && M.similarityTier(33) === 'shifted' && M.similarityTier(13) === 'different' && M.similarityTier(45) === 'different');
 assert('metallicity tiers: rich inside ≈ 24.7 kly, poor outside ≈ 29.5 kly', M.metallicityTier(27) === 'same' && M.metallicityTier(24) === 'rich' && M.metallicityTier(30) === 'poor' && M.metallicityTier(13) === 'rich' && M.metallicityTier(33) === 'poor');
 assert('the Sun overtakes the pattern inside corotation and lags outside', M.neighbourhoodState(20).overtakesPattern && !M.neighbourhoodState(33).overtakesPattern && !today.overtakesPattern);
 assert('only 27 kly counts as today', today.isToday && !M.neighbourhoodState(26.5).isToday && !M.neighbourhoodState(27.5).isToday);

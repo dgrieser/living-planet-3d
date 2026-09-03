@@ -207,12 +207,6 @@ export const NEIGHBOURHOOD = Object.freeze({
   neverCrossingMyr: 1000,
   /** Window for quoting catastrophe odds: "a x % chance in any 100 million years". */
   oddsWindowMyr: 100,
-  /**
-   * How far the stellar density may differ from today's before conditions count as
-   * "shifted" and then "different" (ratio, applied in both directions).
-   */
-  closeDensityRatio: 1.33,
-  shiftedDensityRatio: 2.5,
   /** Metallicity above/below these counts as a metal-rich / metal-poor birthplace for the solar system. */
   richMetallicity: 1.1,
   poorMetallicity: 0.9,
@@ -222,18 +216,6 @@ export const NEIGHBOURHOOD = Object.freeze({
 export function chanceWithinPercent(intervalMyr, windowMyr = NEIGHBOURHOOD.oddsWindowMyr) {
   if (!Number.isFinite(intervalMyr)) return 0;
   return 100 * (1 - Math.exp(-windowMyr / intervalMyr));
-}
-
-/**
- * How close conditions would be to today's, judged by the stellar density – the
- * quantity every hazard scales with: 'close' | 'shifted' | 'different'.
- */
-export function similarityTier(rKly, cfg = DEFAULT_CONFIG) {
-  const rho = relativeStellarDensity(rKly, cfg);
-  const ratio = rho >= 1 ? rho : 1 / rho;
-  if (ratio <= NEIGHBOURHOOD.closeDensityRatio) return 'close';
-  if (ratio <= NEIGHBOURHOOD.shiftedDensityRatio) return 'shifted';
-  return 'different';
 }
 
 /** Birthplace chemistry for a solar system formed at r: 'rich' | 'same' | 'poor'. */
@@ -308,7 +290,6 @@ export function neighbourhoodState(rKly, cfg = DEFAULT_CONFIG) {
     /** Inside corotation the Sun overtakes the pattern, outside it lags behind. */
     overtakesPattern: angularSpeed(r, cfg) > TAU / cfg.patternPeriodMyr + 1e-12,
     supernovaChancePercent: chanceWithinPercent(ozoneSupernovaIntervalMyr(r, cfg)),
-    similarity: similarityTier(r, cfg),
     metallicityTier: metallicityTier(r, cfg),
     isToday: Math.abs(r - cfg.sun.radiusKly) < 0.26,
     periodMyr: orbitalPeriodMyr(r, cfg),

@@ -20,10 +20,10 @@
  *  - The Sun is a pulsing gold sprite at 27 kly on the Orion spur. The radius
  *    slider moves it along its azimuth for what-if exploration; the readouts
  *    (zone, period, supernova hazard, heavy-element abundance) follow. The
- *    "conditions in the solar system" box turns the same model into prose: how close
- *    conditions would be to today's, the odds of ozone-damaging supernovae and
- *    comet-shower passages, whether the Sun would cross spiral arms here, and what a
- *    solar system born here would have got in terms of a Jupiter and radiogenic heat.
+ *    "conditions in the solar system" box turns the same model into prose: the odds
+ *    of ozone-damaging supernovae and comet-shower passages, whether the Sun would
+ *    cross spiral arms here, and what a solar system born here would have got in
+ *    terms of a Jupiter and radiogenic heat – every figure set in bold.
  *  - Timeline: the spiral pattern rotates rigidly once per 230 Myr and the Sun
  *    orbits with the period of its current radius (flat rotation curve), so at
  *    27 kly it stays on the spur, further in it overtakes the arms, further out
@@ -506,8 +506,8 @@ export default function mount(container, meta) {
   const zoneReadout = el('div', 'lp-readout lp-readout--zone');
   const zoneLabel = bindText(el('div', 'lp-readout__label'), `${KEYS}.conditions.label`);
   const zonePill = el('span', 'lp-state');
-  // prose paragraphs: verdict/zone, catastrophe odds, spiral arms, birthplace chemistry (filled in updateReadouts)
-  const conditionParagraphs = ['verdict', 'hazards', 'arms', 'formation'].map(() => el('p', 'lp-state__hint'));
+  // prose paragraphs: zone hint (outside the zone only), catastrophe odds, spiral arms, birthplace chemistry
+  const conditionParagraphs = ['zone', 'hazards', 'arms', 'formation'].map(() => el('p', 'lp-state__hint'));
   zoneReadout.append(zoneLabel, zonePill, ...conditionParagraphs);
   const sunFacts = createFacts([
     ['distance', `${KEYS}.facts.distance`],
@@ -708,24 +708,23 @@ export default function mount(container, meta) {
    */
   function updateConditions(n, zone) {
     const C = `${KEYS}.conditions`;
-    const [verdict, hazards, arms, formation] = conditionParagraphs;
-    if (zone !== 'habitable') verdict.textContent = t(`${KEYS}.status.${zone}Hint`);
-    else if (n.isToday) verdict.textContent = t(`${C}.today`);
-    else verdict.textContent = t(`${C}.verdict${cap(n.similarity)}`);
-    hazards.textContent = n.isToday
-      ? t(`${C}.hazardsToday`)
-      : t(`${C}.hazards`, {
-        supernova: fmtDuration(n.supernovaIntervalMyr),
-        chance: fmt(n.supernovaChancePercent, 0),
-        passage: fmtDuration(n.encounterIntervalKyr / 1000),
-        oort: fmt(n.oortCloudFactor, 2, 2),
-      });
-    arms.textContent = n.armCrossingIntervalMyr > M.NEIGHBOURHOOD.neverCrossingMyr
-      ? t(`${C}.armsCorotation`)
-      : t(`${C}.arms${n.overtakesPattern ? 'Inside' : 'Outside'}`, { interval: fmtDuration(n.armCrossingIntervalMyr) });
-    formation.textContent = t(`${C}.formation${cap(n.metallicityTier)}`, {
-      metals: fmt(n.metallicity, 2, 2),
-      giant: fmt(n.giantPlanetFactor, n.giantPlanetFactor < 1 ? 2 : 1, 1),
+    const today = M.neighbourhoodState(CONFIG.sun.radiusKly);
+    const [zoneHint, hazards, arms, formation] = conditionParagraphs;
+    zoneHint.textContent = zone === 'habitable' ? '' : t(`${KEYS}.status.${zone}Hint`);
+    fillTemplate(hazards, `${C}.${n.isToday ? 'hazardsToday' : 'hazards'}`, {
+      supernova: fmtDuration(n.supernovaIntervalMyr),
+      supernovaToday: fmtDuration(today.supernovaIntervalMyr),
+      chance: `${fmt(n.supernovaChancePercent, 0)} %`,
+      chanceToday: `${fmt(today.supernovaChancePercent, 0)} %`,
+      passage: fmtDuration(n.encounterIntervalKyr / 1000),
+      passageToday: fmtDuration(today.encounterIntervalKyr / 1000),
+      oort: `${fmt(n.oortCloudFactor, 2, 2)}×`,
+    });
+    if (n.armCrossingIntervalMyr > M.NEIGHBOURHOOD.neverCrossingMyr) fillTemplate(arms, `${C}.armsCorotation`, {});
+    else fillTemplate(arms, `${C}.arms${n.overtakesPattern ? 'Inside' : 'Outside'}`, { interval: fmtDuration(n.armCrossingIntervalMyr) });
+    fillTemplate(formation, `${C}.formation${cap(n.metallicityTier)}`, {
+      metals: `${fmt(n.metallicity, 2, 2)}×`,
+      giant: `${fmt(n.giantPlanetFactor, n.giantPlanetFactor < 1 ? 2 : 1, 1)}×`,
     });
   }
 
@@ -999,6 +998,25 @@ function createFacts(rows) {
 }
 
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
+
+/**
+ * Render an i18n template into `node`, setting every interpolated value in bold:
+ * the text between placeholders becomes text nodes, each {name} a <strong>.
+ */
+function fillTemplate(node, key, params) {
+  const template = t(key);
+  const parts = template.split(/\{(\w+)\}/g);
+  node.replaceChildren();
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) {
+      if (parts[i]) node.append(document.createTextNode(parts[i]));
+    } else {
+      const strong = el('strong', 'lp-state__figure');
+      strong.textContent = parts[i] in params ? String(params[parts[i]]) : `{${parts[i]}}`;
+      node.append(strong);
+    }
+  }
+}
 
 /** Round to `digits` significant figures. */
 function roundSignificant(v, digits) {
