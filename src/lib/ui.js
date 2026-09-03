@@ -230,9 +230,10 @@ export function createStateToggle({ labelKey, state, name, prefs, onChange }) {
  * Button. variant: 'primary' | 'ghost'
  * `compact` shrinks it to an icon-sized square and hides the label visually – the
  * label still names the button for screen readers and as its tooltip.
+ * `slim` keeps the label but trims the button's height, for a full-width action.
  */
-export function createButton({ labelKey, ariaKey, onClick, variant = 'ghost', icon, compact = false }) {
-  const btn = el('button', `lp-button lp-button--${variant}${compact ? ' lp-button--compact' : ''}`, { type: 'button' });
+export function createButton({ labelKey, ariaKey, onClick, variant = 'ghost', icon, compact = false, slim = false }) {
+  const btn = el('button', `lp-button lp-button--${variant}${compact ? ' lp-button--compact' : ''}${slim ? ' lp-button--slim' : ''}`, { type: 'button' });
   let iconEl = null;
   if (icon) {
     iconEl = el('span', 'lp-button__icon', { 'aria-hidden': 'true' });

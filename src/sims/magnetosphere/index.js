@@ -565,7 +565,7 @@ export default function mount(container, meta) {
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the shield switch and the wind up front, the rest folded away ---------------------
-  const fieldButton = createButton({ labelKey: `${KEYS}.controls.fieldOff`, icon: '🧲', onClick: () => setFieldOn(!state.fieldOn) });
+  const fieldButton = createButton({ labelKey: `${KEYS}.controls.fieldOff`, icon: '🧲', slim: true, onClick: () => setFieldOn(!state.fieldOn) });
   const fieldRow = el('div', 'lp-button-row lp-button-row--full');
   fieldRow.append(fieldButton.el);
   const fieldOffNotice = createNotice({ textKey: `${KEYS}.warn.fieldOff`, tone: 'warn' });
@@ -590,11 +590,11 @@ export default function mount(container, meta) {
     onChange: (v) => setSpeed(v, { fromSlider: true }),
   });
 
-  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
-  const cmeButton = createButton({ labelKey: `${KEYS}.controls.launchCme`, icon: '☀', variant: 'primary', onClick: launchCme });
+  const cmeButton = createButton({ labelKey: `${KEYS}.controls.launchCme`, icon: '☀', variant: 'primary', slim: true, onClick: launchCme });
   const cmeRow = el('div', 'lp-button-row lp-button-row--full');
   cmeRow.append(cmeButton.el);
-  const cmeHint = bindText(el('p', 'lp-section__note'), `${KEYS}.controls.cmeHint`);
+
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
 
   const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
   const toggles = {
@@ -619,10 +619,9 @@ export default function mount(container, meta) {
   const resetRow = el('div', 'lp-button-row lp-button-row--full');
   resetRow.append(resetBtn.el);
 
-  moreControls.add(cmeRow, cmeHint);
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
-    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow,
+    cameraRow,
     toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora, labelsToggle, resetRow,
   );
 
@@ -649,7 +648,7 @@ export default function mount(container, meta) {
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
-    fieldRow, fieldOffNotice, densitySlider, speedSlider, moreControls,
+    fieldRow, fieldOffNotice, densitySlider, speedSlider, cmeRow, moreControls,
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.wind`), windFacts,
     legend, infoCard, physicsCard,
   );
@@ -1019,10 +1018,12 @@ function createPhysicsCard() {
   const entries = ['pressure', 'standoff', 'shue', 'shock', 'kp', 'aurora'];
   function render() {
     body.replaceChildren();
-    // the caveat behind the on-canvas storm index
-    const caveat = el('div', 'lp-notice lp-notice--info', { role: 'note' });
-    caveat.textContent = t(`${KEYS}.storm.schematic`);
-    body.append(caveat);
+    // the caveats behind the on-canvas storm index and the CME's scene timing
+    for (const key of [`${KEYS}.storm.schematic`, `${KEYS}.controls.cmeHint`]) {
+      const caveat = el('div', 'lp-notice lp-notice--info', { role: 'note' });
+      caveat.textContent = t(key);
+      body.append(caveat);
+    }
     for (const id of entries) {
       const block = el('div', 'lp-formula');
       const label = el('p', 'lp-formula__label');

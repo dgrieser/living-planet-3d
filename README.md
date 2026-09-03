@@ -73,10 +73,14 @@ scripts/
 Every simulation's control panel follows the same order, so a visitor who learns one
 finds their way around the next:
 
-1. **The headline control**, visible as soon as the panel opens – the one slider (or
-   switch) the simulation is about. Where a slider has an obvious companion action, it
-   sits inline on its right as a small icon-sized button (`createControlRow()`):
-   play/pause for a timeline, "back to today", "remove the Moon".
+1. **The headline controls**, visible as soon as the panel opens – the slider, switch
+   or preset row the simulation is actually about (habitable-zone keeps three: the
+   planet's distance, the star type and its luminosity). Where a slider has an obvious
+   companion action, it sits inline on its right as a small icon-sized button
+   (`createControlRow()` plus `compact: true`): play/pause for a timeline, "back to
+   today", "remove the Moon". A full-width action gets `slim: true` so it stays one
+   line tall, and a preset row that has to hold four labels up top uses
+   `lp-presets--tight` (tiny type, small swatch, four-up even on a phone).
 2. **One collapsible section** with every remaining control – secondary sliders,
    preset rows, the camera presets on one line, the display toggles and the overall
    reset (full width) – folded away by default on small screens

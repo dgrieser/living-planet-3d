@@ -354,7 +354,7 @@
       "title": "Die bewohnbare Zone",
       "description": "Erkunde den schmalen „Goldlöckchen“-Ring um einen Stern, in dem flüssiges Wasser existieren kann – und beobachte, wie er sich mit Typ, Helligkeit und Alter des Sterns verschiebt.",
       "sections": {
-        "more": "Stern, Entwicklung & Ansicht",
+        "more": "Entwicklung & Ansicht",
         "star": "Stern",
         "evolution": "Sternentwicklung",
         "view": "Ansicht"
@@ -363,7 +363,7 @@
         "presets": "Sterntyp",
         "presetM": "M-Zwerg",
         "presetK": "K-Stern",
-        "presetG": "G – Sonne",
+        "presetG": "G-Sonne",
         "presetF": "F-Stern",
         "presetMAria": "M-Zwerg (0,01 Sonnenleuchtkräfte)",
         "presetKAria": "K-Stern (0,3 Sonnenleuchtkräfte)",
@@ -627,14 +627,14 @@
       "title": "Die Magnetosphäre der Erde",
       "description": "Beobachte, wie das Erdmagnetfeld den Sonnenwind ablenkt, löse einen koronalen Massenauswurf aus und schalte den Schutzschild ab.",
       "sections": {
-        "more": "CME, Ansicht & Kamera",
+        "more": "Ansicht & Kamera",
         "wind": "Sonnenwind",
         "view": "Ansicht"
       },
       "controls": {
         "density": "Dichte",
         "speed": "Geschwindigkeit",
-        "launchCme": "Koronalen Massenauswurf auslösen",
+        "launchCme": "Koron. Massenauswurf auslösen",
         "cmeRunning": "CME unterwegs …",
         "cmeHint": "Ein koronaler Massenauswurf erreicht die Magnetopause nach etwa drei Sekunden Szenenzeit; in Wirklichkeit dauert es 18 Stunden bis 4 Tage.",
         "fieldOff": "Magnetfeld aus",

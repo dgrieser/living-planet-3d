@@ -688,7 +688,7 @@ export default function mount(container, meta) {
 
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
 
-  const presetRow = el('div', 'lp-presets lp-presets--compact', { role: 'group' });
+  const presetRow = el('div', 'lp-presets lp-presets--tight', { role: 'group' });
   bindAttr(presetRow, { 'aria-label': `${KEYS}.star.presets` });
   const presetButtons = HZ.STAR_PRESETS.map((preset) => {
     const btn = createButton({
@@ -822,10 +822,7 @@ export default function mount(container, meta) {
   const resetRow = el('div', 'lp-button-row lp-button-row--full');
   resetRow.append(resetBtn.el);
 
-  moreControls.add(
-    presetRow, luminositySlider, starDragNotice,
-    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.evolution`), ageRow,
-  );
+  moreControls.add(bindText(el('p', 'lp-subheading'), `${KEYS}.sections.evolution`), ageRow);
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`),
@@ -857,7 +854,7 @@ export default function mount(container, meta) {
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
-    distanceSlider, dragNotice, moreControls,
+    distanceSlider, dragNotice, presetRow, luminositySlider, starDragNotice, moreControls,
     readout, planetFacts, windowNote,
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.star`), starFacts,
     legend, infoCard, physicsCard,

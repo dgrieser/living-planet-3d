@@ -286,6 +286,7 @@ a:hover { color: #a9d9ff; }
 .lp-button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .lp-button-row--full > .lp-button { flex: 1 1 100%; }
 .lp-button--compact { width: 34px; height: 34px; padding: 0; gap: 0; flex: none; font-size: 1rem; }
+.lp-button--slim { padding: 6px 10px; font-size: 0.85rem; }
 .lp-button--compact .lp-button__icon { line-height: 1; }
 
 /* a control with small inline actions on its right (slider + reset / play) */
@@ -436,6 +437,11 @@ a:hover { color: #a9d9ff; }
 /* wrap lets a tight cell put the icon and the label on separate lines rather than breaking the word */
 .lp-presets__btn { padding: 8px 6px; font-size: 0.8rem; gap: 6px; min-width: 0; flex-wrap: wrap; hyphens: auto; overflow-wrap: anywhere; }
 .lp-presets--compact .lp-presets__btn { padding: 6px; }
+/* four cells in a 340px panel: tiny type and a small swatch keep each label on one line */
+/* stays four-up even on a phone – the labels are sized to fit a quarter of the panel */
+.lp-presets.lp-presets--tight { grid-template-columns: repeat(4, 1fr); gap: 3px; }
+.lp-presets--tight .lp-presets__btn { padding: 4px 3px; font-size: 0.64rem; gap: 4px; }
+.lp-presets--tight .lp-presets__swatch { width: 8px; height: 8px; box-shadow: 0 0 5px currentColor; }
 .lp-presets__btn[aria-pressed="true"] { border-color: var(--lp-accent); background: rgba(124, 196, 255, 0.14); color: var(--lp-text); }
 .lp-presets__swatch { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 8px currentColor; }
 
