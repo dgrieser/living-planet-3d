@@ -467,8 +467,6 @@ a:hover { color: #a9d9ff; }
 .lp-state__hint:empty { display: none; }
 .lp-state__figure { font-weight: 700; color: var(--lp-text); font-variant-numeric: tabular-nums; }
 
-.lp-drag-hint { margin: 2px 0 4px; font-size: 0.8rem; color: var(--lp-text-muted); }
-.lp-drag-hint::before { content: "✋ "; }
 .lp-window-note { margin: 4px 0 0; font-size: 0.85rem; color: var(--lp-accent); font-variant-numeric: tabular-nums; }
 .lp-section__note { margin: 4px 0 0; font-size: 0.8rem; color: var(--lp-text-muted); }
 

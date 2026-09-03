@@ -380,8 +380,7 @@
           "G": "G – gelbweiß (Sonne)",
           "F": "F – weiß",
           "A": "A – blauweiß"
-        },
-        "dragHint": "Den Rand des Sterns nach außen oder innen ziehen, um seine Leuchtkraft zu ändern"
+        }
       },
       "zone": {
         "edges": "Bewohnbare Zone",
@@ -402,8 +401,7 @@
         "scorched": "Versengt",
         "frozenHint": "Unterhalb der Maximal-Treibhaus-Grenze: alles Wasser ist Eis.",
         "habitableHint": "Flüssiges Wasser kann auf der Oberfläche bestehen.",
-        "scorchedHint": "Jenseits der Grenze des galoppierenden Treibhauseffekts: die Ozeane verdampfen.",
-        "dragHint": "Planeten ziehen, um den Abstand zu ändern"
+        "scorchedHint": "Jenseits der Grenze des galoppierenden Treibhauseffekts: die Ozeane verdampfen."
       },
       "evolution": {
         "age": "Sternalter (sonnenähnlicher Stern)",

@@ -380,8 +380,7 @@
           "G": "G – yellow-white (Sun)",
           "F": "F – white",
           "A": "A – blue-white"
-        },
-        "dragHint": "Pull the star’s limb outward or inward to change its luminosity"
+        }
       },
       "zone": {
         "edges": "Habitable zone",
@@ -402,8 +401,7 @@
         "scorched": "Scorched",
         "frozenHint": "Below the maximum-greenhouse limit: any water is ice.",
         "habitableHint": "Liquid water can persist on the surface.",
-        "scorchedHint": "Beyond the runaway-greenhouse limit: oceans boil away.",
-        "dragHint": "Drag the planet to change its distance"
+        "scorchedHint": "Beyond the runaway-greenhouse limit: oceans boil away."
       },
       "evolution": {
         "age": "Stellar age (Sun-like star)",

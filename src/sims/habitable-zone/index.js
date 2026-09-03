@@ -684,7 +684,6 @@ export default function mount(container, meta) {
       refresh();
     },
   });
-  const dragNotice = bindText(el('p', 'lp-drag-hint'), `${KEYS}.planet.dragHint`);
 
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
 
@@ -723,7 +722,6 @@ export default function mount(container, meta) {
     onChange: (v) => setLuminosity(Math.pow(10, v), { silent: true }),
   });
   luminositySlider.input.addEventListener('change', frameZoneIfNeeded);
-  const starDragNotice = bindText(el('p', 'lp-drag-hint'), `${KEYS}.star.dragHint`);
 
   const ageSlider = createSlider({
     labelKey: `${KEYS}.evolution.age`,
@@ -854,7 +852,7 @@ export default function mount(container, meta) {
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
-    distanceSlider, dragNotice, presetRow, luminositySlider, starDragNotice, moreControls,
+    distanceSlider, presetRow, luminositySlider, moreControls,
     readout, planetFacts, windowNote,
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.star`), starFacts,
     legend, infoCard, physicsCard,
