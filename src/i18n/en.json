@@ -11,6 +11,8 @@
     "home": "Overview",
     "backToOverview": "Back to overview",
     "loading": "Loading simulation…",
+    "showWip": "Show work-in-progress simulations",
+    "hideWip": "Hide work-in-progress simulations",
     "footer": "Built with Three.js · Open educational resource",
     "footerCredit": "Planet textures: Solar System Scope (CC BY 4.0)"
   },
@@ -18,6 +20,7 @@
     "heading": "Simulations",
     "intro": "Explore how our planet works: rotation, tilt, orbit and more – interactively and in 3D. Choose a module to begin.",
     "open": "Open simulation",
+    "workInProgress": "Work in progress",
     "comingSoon": "Coming soon"
   },
   "panel": {
@@ -64,6 +67,7 @@
     "solarRadius": "R☉",
     "solarFlux": "S☉",
     "gigayears": "Gyr",
+    "gigayearsPerSecond": "Gyr/s",
     "minutes": "min",
     "wattsPerSquareMeter": "W/m²",
     "hoursPerSecond": "h/s",
@@ -408,6 +412,7 @@
         "today": "today",
         "play": "Play stellar evolution",
         "pause": "Pause stellar evolution",
+        "speed": "Evolution speed",
         "resetToday": "Today (4.57 Gyr)",
         "window": "Habitable at {d} AU: {from} – {to} Gyr",
         "never": "Never habitable at {d} AU around a Sun-like star",

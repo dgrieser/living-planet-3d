@@ -1,6 +1,9 @@
 /**
  * Simulation registry. Each entry lazy-loads its module; the module's default
  * export is `mount(container) => dispose()` (may return a Promise).
+ *
+ * `hidden: true` keeps an entry off the overview grid while it is being worked on.
+ * Its route stays reachable (deep links keep working) and the header toggle lists it again.
  */
 export const simulations = [
   {
@@ -23,6 +26,7 @@ export const simulations = [
     descriptionKey: 'sims.solarOrbit.description',
     icon: '🪐',
     load: () => import('./solar-orbit/index.js'),
+    hidden: true, // work in progress – only listed when the header toggle is on
   },
   {
     id: 'moon-tides',
@@ -30,6 +34,7 @@ export const simulations = [
     descriptionKey: 'sims.moonTides.description',
     icon: '🌕',
     load: () => import('./moon-tides/index.js'),
+    hidden: true, // work in progress – only listed when the header toggle is on
   },
   {
     id: 'axial-tilt',
@@ -44,9 +49,15 @@ export const simulations = [
     descriptionKey: 'sims.magnetosphere.description',
     icon: '🧲',
     load: () => import('./magnetosphere/index.js'),
+    hidden: true, // work in progress – only listed when the header toggle is on
   },
 ];
 
 export function findSimulation(id) {
   return simulations.find((s) => s.id === id);
+}
+
+/** The overview list: finished simulations, plus the work-in-progress ones when they are toggled on. */
+export function listSimulations({ includeHidden = false } = {}) {
+  return includeHidden ? simulations : simulations.filter((s) => !s.hidden);
 }

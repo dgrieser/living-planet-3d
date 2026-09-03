@@ -9,10 +9,30 @@ import './style.css';
 import { t, setLanguage, getLanguage, onLanguageChange, applyTranslations, bindText, bindAttr, LANGUAGES } from './lib/i18n.js';
 import { el, createMessage, createButton } from './lib/ui.js';
 import { isWebGLAvailable } from './lib/webgl.js';
-import { simulations, findSimulation } from './sims/index.js';
+import { listSimulations, findSimulation } from './sims/index.js';
 
 const app = document.getElementById('app');
 let disposeCurrentPage = null;
+
+// Work-in-progress simulations are kept off the overview grid; the header toggle lists them again.
+const HIDDEN_STORAGE_KEY = 'lp-show-wip';
+let showHidden = readShowHidden();
+
+function readShowHidden() {
+  try {
+    return localStorage.getItem(HIDDEN_STORAGE_KEY) === '1';
+  } catch {
+    /* localStorage unavailable (privacy mode) – stay in memory */
+    return false;
+  }
+}
+function writeShowHidden(value) {
+  try {
+    localStorage.setItem(HIDDEN_STORAGE_KEY, value ? '1' : '0');
+  } catch {
+    /* ignore persistence failure */
+  }
+}
 
 // ---------- shell ------------------------------------------------------------
 function renderShell() {
@@ -28,7 +48,7 @@ function renderShell() {
   back.append(bindText(el('span', 'lp-header__back-text'), 'app.backToOverview'));
   back.prepend('← ');
   bindAttr(back, { 'aria-label': 'app.backToOverview' });
-  nav.append(back, createLanguageToggle());
+  nav.append(back, createLanguageToggle(), createHiddenToggle());
   header.append(brand, nav);
 
   const main = el('main', 'lp-main', { id: 'main', tabindex: '-1' });
@@ -58,13 +78,33 @@ function createLanguageToggle() {
   return wrap;
 }
 
+/** Tiny header button that lists / unlists the work-in-progress simulations on the overview. */
+function createHiddenToggle() {
+  const btn = el('button', 'lp-wip-toggle', { type: 'button' });
+  btn.textContent = '⚗';
+  const sync = () => {
+    btn.setAttribute('aria-pressed', String(showHidden));
+    bindAttr(btn, { 'aria-label': showHidden ? 'app.hideWip' : 'app.showWip', title: showHidden ? 'app.hideWip' : 'app.showWip' });
+    applyTranslations(btn);
+  };
+  btn.addEventListener('click', () => {
+    showHidden = !showHidden;
+    writeShowHidden(showHidden);
+    sync();
+    if (parseRoute().name === 'home') route(shell); // relist the grid
+  });
+  onLanguageChange(sync);
+  sync();
+  return btn;
+}
+
 // ---------- pages ------------------------------------------------------------
 function renderHome(main) {
   const page = el('section', 'lp-home');
   page.append(bindText(el('h1', 'lp-home__heading'), 'home.heading'), bindText(el('p', 'lp-home__intro'), 'home.intro'));
 
   const grid = el('div', 'lp-grid');
-  for (const sim of simulations) {
+  for (const sim of listSimulations({ includeHidden: showHidden })) {
     const card = el('a', 'lp-card', { href: `#/sim/${sim.id}` });
     const icon = el('div', 'lp-card__icon', { 'aria-hidden': 'true' });
     icon.textContent = sim.icon ?? '✦';
@@ -74,6 +114,7 @@ function renderHome(main) {
       bindText(el('p', 'lp-card__desc'), sim.descriptionKey),
       bindText(el('span', 'lp-card__cta'), 'home.open'),
     );
+    if (sim.hidden) card.prepend(bindText(el('span', 'lp-card__badge'), 'home.workInProgress'));
     grid.append(card);
   }
   page.append(grid);

@@ -461,7 +461,7 @@ export default function mount(container, meta) {
     earthHit.scale.setScalar(Math.max(EARTH_RADIUS * 1.3, earthDist * 0.02));
     dragMarker.position.copy(earthPos);
     dragMarker.scale.setScalar(clamp((EARTH_RADIUS * 2.6) / earthDist, 0.04, 0.5));
-    dragMarker.visible = dragging || hovering;
+    dragMarker.visible = dragging; // hovering only changes the cursor – no ring around Earth
     subsolarLabel.sprite.position.copy(subsolarMarker.position).addScaledVector(tmpUp, -earthDist * 0.028);
     for (const { label, anchor } of stopLabels) {
       // offset along screen-up so the text never sits on its marker, whatever the camera angle
@@ -622,7 +622,11 @@ export default function mount(container, meta) {
   }
   /** Keeps the camera above the pinned place; the distance is read first so wheel/pinch zoom survives. */
   function syncPinnedCamera() {
-    const distance = camera.position.distanceTo(earthPos);
+    // Measure against the point the camera currently orbits (`controls.target`, Earth's position from the
+    // previous frame), not the freshly advanced `earthPos`: the camera still sits on the old sphere, so
+    // measuring against the moved Earth adds Earth's per-frame travel to the radius. That error changes
+    // sign as the pin rotates, which made the view breathe in and out while a place was pinned.
+    const distance = camera.position.distanceTo(controls.target);
     pinCameraPosition(camera.position, distance);
     controls.target.copy(earthPos);
     camera.lookAt(earthPos);
@@ -714,9 +718,7 @@ export default function mount(container, meta) {
     const over = pick(e);
     if (over !== hovering) {
       hovering = over;
-      canvas.classList.toggle('is-grab', over);
-      updateOverlay();
-      sim.requestRender();
+      canvas.classList.toggle('is-grab', over); // cursor only – nothing in the scene changes
     }
   };
   const endPress = (e) => {

@@ -11,6 +11,8 @@
     "home": "Übersicht",
     "backToOverview": "Zurück zur Übersicht",
     "loading": "Simulation wird geladen …",
+    "showWip": "Simulationen in Arbeit anzeigen",
+    "hideWip": "Simulationen in Arbeit ausblenden",
     "footer": "Erstellt mit Three.js · Offene Bildungsressource",
     "footerCredit": "Planetentexturen: Solar System Scope (CC BY 4.0)"
   },
@@ -18,6 +20,7 @@
     "heading": "Simulationen",
     "intro": "Entdecke, wie unser Planet funktioniert: Rotation, Achsneigung, Umlaufbahn und mehr – interaktiv und in 3D. Wähle ein Modul, um zu beginnen.",
     "open": "Simulation öffnen",
+    "workInProgress": "In Arbeit",
     "comingSoon": "Demnächst verfügbar"
   },
   "panel": {
@@ -64,6 +67,7 @@
     "solarRadius": "R☉",
     "solarFlux": "S☉",
     "gigayears": "Mrd. Jahre",
+    "gigayearsPerSecond": "Mrd. Jahre/s",
     "minutes": "min",
     "wattsPerSquareMeter": "W/m²",
     "hoursPerSecond": "h/s",
@@ -408,6 +412,7 @@
         "today": "heute",
         "play": "Sternentwicklung abspielen",
         "pause": "Sternentwicklung pausieren",
+        "speed": "Geschwindigkeit der Entwicklung",
         "resetToday": "Heute (4,57 Mrd. Jahre)",
         "window": "Bewohnbar bei {d} AE: {from} – {to} Mrd. Jahre",
         "never": "Bei {d} AE um einen sonnenähnlichen Stern nie bewohnbar",
