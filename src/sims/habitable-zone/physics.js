@@ -70,6 +70,10 @@ export function classify(teqK) {
   return 'habitable';
 }
 
+/** Temperature spans over which the frozen / scorched appearance ramps (see stateMix). */
+export const COLD_RAMP_K = 120;
+export const HEAT_RAMP_K = 500;
+
 /**
  * Continuous blend factors for the surface shader (0…1 each), smoothed over ±width K
  * around the thresholds so the surface morphs instead of popping.
@@ -78,6 +82,9 @@ export function stateMix(teqK, width = 4) {
   return {
     thaw: smoothstep(T_FROZEN_K - width, T_FROZEN_K + width, teqK), // 0 frozen → 1 temperate
     scorch: smoothstep(T_SCORCHED_K - width, T_SCORCHED_K + width, teqK), // 0 temperate → 1 scorched
+    // how far beyond the edges the planet is – drives the look of the hostile surfaces (schematic):
+    cold: smoothstep(T_FROZEN_K, T_FROZEN_K - COLD_RAMP_K, teqK), // 0 partly glaciated → 1 deep-frozen ice world
+    heat: smoothstep(T_SCORCHED_K, T_SCORCHED_K + HEAT_RAMP_K, teqK), // 0 Venus-like cloud world → 1 lava world
   };
 }
 
@@ -89,8 +96,11 @@ export const orbitalPeriodYears = (dAU, massSolar) => Math.sqrt((dAU * dAU * dAU
  * Main-sequence star described by its luminosity, using rough empirical relations:
  *   T_eff ≈ 5778 K · L^0.13,  M ≈ L^(1/3.5) M☉,  R = √L · (5778 K / T_eff)² R☉.
  */
+export const TEFF_LUMINOSITY_EXPONENT = 0.13;
+/** R ∝ √L · T_eff⁻² and T_eff ∝ L^0.13 give R ∝ L^0.24 along the main sequence. */
+export const RADIUS_LUMINOSITY_EXPONENT = 0.5 - 2 * TEFF_LUMINOSITY_EXPONENT;
 export function mainSequenceStar(L) {
-  const teffK = SOLAR_TEFF_K * Math.pow(L, 0.13);
+  const teffK = SOLAR_TEFF_K * Math.pow(L, TEFF_LUMINOSITY_EXPONENT);
   return {
     luminosity: L,
     teffK,

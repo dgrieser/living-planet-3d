@@ -427,6 +427,14 @@ a:hover { color: #a9d9ff; }
 
 .lp-canvas.is-grab { cursor: grab; }
 .lp-canvas.is-dragging { cursor: grabbing; }
+.lp-toggle--sub { margin-left: 28px; padding: 4px 0; }
+.lp-toggle--sub .lp-toggle__text { font-size: 0.9rem; }
+.lp-toggle--sub .lp-toggle__track { width: 36px; height: 20px; }
+.lp-toggle--sub .lp-toggle__track::after { width: 14px; height: 14px; }
+.lp-toggle--sub .lp-toggle__input:checked + .lp-toggle__label .lp-toggle__track::after { transform: translateX(16px); }
+.lp-toggle__input:disabled + .lp-toggle__label { opacity: 0.45; cursor: default; }
+.lp-unit-switch .lp-control__row { margin-bottom: 0; }
+.lp-unit-switch .lp-presets { margin-top: 4px; }
 
 @media (max-width: 720px) {
   .lp-presets { grid-template-columns: repeat(2, 1fr); }
