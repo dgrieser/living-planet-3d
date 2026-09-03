@@ -440,7 +440,7 @@ a:hover { color: #a9d9ff; }
   .lp-presets { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* ---------- seasons simulation ---------- */
+/* ---------- axial-tilt simulation ---------- */
 .lp-subheading { margin: 8px 0 0; font-size: 0.85rem; font-weight: 600; color: var(--lp-text-muted); }
 .lp-whatif { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
 .lp-whatif__btn { padding: 7px 10px; font-size: 0.8rem; }

@@ -14,10 +14,9 @@ npm run preview    # serve the production build
 npm run lint       # ESLint
 npm run check:i18n # verify de.json mirrors en.json 1:1
 npm run check:prefs # verify the remembered view toggles (src/lib/prefs.js)
-npm run check:axial  # validate axial-tilt climate module (habitable fraction vs. tilt, seasonal extremes, verdict tiers)
+npm run check:axial  # validate axial-tilt physics (declination, day length, insolation, calendar mapping) and climate module (habitable fraction vs. tilt, seasonal extremes, verdict tiers)
 npm run check:orbits # validate planet-position algorithm against known events
 npm run check:hz     # validate habitable-zone physics (zone edges, T_eq, stellar evolution)
-npm run check:seasons # validate seasons physics (declination, day length, insolation, calendar mapping)
 npm run check:tides   # validate moon-tides physics (2GMR/r³, 1/r³ scaling, spring/neap, periods, tilt models)
 npm run check:mag     # validate magnetosphere physics (ram pressure, standoff, boundary fits, field-line deformation, Kp, aurora)
 npm run check:galaxy  # validate galactic-zone model (Sun's orbit, zone edges, metallicity gradient, spiral geometry, point cloud statistics, "life on Earth" scalings, haze/dust/globular generators)
@@ -44,12 +43,12 @@ src/
   lib/webgl.js       WebGL availability check (no Three.js import)
   sims/index.js      simulation registry (lazy-loaded modules)
   sims/<name>/       one folder per simulation
-  sims/axial-tilt/   climate.js (seasonal extremes, habitable fraction, verdict tiers, colour ramp – pure JS,
-                     built on the seasons physics), index.js
+  sims/axial-tilt/   physics.js (declination, day length, insolation, energy-balance temperature – pure JS),
+                     climate.js (seasonal extremes, livable bands & fraction, verdict tiers, colour ramp – pure JS,
+                     built on physics.js), index.js
   sims/solar-orbit/  kepler.js (JPL approximate elements, pure JS), planets.js (physical data), index.js
   sims/habitable-zone/ physics.js (zone edges, T_eq, stellar evolution, star relations, radius↔luminosity
                      inverse for the star pull, surface-state ramps – pure JS), index.js
-  sims/seasons/      physics.js (declination, day length, insolation, energy-balance temperature – pure JS), index.js
   sims/moon-tides/   physics.js (tidal acceleration, equilibrium bulge, spring/neap, Kepler periods, tilt models – pure JS), index.js
   sims/magnetosphere/ physics.js (ram pressure, magnetopause standoff, Shue boundary, dipole lines,
                      field-line deformation, streamlines, Kp-style index, aurora oval – pure JS), index.js
@@ -60,10 +59,10 @@ public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
   check-i18n.mjs     key-parity check for locale files
   check-prefs.mjs    validates the remembered view toggles (npm run check:prefs)
-  check-axial-tilt.mjs validates the axial-tilt climate module (npm run check:axial)
+  check-axial-tilt-physics.mjs validates the axial-tilt physics against textbook values (npm run check:axial)
+  check-axial-tilt-climate.mjs validates the axial-tilt climate module (npm run check:axial)
   check-orbits.mjs   validates kepler.js against equinoxes, oppositions, transits (npm run check:orbits)
   check-habitable-zone.mjs validates physics.js against reference values (npm run check:hz)
-  check-seasons.mjs  validates the seasons physics against textbook values (npm run check:seasons)
   check-moon-tides.mjs validates the moon-tides physics (npm run check:tides)
   check-magnetosphere.mjs validates the magnetosphere physics (npm run check:mag)
   check-galactic-zone.mjs validates the galactic-zone model (npm run check:galaxy)
@@ -73,9 +72,8 @@ scripts/
 
 | id | Module | Content |
 |----|--------|---------|
-| `axial-tilt` | Axial tilt & rotation | Tilt a planet's axis (0–90°) while the Sun circles it once per visual year (planet-centric view); lit temperature-band overlay of the seasonal-mean energy-balance temperature per latitude, livable-region view (green border rings + darkened hostile bands), click-to-pin a place (camera follows it with a live latitude/season/temperature readout and a livable verdict), season-stop buttons (Jun/Sep/Dec/Mar), live readouts for the current seasons, the year-round livable surface fraction with a verdict (no / moderate / severe / extreme seasons) and the 45°-latitude summer/winter means – showing that 0° tilt freezes the poles, ~23.4° keeps almost everything livable and 90° turns most of the planet hostile. |
+| `axial-tilt` | Axial tilt, seasons & day length | Earth orbiting an emissive Sun with adjustable tilt (0–90°) and rotation period (6–300 h); shader day/night terminator with real city lights on the night side, switchable overlays for the insolation heat map or the seasonal-mean temperature bands (energy-balance model per latitude), livable-region view (green border rings + darkened hostile bands), live tropics/polar circles/subsolar point, draggable orbit position with season stops, annual-cycle animation, day-length/insolation/temperature/seasonal-extremes/climate-zone readout for any latitude, click-to-pin a place (camera follows it, readout switches to its latitude, livable verdict), year-round livable surface fraction with a verdict (no / moderate / severe / extreme seasons), camera modes Earth / overview / top / pinned place, bilingual what-if presets (0°, 23.4°, 90°, 300 h, 6 h). |
 | `solar-orbit` | Earth's orbit & the habitable zone | All 8 planets from JPL Keplerian elements (1800–2050), habitable-zone annulus (0.95–1.37 AU), Earth highlight, hypothetical e = 0.3 orbit, true/visual scale, date picker, camera presets, bilingual planet info cards. |
-| `seasons` | Seasons, axial tilt & day length | Earth orbiting an emissive Sun with adjustable tilt (0–90°) and rotation period (6–300 h); shader day/night terminator, insolation heat map, live tropics/polar circles/subsolar point, draggable orbit position with season stops, annual-cycle animation, day-length/insolation/temperature readout for any latitude, bilingual what-if presets (0°, 23.4°, 90°, 300 h, 6 h). |
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout, and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
 | `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes drawn as multiplicative extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and a "Conditions in the solar system" box that explains in prose, against today's Earth as the reference, the odds of ozone-damaging supernovae and comet-shower passages, whether the Sun would cross spiral arms here, and what a solar system born here would have got in terms of a Jupiter and radiogenic heat, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
@@ -83,32 +81,50 @@ scripts/
 
 ### axial-tilt notes
 
-- Planet-centric frame: the planet sits at the origin, the ecliptic is y = 0 and the Sun (light, disc, glow)
-  circles it at radius 40 – the equivalent view of the axis keeping its direction while the planet orbits.
-  The axis leans towards +x, so orbit angle θ = 0° is the June solstice; declination `δ = arcsin(sin ε · cos θ)`.
-  The terminator ring is kept perpendicular to the current Sun direction.
+- Scene: Sun at the origin, ecliptic plane y = 0, Earth orbits counter-clockwise at radius 9 (not to scale).
+  The rotation axis leans towards −x, so orbit angle θ = 0° is the June solstice, 90° the September equinox,
+  180° the December solstice and 270° the March equinox. Declination `δ = arcsin(sin ε · cos θ)`.
+- The orbit is treated as circular; the day-of-year slider maps to θ piecewise-linearly between the real
+  equinox/solstice dates (20 Mar, 21 Jun, 22 Sep, 21 Dec) so the season stops land on the right calendar dates.
+- Day length uses the geometric horizon: `cos H₀ = −tan φ · tan δ`, day = (H₀/180°) · P. The "polar circle"
+  quick button follows the tilt (90° − ε) so it always shows a full polar day/night at the solstices.
+- Daily mean insolation `Q̄ = (S₀/π)(H₀ sin φ sin δ + cos φ cos δ sin H₀)` with S₀ = 1361 W/m² drives the
+  heat-map shader (computed per fragment from the object-space latitude) and the readout.
+- Temperatures are a deliberately simple energy-balance estimate (North 1975 constants A = 203.3 W/m²,
+  B = 2.09, C = 3.8 W/m²/K; albedo 0.31 → 0.62 where the annual mean would drop below 0 °C; seasonal excursion
+  damped to 60 %). The day–night swing scales with √(P/24 h) and vanishes during polar day/night.
 - The night side shows real city lights (NASA Black Marble data via Solar System Scope's
-  `2k_earth_nightmap.jpg`, CC BY 4.0) as the standard material's emissive map; an `onBeforeCompile` patch
-  multiplies the emissive term by a smoothstep of the sun direction against the surface normal, so the
-  lights fade in across the terminator and vanish in daylight.
-- The temperature overlay is a 128-row canvas texture (one row per latitude band) on a slightly larger,
-  Lambert-lit sphere: each row is coloured by the seasonal-mean temperature of the seasons energy-balance
-  model (`sims/seasons/physics.js`) at the current declination, on a −40 … +60 °C ramp matching the legend.
-  Annual-mean insolation per row is cached per tilt.
+  `2k_earth_nightmap.jpg`, CC BY 4.0): the Earth shader adds the night map scaled by the complement of its
+  day factor, so the lights fade in across the terminator and vanish in daylight.
+- The temperature bands are a 1 × 128 `DataTexture` (one texel row per latitude) sampled by the Earth shader
+  at the fragment's latitude: each row is coloured by the seasonal-mean temperature of the energy-balance model
+  at the current declination on a −40 … +60 °C ramp matching the legend. Annual-mean insolation per row is cached
+  per tilt; the texture is only rewritten when tilt, rotation period or declination change. Heat map and
+  temperature bands are exclusive toggles (same hue ramp, different meaning).
 - `climate.js` derives the headline numbers: seasonal extremes are the solstice means; a latitude band counts
   as livable when its winter mean stays above −25 °C and its summer mean between 0 and 45 °C; the habitable
   fraction is the area-weighted share of livable bands. The model peaks near Earth's tilt (~100 % livable at
   20–35°), drops to ~87 % at 0° (permanently frozen poles) and ~45 % at 90° (Uranus-like extremes; the equator
   even ices over because its annual insolation minimises while ice albedo kicks in). Verdict tiers are
   pedagogical labels over fixed tilt ranges (≤10° / ≤35° / ≤55° / >55°); all displayed numbers come from the model.
-- The livable-region view draws `livableBands()` (contiguous livable latitude ranges, edges refined by
-  bisection so they move smoothly with the tilt slider) as green latitude rings from a fixed mesh pool and
-  darkens the hostile bands with a second canvas-texture sphere; the displayed fraction is the exact band
-  area `Δsin φ / 2`, which the check script keeps within 3 % of the sampled area-weighted fraction.
-- Clicking the planet (click, not drag) raycasts the surface and pins that place: a marker in the spinning
-  group, the camera held above the point every frame (zoom preserved, orbit rotation disabled until unpinned)
-  and a live readout of latitude, the hemisphere's current season, the seasonal-mean temperature at the
-  current declination and whether the place is livable year-round.
+  The readout also shows the summer/winter means and the livable verdict for the selected latitude.
+- The livable-region view passes `livableBands()` (contiguous livable latitude ranges, edges refined by
+  bisection so they move smoothly with the tilt slider) to the shader as up to four `[lo, hi]` uniforms, which
+  darken every latitude outside them, and draws the band edges as green latitude rings from a fixed pool; the
+  displayed fraction is the exact band area `Δsin φ / 2`, which the check script keeps within 3 % of the
+  sampled area-weighted fraction.
+- Camera modes: "Earth" follows Earth in its co-rotating frame (camera offset is rotated by Δθ each frame), so
+  the Sun keeps its place on screen while the tilt geometry changes through the year – the planet-centric view
+  in which the Sun appears to circle Earth once a year; "overview" and "top" look at the whole orbit. Dragging
+  Earth along the orbit freezes the follow and catches up with a short tween afterwards.
+- Clicking Earth (a press that moves less than 6 px) raycasts the surface and pins that place: a marker in the
+  spinning group, the latitude slider and every per-latitude readout jump to it, and the fourth camera mode
+  "pinned place" holds the camera above the point every frame (zoom preserved, orbit rotation disabled, follow
+  frozen during an orbit drag). The latitude slider and presets slide the pin along its meridian; a click on
+  the sky, the Unpin button or Reset release it and return to the previous camera mode.
+- Earth's visual spin (one turn in ≈ 6.7 s at 24 h, scaled by 24 h/P, capped at 30°/s while the camera rides on
+  a pin) is decoupled from the annual animation.
+- The former `seasons` simulation was merged into this one; `#/sim/seasons` redirects to `#/sim/axial-tilt`.
 
 ### solar-orbit notes
 
@@ -144,25 +160,6 @@ scripts/
   gated to the night side; the procedural surface remains as a fallback while the maps load.
 - View toggles: the habitable-zone toggle owns two sub-toggles (flat annulus, 3D shell) so either
   representation can be shown alone; the temperature unit (K / °C / both) is a remembered string preference.
-
-### seasons notes
-
-- Scene: Sun at the origin, ecliptic plane y = 0, Earth orbits counter-clockwise at radius 9 (not to scale).
-  The rotation axis leans towards −x, so orbit angle θ = 0° is the June solstice, 90° the September equinox,
-  180° the December solstice and 270° the March equinox. Declination `δ = arcsin(sin ε · cos θ)`.
-- The orbit is treated as circular; the day-of-year slider maps to θ piecewise-linearly between the real
-  equinox/solstice dates (20 Mar, 21 Jun, 22 Sep, 21 Dec) so the season stops land on the right calendar dates.
-- Day length uses the geometric horizon: `cos H₀ = −tan φ · tan δ`, day = (H₀/180°) · P. The "polar circle"
-  quick button follows the tilt (90° − ε) so it always shows a full polar day/night at the solstices.
-- Daily mean insolation `Q̄ = (S₀/π)(H₀ sin φ sin δ + cos φ cos δ sin H₀)` with S₀ = 1361 W/m² drives the
-  heat-map shader (computed per fragment from the object-space latitude) and the readout.
-- Temperatures are a deliberately simple energy-balance estimate (North 1975 constants A = 203.3 W/m²,
-  B = 2.09, C = 3.8 W/m²/K; albedo 0.31 → 0.62 where the annual mean would drop below 0 °C; seasonal excursion
-  damped to 60 %). The day–night swing scales with √(P/24 h) and vanishes during polar day/night.
-- Camera "Earth" mode follows Earth in its co-rotating frame (camera offset is rotated by Δθ each frame), so
-  the Sun keeps its place on screen while the tilt geometry changes through the year. Dragging Earth along the
-  orbit freezes the follow and catches up with a short tween afterwards.
-- Earth's visual spin (one turn in ≈ 6.7 s at 24 h, scaled by 24 h/P) is decoupled from the annual animation.
 
 ### moon-tides notes
 

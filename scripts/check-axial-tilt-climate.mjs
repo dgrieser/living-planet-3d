@@ -3,7 +3,7 @@
 // tilt range (peak near Earth's tilt, frozen-pole minimum at 0°, hostile
 // extremes at 90°), the verdict tiers and the temperature colour ramp.
 import * as C from '../src/sims/axial-tilt/climate.js';
-import { EARTH_TILT_DEG } from '../src/sims/seasons/physics.js';
+import { EARTH_TILT_DEG } from '../src/sims/axial-tilt/physics.js';
 
 let failed = 0;
 const check = (label, actual, expected, tolerance) => {

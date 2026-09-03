@@ -91,7 +91,14 @@ function renderHome(main) {
   };
 }
 
+/** Former simulation ids that now live on under another id (keeps published deep links working). */
+const ROUTE_ALIASES = Object.freeze({ seasons: 'axial-tilt' });
+
 async function renderSimulation(main, id) {
+  if (ROUTE_ALIASES[id]) {
+    location.replace(`#/sim/${ROUTE_ALIASES[id]}`);
+    return () => {};
+  }
   const sim = findSimulation(id);
   if (!sim) return renderError(main, 'errors.notFoundTitle', 'errors.notFoundBody');
   if (!isWebGLAvailable()) return renderError(main, 'errors.webglTitle', 'errors.webglBody');
