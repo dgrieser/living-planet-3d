@@ -86,7 +86,7 @@
       "title": "Axial tilt, seasons & day length",
       "description": "Tilt Earth's axis, change its spin and move it around the Sun – and watch seasons, day length, temperatures and the livable share of the surface respond instantly.",
       "sections": {
-        "earth": "Earth",
+        "more": "Rotation, year & view",
         "orbit": "Year & orbit",
         "readout": "Readout for one latitude",
         "view": "View"
@@ -167,7 +167,7 @@
           "polar": "At least one polar day and one polar night per year.",
           "extreme": "Sun at the zenith in summer and polar night in winter."
         },
-        "modelNote": "Temperatures are rough estimates from a simple energy-balance model (see “Physics”).",
+        "modelNote": "Temperatures are rough estimates from a simple energy-balance model.",
         "day": "{n} day",
         "pinned": "Pinned place",
         "livableSurface": "Livable surface (year-round)",
@@ -297,7 +297,7 @@
         "neptune": "Neptune"
       },
       "sections": {
-        "time": "Time",
+        "more": "Date, view & camera",
         "view": "View",
         "camera": "Camera"
       },
@@ -354,8 +354,8 @@
       "title": "The habitable zone",
       "description": "Explore the narrow ‘Goldilocks’ ring around a star where liquid water can exist – and watch it shift with the star’s type, brightness and age.",
       "sections": {
+        "more": "Evolution & view",
         "star": "Star",
-        "planet": "Planet",
         "evolution": "Stellar evolution",
         "view": "View"
       },
@@ -380,8 +380,7 @@
           "G": "G – yellow-white (Sun)",
           "F": "F – white",
           "A": "A – blue-white"
-        },
-        "dragHint": "Pull the star’s limb outward or inward to change its luminosity"
+        }
       },
       "zone": {
         "edges": "Habitable zone",
@@ -402,8 +401,7 @@
         "scorched": "Scorched",
         "frozenHint": "Below the maximum-greenhouse limit: any water is ice.",
         "habitableHint": "Liquid water can persist on the surface.",
-        "scorchedHint": "Beyond the runaway-greenhouse limit: oceans boil away.",
-        "dragHint": "Drag the planet to change its distance"
+        "scorchedHint": "Beyond the runaway-greenhouse limit: oceans boil away."
       },
       "evolution": {
         "age": "Stellar age (Sun-like star)",
@@ -477,9 +475,8 @@
         "axis": "Axis stability"
       },
       "sections": {
+        "more": "Tides, axis & view",
         "moon": "Moon",
-        "tides": "Tides",
-        "axis": "Axis stability",
         "view": "View"
       },
       "controls": {
@@ -628,8 +625,8 @@
       "title": "Earth's magnetosphere",
       "description": "Watch Earth's magnetic field deflect the solar wind, fire off a coronal mass ejection and switch the shield off.",
       "sections": {
+        "more": "View & camera",
         "wind": "Solar wind",
-        "shield": "Magnetic shield",
         "view": "View"
       },
       "controls": {
@@ -645,9 +642,9 @@
         "aurora": "Aurora",
         "labels": "Labels",
         "camera": "Camera",
-        "cameraSide": "Side view",
-        "cameraPolar": "Polar view",
-        "cameraTail": "Magnetotail"
+        "cameraSide": "Side",
+        "cameraPolar": "Polar",
+        "cameraTail": "Tail"
       },
       "facts": {
         "pressure": "Dynamic pressure",

@@ -286,6 +286,7 @@ a:hover { color: #a9d9ff; }
 .lp-button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .lp-button-row--full > .lp-button { flex: 1 1 100%; }
 .lp-button--compact { width: 34px; height: 34px; padding: 0; gap: 0; flex: none; font-size: 1rem; }
+.lp-button--slim { padding: 6px 10px; font-size: 0.85rem; }
 .lp-button--compact .lp-button__icon { line-height: 1; }
 
 /* a control with small inline actions on its right (slider + reset / play) */
@@ -294,6 +295,7 @@ a:hover { color: #a9d9ff; }
    so the action centres on the track instead of on the whole two-row control */
 .lp-control-row > .lp-control { flex: 1 1 auto; min-width: 0; padding-bottom: 0; }
 .lp-control-row .lp-slider__input { display: block; height: 28px; }
+.lp-control-row .lp-slider__value { white-space: normal; text-align: right; }
 /* half the difference between the 34px action and the 28px track box, so the two share a centre line */
 .lp-control-row > .lp-button--compact { margin-bottom: -3px; }
 
@@ -310,6 +312,9 @@ a:hover { color: #a9d9ff; }
 .lp-collapse[open] > .lp-collapse__summary::after { transform: translateY(2px) rotate(-135deg); }
 .lp-collapse__summary .lp-section__title { margin: 0; }
 .lp-collapse__body { display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; }
+/* a group of controls or readouts switched in and out as a unit */
+.lp-group { display: flex; flex-direction: column; gap: 6px; }
+.lp-group[hidden] { display: none; }
 
 /* info card */
 .lp-info {
@@ -429,8 +434,14 @@ a:hover { color: #a9d9ff; }
 
 /* ---------- habitable-zone simulation ---------- */
 .lp-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 6px 0 2px; }
-.lp-presets__btn { padding: 8px 6px; font-size: 0.8rem; gap: 6px; }
+/* wrap lets a tight cell put the icon and the label on separate lines rather than breaking the word */
+.lp-presets__btn { padding: 8px 6px; font-size: 0.8rem; gap: 6px; min-width: 0; flex-wrap: wrap; hyphens: auto; overflow-wrap: anywhere; }
 .lp-presets--compact .lp-presets__btn { padding: 6px; }
+/* four cells in a 340px panel: tiny type and a small swatch keep each label on one line */
+/* stays four-up even on a phone – the labels are sized to fit a quarter of the panel */
+.lp-presets.lp-presets--tight { grid-template-columns: repeat(4, 1fr); gap: 3px; }
+.lp-presets--tight .lp-presets__btn { padding: 4px 3px; font-size: 0.64rem; gap: 4px; }
+.lp-presets--tight .lp-presets__swatch { width: 8px; height: 8px; box-shadow: 0 0 5px currentColor; }
 .lp-presets__btn[aria-pressed="true"] { border-color: var(--lp-accent); background: rgba(124, 196, 255, 0.14); color: var(--lp-text); }
 .lp-presets__swatch { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 8px currentColor; }
 
@@ -456,8 +467,6 @@ a:hover { color: #a9d9ff; }
 .lp-state__hint:empty { display: none; }
 .lp-state__figure { font-weight: 700; color: var(--lp-text); font-variant-numeric: tabular-nums; }
 
-.lp-drag-hint { margin: 2px 0 4px; font-size: 0.8rem; color: var(--lp-text-muted); }
-.lp-drag-hint::before { content: "✋ "; }
 .lp-window-note { margin: 4px 0 0; font-size: 0.85rem; color: var(--lp-accent); font-variant-numeric: tabular-nums; }
 .lp-section__note { margin: 4px 0 0; font-size: 0.8rem; color: var(--lp-text-muted); }
 

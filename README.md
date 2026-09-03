@@ -68,6 +68,31 @@ scripts/
   check-galactic-zone.mjs validates the galactic-zone model (npm run check:galaxy)
 ```
 
+## Panel layout
+
+Every simulation's control panel follows the same order, so a visitor who learns one
+finds their way around the next:
+
+1. **The headline controls**, visible as soon as the panel opens – the slider, switch
+   or preset row the simulation is actually about (habitable-zone keeps three: the
+   planet's distance, the star type and its luminosity). Where a slider has an obvious
+   companion action, it sits inline on its right as a small icon-sized button
+   (`createControlRow()` plus `compact: true`): play/pause for a timeline, "back to
+   today", "remove the Moon". A full-width action gets `slim: true` so it stays one
+   line tall, and a preset row that has to hold four labels up top uses
+   `lp-presets--tight` (tiny type, small swatch, four-up even on a phone).
+2. **One collapsible section** with every remaining control – secondary sliders,
+   preset rows, the camera presets on one line, the display toggles and the overall
+   reset (full width) – folded away by default on small screens
+   (`createCollapsibleSection()`).
+3. **The readouts**: the status box, then its follow-up stats. A control whose readout
+   is only readable beside it (axial-tilt's latitude, moon-tides' tide gauge) travels
+   with that readout as one block instead of moving up into the fold.
+4. **The legend**, then the essay card, and last the physics / model card, which opens
+   with the schematic caveats that qualify the numbers above it. Live warnings – the
+   magnetic field is off, the Moon is gone, the date is out of range – stay next to the
+   control or readout they describe.
+
 ## Simulations
 
 | id | Module | Content |
@@ -226,12 +251,9 @@ scripts/
   Azimuth is measured from +x towards +z, which is clockwise seen from above – the sense in which the
   Milky Way rotates when viewed from the north galactic pole. The Sun sits at azimuth −90° (top of the
   overview) on the Orion spur; arms trail, i.e. their azimuth decreases with radius.
-- Panel layout: the controls come first – the distance slider with a small "back to 27 000 ly" button inline
-  on its right, then a collapsible section (folded on small screens) holding the timeline slider with its
-  play/pause button, the two camera presets, the view toggles and the overall reset. Below the controls the
-  readouts follow in reading order: the "Conditions in the solar system" box, its follow-up stats, the legend,
-  "A favourable address" and finally "About the model", which opens with the schematic caveat that qualifies
-  every relation listed in it.
+- Panel: the shared layout above, with the radius slider as the headline control (a small "back to
+  27 000 ly" button inline on its right) and the "Conditions in the solar system" box leading the readouts.
+  The schematic caveat opens the model card.
 - Everything adjustable lives in `DEFAULT_CONFIG` in `model.js`; `createConfig({ zone: { innerKly, outerKly } })`
   changes the habitable-zone edges and the overlays, labels and readouts follow. The dev hook
   `window.__lpGalacticZone.setZoneEdges()` rebuilds them at run time.
@@ -282,7 +304,8 @@ scripts/
 
 1. Create `src/sims/<name>/index.js` with a default export
    `mount(container, meta) => dispose` (may be async).
-2. Use `createScene()` from `lib/scene.js` and the components from `lib/ui.js`.
+2. Use `createScene()` from `lib/scene.js` and the components from `lib/ui.js`, and lay the
+   panel out in the order described under *Panel layout*.
 3. Add all UI strings under `sims.<camelName>` in **both** `en.json` and `de.json`.
    Run `npm run check:i18n` to verify parity.
 4. Register the module in `src/sims/index.js`.

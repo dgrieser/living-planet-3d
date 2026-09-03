@@ -230,19 +230,33 @@ export function createStateToggle({ labelKey, state, name, prefs, onChange }) {
  * Button. variant: 'primary' | 'ghost'
  * `compact` shrinks it to an icon-sized square and hides the label visually – the
  * label still names the button for screen readers and as its tooltip.
+ * `slim` keeps the label but trims the button's height, for a full-width action.
  */
-export function createButton({ labelKey, ariaKey, onClick, variant = 'ghost', icon, compact = false }) {
-  const btn = el('button', `lp-button lp-button--${variant}${compact ? ' lp-button--compact' : ''}`, { type: 'button' });
+export function createButton({ labelKey, ariaKey, onClick, variant = 'ghost', icon, compact = false, slim = false }) {
+  const btn = el('button', `lp-button lp-button--${variant}${compact ? ' lp-button--compact' : ''}${slim ? ' lp-button--slim' : ''}`, { type: 'button' });
+  let iconEl = null;
   if (icon) {
-    const i = el('span', 'lp-button__icon', { 'aria-hidden': 'true' });
-    i.textContent = icon;
-    btn.append(i);
+    iconEl = el('span', 'lp-button__icon', { 'aria-hidden': 'true' });
+    iconEl.textContent = icon;
+    btn.append(iconEl);
   }
-  btn.append(bindText(el('span', compact ? 'visually-hidden' : null), labelKey));
+  const label = bindText(el('span', compact ? 'visually-hidden' : null), labelKey);
+  btn.append(label);
   if (compact) bindAttr(btn, { 'aria-label': labelKey, title: labelKey });
   if (ariaKey) bindAttr(btn, { 'aria-label': ariaKey });
   btn.addEventListener('click', (e) => onClick?.(e));
-  return { el: btn, dispose() {} };
+  return {
+    el: btn,
+    /** Re-point the label at another key – for buttons that flip meaning (play ↔ pause). */
+    setLabel(key) {
+      bindText(label, key);
+      if (compact && !ariaKey) bindAttr(btn, { 'aria-label': key, title: key });
+    },
+    setIcon(next) {
+      if (iconEl) iconEl.textContent = next;
+    },
+    dispose() {},
+  };
 }
 
 /**

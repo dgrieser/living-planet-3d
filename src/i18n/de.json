@@ -86,7 +86,7 @@
       "title": "Achsneigung, Jahreszeiten & Tageslänge",
       "description": "Neige die Erdachse, ändere die Rotation und bewege die Erde um die Sonne – und beobachte, wie Jahreszeiten, Tageslänge, Temperaturen und der bewohnbare Anteil der Oberfläche sofort reagieren.",
       "sections": {
-        "earth": "Erde",
+        "more": "Rotation, Jahr & Ansicht",
         "orbit": "Jahr & Umlaufbahn",
         "readout": "Werte für einen Breitengrad",
         "view": "Ansicht"
@@ -167,7 +167,7 @@
           "polar": "Mindestens ein Polartag und eine Polarnacht pro Jahr.",
           "extreme": "Sonne im Zenit im Sommer und Polarnacht im Winter."
         },
-        "modelNote": "Temperaturen sind grobe Schätzwerte aus einem einfachen Energiebilanzmodell (siehe „Physik“).",
+        "modelNote": "Temperaturen sind grobe Schätzwerte aus einem einfachen Energiebilanzmodell.",
         "day": "{n} Tag",
         "pinned": "Angehefteter Ort",
         "livableSurface": "Bewohnbare Fläche (ganzjährig)",
@@ -297,7 +297,7 @@
         "neptune": "Neptun"
       },
       "sections": {
-        "time": "Zeit",
+        "more": "Datum, Ansicht & Kamera",
         "view": "Ansicht",
         "camera": "Kamera"
       },
@@ -354,8 +354,8 @@
       "title": "Die bewohnbare Zone",
       "description": "Erkunde den schmalen „Goldlöckchen“-Ring um einen Stern, in dem flüssiges Wasser existieren kann – und beobachte, wie er sich mit Typ, Helligkeit und Alter des Sterns verschiebt.",
       "sections": {
+        "more": "Entwicklung & Ansicht",
         "star": "Stern",
-        "planet": "Planet",
         "evolution": "Sternentwicklung",
         "view": "Ansicht"
       },
@@ -363,7 +363,7 @@
         "presets": "Sterntyp",
         "presetM": "M-Zwerg",
         "presetK": "K-Stern",
-        "presetG": "G – Sonne",
+        "presetG": "G-Sonne",
         "presetF": "F-Stern",
         "presetMAria": "M-Zwerg (0,01 Sonnenleuchtkräfte)",
         "presetKAria": "K-Stern (0,3 Sonnenleuchtkräfte)",
@@ -380,8 +380,7 @@
           "G": "G – gelbweiß (Sonne)",
           "F": "F – weiß",
           "A": "A – blauweiß"
-        },
-        "dragHint": "Den Rand des Sterns nach außen oder innen ziehen, um seine Leuchtkraft zu ändern"
+        }
       },
       "zone": {
         "edges": "Bewohnbare Zone",
@@ -402,8 +401,7 @@
         "scorched": "Versengt",
         "frozenHint": "Unterhalb der Maximal-Treibhaus-Grenze: alles Wasser ist Eis.",
         "habitableHint": "Flüssiges Wasser kann auf der Oberfläche bestehen.",
-        "scorchedHint": "Jenseits der Grenze des galoppierenden Treibhauseffekts: die Ozeane verdampfen.",
-        "dragHint": "Planeten ziehen, um den Abstand zu ändern"
+        "scorchedHint": "Jenseits der Grenze des galoppierenden Treibhauseffekts: die Ozeane verdampfen."
       },
       "evolution": {
         "age": "Sternalter (sonnenähnlicher Stern)",
@@ -477,9 +475,8 @@
         "axis": "Achsenstabilität"
       },
       "sections": {
+        "more": "Gezeiten, Achse & Ansicht",
         "moon": "Mond",
-        "tides": "Gezeiten",
-        "axis": "Achsenstabilität",
         "view": "Ansicht"
       },
       "controls": {
@@ -628,14 +625,14 @@
       "title": "Die Magnetosphäre der Erde",
       "description": "Beobachte, wie das Erdmagnetfeld den Sonnenwind ablenkt, löse einen koronalen Massenauswurf aus und schalte den Schutzschild ab.",
       "sections": {
+        "more": "Ansicht & Kamera",
         "wind": "Sonnenwind",
-        "shield": "Magnetischer Schutzschild",
         "view": "Ansicht"
       },
       "controls": {
         "density": "Dichte",
         "speed": "Geschwindigkeit",
-        "launchCme": "Koronalen Massenauswurf auslösen",
+        "launchCme": "Koron. Massenauswurf auslösen",
         "cmeRunning": "CME unterwegs …",
         "cmeHint": "Ein koronaler Massenauswurf erreicht die Magnetopause nach etwa drei Sekunden Szenenzeit; in Wirklichkeit dauert es 18 Stunden bis 4 Tage.",
         "fieldOff": "Magnetfeld aus",
@@ -645,9 +642,9 @@
         "aurora": "Polarlicht",
         "labels": "Beschriftungen",
         "camera": "Kamera",
-        "cameraSide": "Seitenansicht",
-        "cameraPolar": "Polansicht",
-        "cameraTail": "Magnetschweif"
+        "cameraSide": "Seitlich",
+        "cameraPolar": "Polar",
+        "cameraTail": "Schweif"
       },
       "facts": {
         "pressure": "Staudruck",
