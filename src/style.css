@@ -284,6 +284,32 @@ a:hover { color: #a9d9ff; }
 .lp-button--primary { background: var(--lp-accent); color: var(--lp-accent-contrast); border-color: transparent; }
 .lp-button--primary:hover { background: #9fd3ff; }
 .lp-button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.lp-button-row--full > .lp-button { flex: 1 1 100%; }
+.lp-button--compact { width: 34px; height: 34px; padding: 0; gap: 0; flex: none; font-size: 1rem; }
+.lp-button--compact .lp-button__icon { line-height: 1; }
+
+/* a control with small inline actions on its right (slider + reset / play) */
+.lp-control-row { display: flex; align-items: flex-end; gap: 10px; padding-bottom: 8px; }
+/* the control keeps its own top padding; its bottom edge becomes the slider track's
+   so the action centres on the track instead of on the whole two-row control */
+.lp-control-row > .lp-control { flex: 1 1 auto; min-width: 0; padding-bottom: 0; }
+.lp-control-row .lp-slider__input { display: block; height: 28px; }
+/* half the difference between the 34px action and the 28px track box, so the two share a centre line */
+.lp-control-row > .lp-button--compact { margin-bottom: -3px; }
+
+/* collapsible group of secondary controls */
+.lp-collapse { border-top: 1px solid var(--lp-border); }
+.lp-collapse__summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; color: var(--lp-text-muted); }
+.lp-collapse__summary::-webkit-details-marker { display: none; }
+.lp-collapse__summary::after {
+  content: ""; width: 8px; height: 8px; flex: none;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 200ms ease;
+}
+.lp-collapse[open] > .lp-collapse__summary::after { transform: translateY(2px) rotate(-135deg); }
+.lp-collapse__summary .lp-section__title { margin: 0; }
+.lp-collapse__body { display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; }
 
 /* info card */
 .lp-info {
@@ -404,6 +430,7 @@ a:hover { color: #a9d9ff; }
 /* ---------- habitable-zone simulation ---------- */
 .lp-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 6px 0 2px; }
 .lp-presets__btn { padding: 8px 6px; font-size: 0.8rem; gap: 6px; }
+.lp-presets--compact .lp-presets__btn { padding: 6px; }
 .lp-presets__btn[aria-pressed="true"] { border-color: var(--lp-accent); background: rgba(124, 196, 255, 0.14); color: var(--lp-text); }
 .lp-presets__swatch { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 8px currentColor; }
 

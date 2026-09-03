@@ -750,9 +750,7 @@
       },
       "notice": "Schematisches Modell: Arme, Farben und Zonengrenzen sind illustrativ. Entfernungen, die Bahn der Sonne und der Metallizitätsgradient folgen publizierten Werten.",
       "sections": {
-        "sun": "Die Sonne",
-        "time": "Galaktischer Umlauf",
-        "view": "Ansicht"
+        "more": "Umlauf, Kamera & Ansicht"
       },
       "controls": {
         "sunRadius": "Abstand vom galaktischen Zentrum",
@@ -766,7 +764,7 @@
         "armLabels": "Arm-Beschriftungen",
         "camera": "Kamera",
         "cameraOverview": "Übersicht",
-        "cameraSun": "Standort der Sonne"
+        "cameraSun": "Sonne"
       },
       "status": {
         "inner": "Zu nah – lebensfeindlich",

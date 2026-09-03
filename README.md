@@ -34,7 +34,7 @@ src/
                      applyTranslations(), bindText(), bindAttr(), formatNumber()
   lib/ui.js          UI kit: createPanel, createSlider, createToggle, createStateToggle,
                      createButton, createInfoCard, createNotice, createMessage,
-                     createSection, el()
+                     createSection, createCollapsibleSection, createControlRow, el()
   lib/prefs.js       createViewPrefs(): remembers a simulation's display toggles
                      (legends, labels, helper lines, overlays) in localStorage
   lib/scene.js       scene bootstrap: renderer (DPR ≤ 2), camera, OrbitControls,
@@ -226,6 +226,12 @@ scripts/
   Azimuth is measured from +x towards +z, which is clockwise seen from above – the sense in which the
   Milky Way rotates when viewed from the north galactic pole. The Sun sits at azimuth −90° (top of the
   overview) on the Orion spur; arms trail, i.e. their azimuth decreases with radius.
+- Panel layout: the controls come first – the distance slider with a small "back to 27 000 ly" button inline
+  on its right, then a collapsible section (folded on small screens) holding the timeline slider with its
+  play/pause button, the two camera presets, the view toggles and the overall reset. Below the controls the
+  readouts follow in reading order: the "Conditions in the solar system" box, its follow-up stats, the legend,
+  "A favourable address" and finally "About the model", which opens with the schematic caveat that qualifies
+  every relation listed in it.
 - Everything adjustable lives in `DEFAULT_CONFIG` in `model.js`; `createConfig({ zone: { innerKly, outerKly } })`
   changes the habitable-zone edges and the overlays, labels and readouts follow. The dev hook
   `window.__lpGalacticZone.setZoneEdges()` rebuilds them at run time.

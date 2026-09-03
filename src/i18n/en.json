@@ -750,9 +750,7 @@
       },
       "notice": "Schematic model: the arms, colours and zone edges are illustrative. Distances, the Sun’s orbit and the metallicity gradient follow published values.",
       "sections": {
-        "sun": "The Sun",
-        "time": "Galactic orbit",
-        "view": "View"
+        "more": "Orbit, camera & view"
       },
       "controls": {
         "sunRadius": "Distance from the galactic centre",
@@ -766,7 +764,7 @@
         "armLabels": "Arm labels",
         "camera": "Camera",
         "cameraOverview": "Overview",
-        "cameraSun": "Sun’s location"
+        "cameraSun": "The Sun"
       },
       "status": {
         "inner": "Too close – hostile",
