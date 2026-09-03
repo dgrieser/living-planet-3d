@@ -77,7 +77,7 @@ scripts/
 | `seasons` | Seasons, axial tilt & day length | Earth orbiting an emissive Sun with adjustable tilt (0–90°) and rotation period (6–300 h); shader day/night terminator, insolation heat map, live tropics/polar circles/subsolar point, draggable orbit position with season stops, annual-cycle animation, day-length/insolation/temperature readout for any latitude, bilingual what-if presets (0°, 23.4°, 90°, 300 h, 6 h). |
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout, and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
-| `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes drawn as multiplicative extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts plus a sourced "life on Earth at this distance" list (night sky, stellar passages, ozone-damaging supernovae, planet formation, arm crossings, galactic year), 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
+| `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes drawn as multiplicative extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and, in the same list, sourced "life on Earth" rows (nearest star, naked-eye stars, stellar passages, Oort-cloud edge, ozone-damaging supernovae, giant planets, arm crossings), 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
 | `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate appearance, draggable planet (0.1–5 AU) whose surface morphs frozen / habitable / scorched from T_eq, live Kopparapu zone (annulus or 3D shell), evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, bilingual physics card. |
 
 ### axial-tilt notes
@@ -245,14 +245,14 @@ scripts/
   clear fragment). Two additive sprites give the **nucleus** its glow; 150 **globular clusters**
   (`generateGlobularClusters()`, ρ ∝ (r² + a²)^(−7/4), a = 6 kly, median ≈ 5 kpc like the Harris catalogue)
   sit in a static spheroidal halo outside the rotating group.
-- "Life on Earth at this distance" (`neighbourhoodState()`) scales published present-day anchors
+- "Life on Earth" rows in the Sun's fact list (`neighbourhoodState()`) scale published present-day anchors
   (`NEIGHBOURHOOD`) with the same stellar density ρ(r) = exp[(r☉ − r)/h] and metallicity Z(r): nearest-star
   spacing 4.25 ly · ρ^(−1/3) and ≈ 9 000 naked-eye stars · ρ; stellar passages within 1 pc 19.7 per Myr · ρ
   (Bailer-Jones et al. 2018), Oort-cloud edge ∝ ρ^(−1/3); ozone-damaging supernovae within 8 pc 1.5 per Gyr ·
   hazard (Gehrels et al. 2003); giant-planet occurrence 10^(2·[Fe/H]) = Z² (Fischer & Valenti 2005); arm
   crossings every 2π / (4 · |Ω(r) − Ω_p|) – never at corotation, shown as "practically never" above 1 Gyr;
-  galactic year and orbits in 4.6 Gyr. An explicit note says Earth's orbit, year, seasons and sunlight are
-  unchanged. All rows inherit the schematic caveat and are checked at 13 / 27 / 33 kly by `check:galaxy`.
+  the galactic year is already in the list. A note under the list says Earth's orbit, year, seasons and
+  sunlight are unchanged. All rows inherit the schematic caveat and are checked at 13 / 27 / 33 kly by `check:galaxy`.
 
 ## Adding a simulation
 

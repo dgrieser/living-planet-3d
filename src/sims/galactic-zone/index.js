@@ -19,10 +19,10 @@
  *    are adjustable (and the dev hook can rebuild them at run time).
  *  - The Sun is a pulsing gold sprite at 27 kly on the Orion spur. The radius
  *    slider moves it along its azimuth for what-if exploration; the readouts
- *    (zone, period, supernova hazard, heavy-element abundance) follow, and a
- *    "life on Earth at this distance" list scales present-day anchors (night sky,
- *    stellar passages, ozone-damaging supernovae, planet formation, arm crossings)
- *    with the same stellar density and metallicity relations.
+ *    (zone, period, supernova hazard, heavy-element abundance) follow, together with
+ *    "life on Earth" rows in the same list – present-day anchors (nearest star,
+ *    naked-eye stars, stellar passages, ozone-damaging supernovae, planet formation,
+ *    arm crossings) scaled with the same stellar density and metallicity relations.
  *  - Timeline: the spiral pattern rotates rigidly once per 230 Myr and the Sun
  *    orbits with the period of its current radius (flat rotation curve), so at
  *    27 kly it stays on the spur, further in it overtakes the arms, further out
@@ -514,18 +514,20 @@ export default function mount(container, meta) {
     ['galacticYears', `${KEYS}.facts.galacticYears`],
     ['supernova', `${KEYS}.facts.supernova`],
     ['metals', `${KEYS}.facts.metals`],
+    // life on Earth at this distance – scaled present-day anchors, see neighbourhoodState() in model.js
+    ['nearestStar', `${KEYS}.earth.nearestStar`],
+    ['nakedEye', `${KEYS}.earth.nakedEye`],
+    ['encounters', `${KEYS}.earth.encounters`],
+    ['oort', `${KEYS}.earth.oort`],
+    ['snInterval', `${KEYS}.earth.supernova`],
+    ['giantPlanets', `${KEYS}.earth.planets`],
+    ['armCrossings', `${KEYS}.earth.arms`],
   ]);
+  const earthNote = bindText(el('p', 'lp-section__note'), `${KEYS}.earth.note`);
   const sunHome = createButton({ labelKey: `${KEYS}.controls.sunHome`, icon: '☉', onClick: () => setSunRadius(CONFIG.sun.radiusKly) });
   const sunRow = el('div', 'lp-button-row');
   sunRow.append(sunHome.el);
-  sunSection.add(radiusSlider, zoneReadout, sunFacts, sunRow);
-
-  const earthSection = createSection(`${KEYS}.sections.earth`);
-  const earthIntro = el('p', 'lp-earth__intro');
-  const earthList = createConsequenceList(['sky', 'encounters', 'supernova', 'planets', 'arms', 'year'].map((id) => [id, `${KEYS}.earth.${id}`]));
-  const earthUnchanged = bindText(el('p', 'lp-earth__unchanged'), `${KEYS}.earth.unchanged`);
-  const earthCaveat = bindText(el('p', 'lp-section__note'), `${KEYS}.earth.caveat`);
-  earthSection.add(earthIntro, earthList, earthUnchanged, earthCaveat);
+  sunSection.add(radiusSlider, zoneReadout, sunFacts, earthNote, sunRow);
 
   const timeSection = createSection(`${KEYS}.sections.time`);
   const timeSlider = createSlider({
@@ -583,7 +585,7 @@ export default function mount(container, meta) {
   const resetRow = el('div', 'lp-button-row');
   resetRow.append(resetBtn.el);
 
-  panel.add(createNotice({ textKey: `${KEYS}.notice`, tone: 'info' }), sunSection, earthSection, timeSection, viewSection, resetRow);
+  panel.add(createNotice({ textKey: `${KEYS}.notice`, tone: 'info' }), sunSection, timeSection, viewSection, resetRow);
   if (sim.reducedMotion) panel.add(createNotice({ textKey: 'motion.reducedNotice' }));
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const modelCard = createModelCard(CONFIG);
@@ -705,20 +707,16 @@ export default function mount(container, meta) {
     sunFacts.set('supernova', `${fmt(m.sun.supernovaRate, m.sun.supernovaRate < 10 ? 1 : 0, 1)}×`);
     sunFacts.set('metals', `${fmt(m.sun.metallicity, 2, 2)}×`);
     timeFacts.set('orbits', fmt(m.sun.orbits, 2, 2));
-    updateEarthReadouts(m.sun.neighbourhood, m.sun.zone);
-  }
-
-  /** The "life on Earth at this distance" list – every value is a scaled present-day anchor (see model.js). */
-  function updateEarthReadouts(n, zone) {
+    // life on Earth at this distance – every value is a scaled present-day anchor (see model.js)
+    const n = m.sun.neighbourhood;
     const E = `${KEYS}.earth`;
-    earthIntro.textContent = t(`${E}.intro${zone[0].toUpperCase()}${zone.slice(1)}`);
-    earthList.set('sky', t(`${E}.skyValue`, { distance: fmt(n.nearestStarLy, 2, 1), stars: fmt(roundSignificant(n.nakedEyeStars, 2), 0) }), t(`${E}.skyNote`));
-    earthList.set('encounters', t(`${E}.encountersValue`, { interval: fmtDuration(n.encounterIntervalKyr / 1000) }), t(`${E}.encountersNote`, { oort: fmt(n.oortCloudFactor, 2, 2) }));
-    earthList.set('supernova', t(`${E}.supernovaValue`, { interval: fmtDuration(n.supernovaIntervalMyr) }), t(`${E}.supernovaNote`));
-    earthList.set('planets', t(`${E}.planetsValue`, { factor: fmt(n.giantPlanetFactor, n.giantPlanetFactor < 1 ? 2 : 1, 1) }), t(`${E}.planetsNote`));
-    const crossing = n.armCrossingIntervalMyr > M.NEIGHBOURHOOD.neverCrossingMyr ? t(`${E}.armsNever`) : t(`${E}.armsValue`, { interval: fmtDuration(n.armCrossingIntervalMyr) });
-    earthList.set('arms', crossing, t(`${E}.armsNote`));
-    earthList.set('year', t(`${E}.yearValue`, { period: fmtDuration(n.periodMyr), orbits: fmt(n.galacticYears, n.galacticYears < 10 ? 1 : 0) }), t(`${E}.yearNote`));
+    sunFacts.set('nearestStar', `≈ ${fmt(n.nearestStarLy, 2, 1)} ${t('units.lightYears')}`);
+    sunFacts.set('nakedEye', `≈ ${fmt(roundSignificant(n.nakedEyeStars, 2), 0)}`);
+    sunFacts.set('encounters', t(`${E}.every`, { interval: fmtDuration(n.encounterIntervalKyr / 1000) }));
+    sunFacts.set('oort', `${fmt(n.oortCloudFactor, 2, 2)}×`);
+    sunFacts.set('snInterval', t(`${E}.every`, { interval: fmtDuration(n.supernovaIntervalMyr) }));
+    sunFacts.set('giantPlanets', `${fmt(n.giantPlanetFactor, n.giantPlanetFactor < 1 ? 2 : 1, 1)}×`);
+    sunFacts.set('armCrossings', n.armCrossingIntervalMyr > M.NEIGHBOURHOOD.neverCrossingMyr ? t(`${E}.armsNever`) : t(`${E}.every`, { interval: fmtDuration(n.armCrossingIntervalMyr) }));
   }
 
   /** Durations in Myr rendered as "51,000 years" / "128 million years" / "1.35 billion years". */
@@ -985,35 +983,6 @@ function createFacts(rows) {
     set(id, text) {
       const dd = values.get(id);
       if (dd && dd.textContent !== text) dd.textContent = text;
-    },
-    dispose() {},
-  };
-}
-
-/**
- * The "life on Earth" list: one row per effect with a headline value and a one-line
- * note underneath. `set(id, value, note)` updates a row in place.
- */
-function createConsequenceList(rows) {
-  const list = el('ol', 'lp-earth');
-  const cells = new Map();
-  for (const [id, labelKey] of rows) {
-    const li = el('li', 'lp-earth__row');
-    const head = el('div', 'lp-earth__head');
-    const value = el('span', 'lp-earth__value');
-    const note = el('p', 'lp-earth__note');
-    head.append(bindText(el('span', 'lp-earth__label'), labelKey), value);
-    li.append(head, note);
-    list.append(li);
-    cells.set(id, { value, note });
-  }
-  return {
-    el: list,
-    set(id, value, note) {
-      const c = cells.get(id);
-      if (!c) return;
-      if (c.value.textContent !== value) c.value.textContent = value;
-      if (c.note.textContent !== note) c.note.textContent = note;
     },
     dispose() {},
   };

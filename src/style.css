@@ -557,8 +557,8 @@ a:hover { color: #a9d9ff; }
 .lp-tooltip--sun { border-left-color: #ffd166; }
 .lp-tooltip--sun .lp-tooltip__title { color: #ffe1a3; }
 
-.lp-facts--gz { grid-template-columns: minmax(0, 1fr) max-content; }
-.lp-facts--gz dd { white-space: nowrap; }
+.lp-facts--gz { grid-template-columns: minmax(48%, 1fr) minmax(0, 1fr); }
+.lp-facts--gz dd { white-space: normal; }
 
 .lp-readout--zone { transition: border-color 200ms ease, background 200ms ease; }
 .lp-readout--zone.is-inner { border-color: rgba(255, 107, 74, 0.55); background: rgba(255, 107, 74, 0.08); }
@@ -568,15 +568,6 @@ a:hover { color: #a9d9ff; }
 .lp-state--gz-habitable { color: #b8f5cf; background: rgba(90, 220, 140, 0.16); border-color: rgba(90, 220, 140, 0.55); }
 .lp-state--gz-outer { color: #cfe0ff; background: rgba(127, 155, 196, 0.2); border-color: rgba(127, 155, 196, 0.6); }
 
-/* galactic-zone: "life on Earth at this distance" */
-.lp-earth__intro { margin: 2px 0 8px; font-size: 0.85rem; color: var(--lp-text); }
-.lp-earth { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.lp-earth__row { padding: 8px 10px; border: 1px solid var(--lp-border); border-radius: var(--lp-radius-sm); background: rgba(167, 180, 204, 0.06); }
-.lp-earth__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; font-size: 0.88rem; }
-.lp-earth__label { color: var(--lp-text-muted); }
-.lp-earth__value { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--lp-accent); text-align: right; }
-.lp-earth__note { margin: 4px 0 0; font-size: 0.78rem; line-height: 1.4; color: var(--lp-text-muted); }
-.lp-earth__unchanged { margin: 4px 0 4px; padding: 8px 10px; font-size: 0.8rem; line-height: 1.4; color: #b8f5cf; border-left: 3px solid rgba(90, 220, 140, 0.55); background: rgba(90, 220, 140, 0.06); border-radius: 0 var(--lp-radius-sm) var(--lp-radius-sm) 0; }
 .lp-legend__swatch--dust { height: 8px; border: 0; border-radius: 4px; }
 .lp-legend__swatch--dot { width: 8px; height: 8px; border: 0; border-radius: 50%; background: currentColor; margin: 0 7px; }
 
