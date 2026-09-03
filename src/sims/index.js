@@ -4,25 +4,11 @@
  */
 export const simulations = [
   {
-    id: 'axial-tilt',
-    titleKey: 'sims.axialTilt.title',
-    descriptionKey: 'sims.axialTilt.description',
-    icon: '🌍',
-    load: () => import('./axial-tilt/index.js'),
-  },
-  {
-    id: 'solar-orbit',
-    titleKey: 'sims.solarOrbit.title',
-    descriptionKey: 'sims.solarOrbit.description',
-    icon: '🪐',
-    load: () => import('./solar-orbit/index.js'),
-  },
-  {
-    id: 'seasons',
-    titleKey: 'sims.seasons.title',
-    descriptionKey: 'sims.seasons.description',
-    icon: '🍂',
-    load: () => import('./seasons/index.js'),
+    id: 'galactic-zone',
+    titleKey: 'sims.galacticZone.title',
+    descriptionKey: 'sims.galacticZone.description',
+    icon: '🌌',
+    load: () => import('./galactic-zone/index.js'),
   },
   {
     id: 'habitable-zone',
@@ -32,6 +18,13 @@ export const simulations = [
     load: () => import('./habitable-zone/index.js'),
   },
   {
+    id: 'solar-orbit',
+    titleKey: 'sims.solarOrbit.title',
+    descriptionKey: 'sims.solarOrbit.description',
+    icon: '🪐',
+    load: () => import('./solar-orbit/index.js'),
+  },
+  {
     id: 'moon-tides',
     titleKey: 'sims.moonTides.title',
     descriptionKey: 'sims.moonTides.description',
@@ -39,18 +32,25 @@ export const simulations = [
     load: () => import('./moon-tides/index.js'),
   },
   {
+    id: 'axial-tilt',
+    titleKey: 'sims.axialTilt.title',
+    descriptionKey: 'sims.axialTilt.description',
+    icon: '🌍',
+    load: () => import('./axial-tilt/index.js'),
+  },
+  {
+    id: 'seasons',
+    titleKey: 'sims.seasons.title',
+    descriptionKey: 'sims.seasons.description',
+    icon: '🍂',
+    load: () => import('./seasons/index.js'),
+  },
+  {
     id: 'magnetosphere',
     titleKey: 'sims.magnetosphere.title',
     descriptionKey: 'sims.magnetosphere.description',
     icon: '🧲',
     load: () => import('./magnetosphere/index.js'),
-  },
-  {
-    id: 'galactic-zone',
-    titleKey: 'sims.galacticZone.title',
-    descriptionKey: 'sims.galacticZone.description',
-    icon: '🌌',
-    load: () => import('./galactic-zone/index.js'),
   },
 ];
 
