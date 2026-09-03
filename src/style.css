@@ -284,6 +284,28 @@ a:hover { color: #a9d9ff; }
 .lp-button--primary { background: var(--lp-accent); color: var(--lp-accent-contrast); border-color: transparent; }
 .lp-button--primary:hover { background: #9fd3ff; }
 .lp-button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.lp-button--compact { width: 34px; height: 34px; padding: 0; gap: 0; flex: none; font-size: 1rem; }
+.lp-button--compact .lp-button__icon { line-height: 1; }
+
+/* a control with small inline actions on its right (slider + reset / play) */
+.lp-control-row { display: flex; align-items: flex-end; gap: 10px; }
+.lp-control-row > .lp-control { flex: 1 1 auto; min-width: 0; }
+/* sit the action on the slider track rather than the middle of the whole control */
+.lp-control-row > .lp-button--compact { margin-bottom: 4px; }
+
+/* collapsible group of secondary controls */
+.lp-collapse { border-top: 1px solid var(--lp-border); }
+.lp-collapse__summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; color: var(--lp-text-muted); }
+.lp-collapse__summary::-webkit-details-marker { display: none; }
+.lp-collapse__summary::after {
+  content: ""; width: 8px; height: 8px; flex: none;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 200ms ease;
+}
+.lp-collapse[open] > .lp-collapse__summary::after { transform: translateY(2px) rotate(-135deg); }
+.lp-collapse__summary .lp-section__title { margin: 0; }
+.lp-collapse__body { display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; }
 
 /* info card */
 .lp-info {

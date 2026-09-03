@@ -28,12 +28,18 @@
  *    orbits with the period of its current radius (flat rotation curve), so at
  *    27 kly it stays on the spur, further in it overtakes the arms, further out
  *    it lags behind.
+ *  - Panel: the controls come first – the radius slider with a small "back to 27 kly"
+ *    button inline on its right, then a collapsible group holding the timeline slider
+ *    with its play/pause button, the camera presets, the view toggles and the overall
+ *    reset. The readouts follow in reading order: the conditions box, its follow-up
+ *    stats, the legend, "a favourable address" and the model card, which opens with
+ *    the schematic caveat that qualifies every relation in it.
  *
  * Everything quantitative lives in ./model.js; this module maps it to pixels.
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as M from './model.js';
@@ -493,7 +499,7 @@ export default function mount(container, meta) {
   // =============================================================================================
   const panel = createPanel();
 
-  const sunSection = createSection(`${KEYS}.sections.sun`);
+  // --- controls: the distance slider up front, the rest folded away -------------------------------
   const radiusSlider = createSlider({
     labelKey: `${KEYS}.controls.sunRadius`,
     min: CONFIG.sunRadiusRangeKly.min,
@@ -503,26 +509,10 @@ export default function mount(container, meta) {
     format: (v) => `${fmt(v * 1000, 0)} ${t('units.lightYears')}`,
     onChange: (v) => setSunRadius(v, { fromSlider: true }),
   });
-  const zoneReadout = el('div', 'lp-readout lp-readout--zone');
-  const zoneLabel = bindText(el('div', 'lp-readout__label'), `${KEYS}.conditions.label`);
-  const zonePill = el('span', 'lp-state');
-  // prose paragraphs: zone hint (outside the zone only), catastrophe odds, spiral arms, birthplace chemistry
-  const conditionParagraphs = ['zone', 'hazards', 'arms', 'formation'].map(() => el('p', 'lp-state__hint'));
-  zoneReadout.append(zoneLabel, zonePill, ...conditionParagraphs);
-  const sunFacts = createFacts([
-    ['distance', `${KEYS}.facts.distance`],
-    ['period', `${KEYS}.facts.period`],
-    ['speed', `${KEYS}.facts.speed`],
-    ['galacticYears', `${KEYS}.facts.galacticYears`],
-    ['supernova', `${KEYS}.facts.supernova`],
-    ['metals', `${KEYS}.facts.metals`],
-  ]);
-  const sunHome = createButton({ labelKey: `${KEYS}.controls.sunHome`, icon: '☉', onClick: () => setSunRadius(CONFIG.sun.radiusKly) });
-  const sunRow = el('div', 'lp-button-row');
-  sunRow.append(sunHome.el);
-  sunSection.add(radiusSlider, zoneReadout, sunFacts, sunRow);
+  const sunHome = createButton({ labelKey: `${KEYS}.controls.sunHome`, icon: '↺', compact: true, onClick: () => setSunRadius(CONFIG.sun.radiusKly) });
+  const radiusRow = createControlRow(radiusSlider, sunHome);
 
-  const timeSection = createSection(`${KEYS}.sections.time`);
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
   const timeSlider = createSlider({
     labelKey: `${KEYS}.controls.time`,
     min: 0,
@@ -532,22 +522,10 @@ export default function mount(container, meta) {
     format: (v) => `${fmt(v, 0)} ${t('units.millionYears')}`,
     onChange: (v) => setTime(v, { fromSlider: true }),
   });
-  const playBtn = createButton({ labelKey: `${KEYS}.controls.play`, icon: '▶', variant: 'primary', onClick: () => setPlaying(!state.playing) });
-  const playRow = el('div', 'lp-button-row');
-  playRow.append(playBtn.el);
-  const timeFacts = createFacts([
-    ['orbits', `${KEYS}.facts.orbits`],
-  ]);
+  const playBtn = createButton({ labelKey: `${KEYS}.controls.play`, icon: '▶', variant: 'primary', compact: true, onClick: () => setPlaying(!state.playing) });
+  const timeRow = createControlRow(timeSlider, playBtn);
   const timeHint = bindText(el('p', 'lp-section__note'), `${KEYS}.controls.timeHint`);
-  timeSection.add(timeSlider, playRow, timeFacts, timeHint);
 
-  const viewSection = createSection(`${KEYS}.sections.view`);
-  const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
-  const toggles = {
-    showRing: viewToggle('showRing', `${KEYS}.controls.ring`),
-    showZones: viewToggle('showZones', `${KEYS}.controls.zones`),
-    showArmLabels: viewToggle('showArmLabels', `${KEYS}.controls.armLabels`),
-  };
   const cameraTitle = bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`);
   const cameraRow = el('div', 'lp-presets lp-presets--2', { role: 'group' });
   bindAttr(cameraRow, { 'aria-label': `${KEYS}.controls.camera` });
@@ -560,6 +538,38 @@ export default function mount(container, meta) {
   function syncCameraButtons() {
     for (const { id, el: btn } of cameraButtons) btn.setAttribute('aria-pressed', String(cameraMode === id));
   }
+
+  const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
+  const toggles = {
+    showRing: viewToggle('showRing', `${KEYS}.controls.ring`),
+    showZones: viewToggle('showZones', `${KEYS}.controls.zones`),
+    showArmLabels: viewToggle('showArmLabels', `${KEYS}.controls.armLabels`),
+  };
+
+  const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
+  const resetRow = el('div', 'lp-button-row');
+  resetRow.append(resetBtn.el);
+
+  moreControls.add(timeRow, timeHint);
+  if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
+  moreControls.add(cameraTitle, cameraRow, toggles.showRing, toggles.showZones, toggles.showArmLabels, resetRow);
+
+  // --- readouts: the conditions box, its follow-up stats, then the legend -------------------------
+  const zoneReadout = el('div', 'lp-readout lp-readout--zone');
+  const zoneLabel = bindText(el('div', 'lp-readout__label'), `${KEYS}.conditions.label`);
+  const zonePill = el('span', 'lp-state');
+  // prose paragraphs: zone hint (outside the zone only), catastrophe odds, spiral arms, birthplace chemistry
+  const conditionParagraphs = ['zone', 'hazards', 'arms', 'formation'].map(() => el('p', 'lp-state__hint'));
+  zoneReadout.append(zoneLabel, zonePill, ...conditionParagraphs);
+  const facts = createFacts([
+    ['distance', `${KEYS}.facts.distance`],
+    ['period', `${KEYS}.facts.period`],
+    ['speed', `${KEYS}.facts.speed`],
+    ['galacticYears', `${KEYS}.facts.galacticYears`],
+    ['orbits', `${KEYS}.facts.orbits`],
+    ['supernova', `${KEYS}.facts.supernova`],
+    ['metals', `${KEYS}.facts.metals`],
+  ]);
   const legend = createLegend([
     [`${KEYS}.legend.bulge`, 0xffc98a],
     [`${KEYS}.legend.arms`, 0xa9c4ff],
@@ -572,17 +582,11 @@ export default function mount(container, meta) {
     [`${KEYS}.legend.sun`, COLORS.sun],
     [`${KEYS}.legend.orbit`, COLORS.orbit, 'dashed'],
   ]);
-  viewSection.add(toggles.showRing, toggles.showZones, toggles.showArmLabels, cameraTitle, cameraRow, legend);
 
-  const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
-  const resetRow = el('div', 'lp-button-row');
-  resetRow.append(resetBtn.el);
-
-  panel.add(createNotice({ textKey: `${KEYS}.notice`, tone: 'info' }), sunSection, timeSection, viewSection, resetRow);
-  if (sim.reducedMotion) panel.add(createNotice({ textKey: 'motion.reducedNotice' }));
+  // --- prose: the essay, then the relations behind the numbers (with the schematic caveat) -------
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const modelCard = createModelCard(CONFIG);
-  panel.add(infoCard, modelCard);
+  panel.add(radiusRow, moreControls, zoneReadout, facts, legend, infoCard, modelCard);
   container.append(panel.el);
 
   // --- on-canvas: schematic badge, tooltip, hint ---------------------------------------------------
@@ -675,8 +679,10 @@ export default function mount(container, meta) {
   // readouts
   // =============================================================================================
   function syncPlayButton() {
+    const labelKey = state.playing ? `${KEYS}.controls.pause` : `${KEYS}.controls.play`;
     playBtn.el.querySelector('.lp-button__icon').textContent = state.playing ? '⏸' : '▶';
-    bindText(playBtn.el.querySelector('[data-i18n]'), state.playing ? `${KEYS}.controls.pause` : `${KEYS}.controls.play`);
+    bindText(playBtn.el.querySelector('[data-i18n]'), labelKey);
+    bindAttr(playBtn.el, { 'aria-label': labelKey, title: labelKey });
     playBtn.el.setAttribute('aria-pressed', String(state.playing));
     playBtn.el.disabled = sim.reducedMotion;
   }
@@ -693,13 +699,13 @@ export default function mount(container, meta) {
     updateConditions(m.sun.neighbourhood, m.sun.zone);
     zoneReadout.className = `lp-readout lp-readout--zone is-${m.sun.zone}`;
 
-    sunFacts.set('distance', `${fmt(m.sun.radiusLy, 0)} ${t('units.lightYears')} · ${fmt(m.sun.radiusKpc, 1, 1)} ${t('units.kiloparsec')}`);
-    sunFacts.set('period', `${fmt(m.sun.periodMyr, 0)} ${t('units.millionYears')}`);
-    sunFacts.set('speed', `${fmt(m.sun.speedKmS, 0)} ${t('units.kilometersPerSecond')}`);
-    sunFacts.set('galacticYears', fmt(m.sun.galacticYears, m.sun.galacticYears < 10 ? 1 : 0));
-    sunFacts.set('supernova', `${fmt(m.sun.supernovaRate, m.sun.supernovaRate < 10 ? 1 : 0, 1)}×`);
-    sunFacts.set('metals', `${fmt(m.sun.metallicity, 2, 2)}×`);
-    timeFacts.set('orbits', fmt(m.sun.orbits, 2, 2));
+    facts.set('distance', `${fmt(m.sun.radiusLy, 0)} ${t('units.lightYears')} · ${fmt(m.sun.radiusKpc, 1, 1)} ${t('units.kiloparsec')}`);
+    facts.set('period', `${fmt(m.sun.periodMyr, 0)} ${t('units.millionYears')}`);
+    facts.set('speed', `${fmt(m.sun.speedKmS, 0)} ${t('units.kilometersPerSecond')}`);
+    facts.set('galacticYears', fmt(m.sun.galacticYears, m.sun.galacticYears < 10 ? 1 : 0));
+    facts.set('supernova', `${fmt(m.sun.supernovaRate, m.sun.supernovaRate < 10 ? 1 : 0, 1)}×`);
+    facts.set('metals', `${fmt(m.sun.metallicity, 2, 2)}×`);
+    facts.set('orbits', fmt(m.sun.orbits, 2, 2));
   }
 
   /**
@@ -1050,6 +1056,10 @@ function createModelCard(cfg) {
   const entries = ['zone', 'period', 'galacticYear', 'supernova', 'metals', 'spiral', 'nearestStar', 'encounters', 'supernovaInterval', 'giantPlanets', 'armCrossings'];
   function render() {
     body.replaceChildren();
+    // the schematic caveat first: it qualifies every relation listed below it
+    const caveat = el('div', 'lp-notice lp-notice--info', { role: 'note' });
+    caveat.textContent = t(`${KEYS}.notice`);
+    body.append(caveat);
     const params = {
       inner: fmt(cfg.zone.innerKly * 1000, 0),
       outer: fmt(cfg.zone.outerKly * 1000, 0),

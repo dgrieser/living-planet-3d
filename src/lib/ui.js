@@ -78,6 +78,50 @@ export function createSection(titleKey) {
 }
 
 /**
+ * Section whose body folds away behind its heading – for secondary controls that
+ * should not push the readouts down. Mirrors createSection's API.
+ * @param {{ titleKey: string, open?: boolean }} opts
+ */
+export function createCollapsibleSection({ titleKey, open = true }) {
+  const disposers = [];
+  const details = el('details', 'lp-collapse');
+  if (open) details.open = true;
+  const summary = el('summary', 'lp-collapse__summary');
+  summary.append(bindText(el('span', 'lp-section__title'), titleKey));
+  const body = el('div', 'lp-collapse__body');
+  details.append(summary, body);
+  return {
+    el: details,
+    body,
+    add(...components) {
+      for (const c of components) {
+        body.append(c.el ?? c);
+        if (typeof c.dispose === 'function') disposers.push(c.dispose);
+      }
+      return this;
+    },
+    dispose() {
+      disposers.forEach((d) => d());
+    },
+  };
+}
+
+/**
+ * A control (usually a slider) with small action buttons sitting inline on its right,
+ * e.g. a slider plus the button that resets it.
+ */
+export function createControlRow(control, ...actions) {
+  const row = el('div', 'lp-control-row');
+  for (const c of [control, ...actions]) row.append(c.el ?? c);
+  return {
+    el: row,
+    dispose() {
+      for (const c of [control, ...actions]) c.dispose?.();
+    },
+  };
+}
+
+/**
  * Range slider with live, locale-formatted value + unit.
  * @param {{ labelKey: string, unitKey?: string, min: number, max: number, step?: number,
  *           value: number, decimals?: number, format?: (v:number)=>string, onChange: (v:number)=>void }} opts
@@ -182,15 +226,20 @@ export function createStateToggle({ labelKey, state, name, prefs, onChange }) {
   });
 }
 
-/** Button. variant: 'primary' | 'ghost' */
-export function createButton({ labelKey, ariaKey, onClick, variant = 'ghost', icon }) {
-  const btn = el('button', `lp-button lp-button--${variant}`, { type: 'button' });
+/**
+ * Button. variant: 'primary' | 'ghost'
+ * `compact` shrinks it to an icon-sized square and hides the label visually – the
+ * label still names the button for screen readers and as its tooltip.
+ */
+export function createButton({ labelKey, ariaKey, onClick, variant = 'ghost', icon, compact = false }) {
+  const btn = el('button', `lp-button lp-button--${variant}${compact ? ' lp-button--compact' : ''}`, { type: 'button' });
   if (icon) {
     const i = el('span', 'lp-button__icon', { 'aria-hidden': 'true' });
     i.textContent = icon;
     btn.append(i);
   }
-  btn.append(bindText(el('span'), labelKey));
+  btn.append(bindText(el('span', compact ? 'visually-hidden' : null), labelKey));
+  if (compact) bindAttr(btn, { 'aria-label': labelKey, title: labelKey });
   if (ariaKey) bindAttr(btn, { 'aria-label': ariaKey });
   btn.addEventListener('click', (e) => onClick?.(e));
   return { el: btn, dispose() {} };
