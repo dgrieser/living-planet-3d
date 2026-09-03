@@ -984,7 +984,7 @@ function createBillboardCloud({ count, attributes, material }) {
 // DOM helpers
 // ============================================================================================================
 function createFacts(rows) {
-  const dl = el('dl', 'lp-facts lp-facts--accent lp-facts--gz');
+  const dl = el('dl', 'lp-facts lp-facts--accent lp-facts--wrap');
   const values = new Map();
   for (const [id, labelKey] of rows) {
     const dd = el('dd');

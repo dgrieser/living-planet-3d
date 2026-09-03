@@ -626,7 +626,6 @@
       "description": "Beobachte, wie das Erdmagnetfeld den Sonnenwind ablenkt, löse einen koronalen Massenauswurf aus und schalte den Schutzschild ab.",
       "sections": {
         "more": "Ansicht & Kamera",
-        "wind": "Sonnenwind",
         "view": "Ansicht"
       },
       "controls": {
@@ -657,8 +656,6 @@
       "storm": {
         "title": "Weltraumwetter",
         "kp": "Geomagnetische Aktivität",
-        "wind": "Wind an der Grenzschicht",
-        "standoff": "Magnetopause",
         "aurora": "Polarlicht erreicht",
         "latitude": "geomagnetische Breite",
         "geosync": "Geostationäre Bahn",
