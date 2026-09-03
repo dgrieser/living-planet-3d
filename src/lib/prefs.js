@@ -3,7 +3,7 @@
  *
  * Every simulation panel mixes two kinds of controls: the physics the visitor is
  * experimenting with (tilt, date, speed, luminosity, playing) and the chrome
- * they want to look at while doing it (legends, labels, helper lines, overlays).
+ * they want to look at while doing it (legends, labels, helper lines, overlays, units).
  * Only the chrome is remembered here — a reload always starts the simulation
  * itself from the teaching defaults.
  *
@@ -18,8 +18,9 @@ export const STORAGE_PREFIX = 'lp-view:';
 
 /**
  * @param {string} simId  registry id of the simulation (see sims/index.js)
- * @param {Record<string, boolean>} defaults  the sim's VIEW_DEFAULTS
- * @returns {{ values: Record<string, boolean>, set: (name: string, value: boolean) => void }}
+ * @param {Record<string, boolean|string>} defaults  the sim's VIEW_DEFAULTS (booleans, or a string for a
+ *   multi-way choice such as a unit – a stored value is only adopted when its type matches)
+ * @returns {{ values: Record<string, boolean|string>, set: (name: string, value: boolean|string) => void }}
  */
 export function createViewPrefs(simId, defaults) {
   const storageKey = `${STORAGE_PREFIX}${simId}`;

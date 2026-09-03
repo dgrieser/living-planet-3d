@@ -239,7 +239,8 @@
           "G": "G – yellow-white (Sun)",
           "F": "F – white",
           "A": "A – blue-white"
-        }
+        },
+        "dragHint": "Pull the star’s limb outward or inward to change its luminosity"
       },
       "zone": {
         "edges": "Habitable zone",
@@ -275,8 +276,16 @@
       },
       "view": {
         "zone": "Habitable zone",
-        "shell": "Zone as 3D shell",
+        "zoneSurface": "Flat annulus (2D)",
+        "zoneShell": "Shell (3D)",
         "tempLabels": "Temperature labels",
+        "tempUnit": "Temperature unit",
+        "unitKelvin": "K",
+        "unitCelsius": "°C",
+        "unitBoth": "K · °C",
+        "unitKelvinAria": "Kelvin only",
+        "unitCelsiusAria": "Degrees Celsius only",
+        "unitBothAria": "Kelvin and degrees Celsius",
         "grid": "Orbit grid",
         "frameZone": "Frame zone",
         "overview": "Overview (5 AU)"
@@ -301,6 +310,9 @@
         "stateLabel": "Surface state from T_eq",
         "stateFormula": "frozen < 237 K ≤ habitable ≤ 285 K < scorched",
         "stateNote": "The thresholds are the zone edges expressed as temperatures (T_eq depends only on the insolation L/d²). 237 K corresponds to about 0 °C at the surface with an Earth-like greenhouse effect.",
+        "appearanceLabel": "Surface appearance (schematic)",
+        "appearanceFormula": "snowball ← 237 K · Earth · 285 K → cloud world → lava world (≈ 800 K)",
+        "appearanceNote": "Beyond the outer edge the oceans freeze over and the ice thickens with falling temperature. Just beyond the inner edge a Venus-like cloud deck takes over; several hundred kelvin further in the crust cracks and the star-facing side melts into lava seas. Earth-like planets show the real Earth maps with city lights on the night side.",
         "evolutionLabel": "Stellar evolution (Gough 1981)",
         "evolutionFormula": "L(t) = L☉ / (1 + 0.4 · (1 − t / 4.57 Gyr))",
         "evolutionNote": "≈ 0.7 L☉ at birth, 1 L☉ today, ≈ 1.9 L☉ after 10 Gyr – about +10 % per Gyr.",
@@ -310,7 +322,8 @@
         "periodFormula": "P = √(d³ / M) years",
         "scaleNote": "Star and planet sizes are exaggerated for visibility; distances are to scale."
       },
-      "hint": "Drag the planet to move it"
+      "hint": "Drag the planet to move it · pull the star to resize it",
+      "credit": "Earth textures: Solar System Scope (CC BY 4.0)"
     },
     "seasons": {
       "title": "Seasons, axial tilt & day length",

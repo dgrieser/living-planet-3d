@@ -239,7 +239,8 @@
           "G": "G – gelbweiß (Sonne)",
           "F": "F – weiß",
           "A": "A – blauweiß"
-        }
+        },
+        "dragHint": "Den Rand des Sterns nach außen oder innen ziehen, um seine Leuchtkraft zu ändern"
       },
       "zone": {
         "edges": "Bewohnbare Zone",
@@ -275,8 +276,16 @@
       },
       "view": {
         "zone": "Bewohnbare Zone",
-        "shell": "Zone als 3D-Schale",
+        "zoneSurface": "Flacher Ring (2D)",
+        "zoneShell": "Schale (3D)",
         "tempLabels": "Temperaturbeschriftungen",
+        "tempUnit": "Temperatureinheit",
+        "unitKelvin": "K",
+        "unitCelsius": "°C",
+        "unitBoth": "K · °C",
+        "unitKelvinAria": "Nur Kelvin",
+        "unitCelsiusAria": "Nur Grad Celsius",
+        "unitBothAria": "Kelvin und Grad Celsius",
         "grid": "Bahnraster",
         "frameZone": "Zone einpassen",
         "overview": "Übersicht (5 AE)"
@@ -301,6 +310,9 @@
         "stateLabel": "Oberflächenzustand aus T_eq",
         "stateFormula": "gefroren < 237 K ≤ bewohnbar ≤ 285 K < versengt",
         "stateNote": "Die Schwellen sind die Zonenränder als Temperaturen ausgedrückt (T_eq hängt nur von der Einstrahlung L/d² ab). 237 K entsprechen mit erdähnlichem Treibhauseffekt etwa 0 °C an der Oberfläche.",
+        "appearanceLabel": "Aussehen der Oberfläche (schematisch)",
+        "appearanceFormula": "Schneeball ← 237 K · Erde · 285 K → Wolkenwelt → Lavawelt (≈ 800 K)",
+        "appearanceNote": "Jenseits des äußeren Rands frieren die Ozeane zu, und das Eis wird mit sinkender Temperatur dicker. Kurz hinter dem inneren Rand übernimmt eine venusähnliche Wolkendecke; einige hundert Kelvin weiter innen reißt die Kruste auf, und die dem Stern zugewandte Seite schmilzt zu Lavameeren. Erdähnliche Planeten zeigen die echten Erdkarten mit Stadtlichtern auf der Nachtseite.",
         "evolutionLabel": "Sternentwicklung (Gough 1981)",
         "evolutionFormula": "L(t) = L☉ / (1 + 0,4 · (1 − t / 4,57 Mrd. Jahre))",
         "evolutionNote": "≈ 0,7 L☉ bei der Entstehung, 1 L☉ heute, ≈ 1,9 L☉ nach 10 Mrd. Jahren – etwa +10 % pro Milliarde Jahre.",
@@ -310,7 +322,8 @@
         "periodFormula": "P = √(d³ / M) Jahre",
         "scaleNote": "Stern- und Planetengrößen sind zur besseren Sichtbarkeit vergrößert; Abstände sind maßstabsgetreu."
       },
-      "hint": "Planeten ziehen, um ihn zu verschieben"
+      "hint": "Planeten ziehen, um ihn zu verschieben · Stern ziehen, um ihn zu vergrößern",
+      "credit": "Erdtexturen: Solar System Scope (CC BY 4.0)"
     },
     "seasons": {
       "title": "Jahreszeiten, Achsneigung & Tageslänge",

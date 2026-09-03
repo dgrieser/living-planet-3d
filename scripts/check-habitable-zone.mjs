@@ -70,6 +70,16 @@ check('Sun: mass (M☉)', star.G.massSolar, 1, 1e-12);
 check('Sun: radius (R☉)', star.G.radiusSolar, 1, 1e-12);
 within('M preset mass ×100 (M☉)', star.M.massSolar * 100, 20, 40);
 within('F preset radius ×100 (R☉)', star.F.radiusSolar * 100, 120, 160);
+check('Radius exponent R ∝ L^0.24', HZ.RADIUS_LUMINOSITY_EXPONENT, 0.24, 1e-12);
+for (const [L0, k] of [[1, 10], [0.01, 100], [3, 0.1]]) {
+  // the exponent is what the star pull relies on: k× the luminosity → k^0.24 × the radius
+  check(`${L0} → ${L0 * k} L☉: radius ratio`, HZ.mainSequenceStar(L0 * k).radiusSolar / HZ.mainSequenceStar(L0).radiusSolar, Math.pow(k, HZ.RADIUS_LUMINOSITY_EXPONENT), 1e-9);
+}
+const mixCold = HZ.stateMix(HZ.T_FROZEN_K - HZ.COLD_RAMP_K);
+const mixHot = HZ.stateMix(HZ.T_SCORCHED_K + HZ.HEAT_RAMP_K);
+assert('stateMix: deep-frozen planet → cold = 1, heat = 0', mixCold.cold === 1 && mixCold.heat === 0 && mixCold.thaw === 0);
+assert('stateMix: lava world → heat = 1, cold = 0', mixHot.heat === 1 && mixHot.cold === 0 && mixHot.scorch === 1);
+assert('stateMix: Earth → all ramps at rest', (() => { const m = HZ.stateMix(HZ.equilibriumTemperatureK(1, 1)); return m.thaw === 1 && m.scorch === 0 && m.cold === 0 && m.heat === 0; })());
 check('Earth orbital period (yr)', HZ.orbitalPeriodYears(1, 1), 1, 1e-12);
 check('Mars orbital period (yr)', HZ.orbitalPeriodYears(1.524, 1), 1.881, 0.002);
 const red = HZ.starColorRGB(3000);
