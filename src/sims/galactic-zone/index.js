@@ -526,8 +526,8 @@ export default function mount(container, meta) {
   const timeRow = createControlRow(timeSlider, playBtn);
   const timeHint = bindText(el('p', 'lp-section__note'), `${KEYS}.controls.timeHint`);
 
-  const cameraTitle = bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`);
-  const cameraRow = el('div', 'lp-presets lp-presets--2', { role: 'group' });
+  // no visible heading: the group's aria-label names it and the icons carry the meaning
+  const cameraRow = el('div', 'lp-presets lp-presets--2 lp-presets--compact', { role: 'group' });
   bindAttr(cameraRow, { 'aria-label': `${KEYS}.controls.camera` });
   const cameraButtons = ['overview', 'sun'].map((id) => {
     const btn = createButton({ labelKey: `${KEYS}.controls.camera${id[0].toUpperCase()}${id.slice(1)}`, icon: id === 'sun' ? '☉' : '🌌', onClick: () => setCamera(id) });
@@ -547,12 +547,12 @@ export default function mount(container, meta) {
   };
 
   const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
-  const resetRow = el('div', 'lp-button-row');
+  const resetRow = el('div', 'lp-button-row lp-button-row--full');
   resetRow.append(resetBtn.el);
 
   moreControls.add(timeRow, timeHint);
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
-  moreControls.add(cameraTitle, cameraRow, toggles.showRing, toggles.showZones, toggles.showArmLabels, resetRow);
+  moreControls.add(cameraRow, toggles.showRing, toggles.showZones, toggles.showArmLabels, resetRow);
 
   // --- readouts: the conditions box, its follow-up stats, then the legend -------------------------
   const zoneReadout = el('div', 'lp-readout lp-readout--zone');
