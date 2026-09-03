@@ -9,7 +9,10 @@
  * snowball, the real Earth (day map + city lights on the night side, as in the
  * axial-tilt simulation) and a Venus-like cloud world that melts into a lava world
  * according to its equilibrium temperature. An evolution mode ages a Sun-like star
- * from 0 to 10 Gyr and shows the zone migrating outward past Earth.
+ * from 0 to 10 Gyr and shows the zone migrating outward past Earth. A single speed
+ * slider scales the whole animation – planet spin, orbital motion, stellar evolution
+ * and the star/corona/surface shader time – so 0× freezes the scene and 5× runs it
+ * five times faster.
  *
  * Scene units: 1 AU = AU_UNITS; the orbital plane is y = 0, the planet orbits
  * counter-clockwise seen from above (+y). All physics lives in ./physics.js.
@@ -26,14 +29,15 @@ const TEXTURE_BASE = `${import.meta.env.BASE_URL}textures/`;
 const AU_UNITS = 10; // scene units per astronomical unit
 const PLANET_RADIUS = 0.16; // scene units (strongly exaggerated for visibility)
 const PLANET_TILT_RAD = THREE.MathUtils.degToRad(23.4); // Earth-like axial tilt, fixed in space while the planet orbits
-const PLANET_ROTATION_SPEED_RANGE = Object.freeze({ min: 0, max: 180, step: 1, default: 20 }); // visual degrees per second
+const PLANET_SPIN_RAD_PER_S = 0.35; // visual spin at 1× speed, one rotation every ≈ 18 s
 const STAR_UNIT_RADIUS = 0.5; // scene units for 1 R☉ (≈ 11× exaggerated)
 const STAR_MAX_RADIUS = 0.8; // keeps very luminous stars clear of a planet at 0.1 AU
 const CORONA_EXTENT = 5; // corona billboard half-size in star radii
 const STAR_PULL_MIN_PX_PER_DECADE = 70; // pull gain for a tiny star disc: 70 px of radial drag per decade of luminosity
-const SECONDS_PER_ORBIT_YEAR = 20; // visual time: a 1-year orbit takes 20 s
-const MAX_ANGULAR_SPEED = Math.PI; // rad/s – close-in planets would otherwise flicker
-const EVOLUTION_GYR_PER_SECOND = 0.4; // 10 Gyr in 25 s
+const SECONDS_PER_ORBIT_YEAR = 20; // visual time: at 1× speed a 1-year orbit takes 20 s
+const MAX_ANGULAR_SPEED = Math.PI; // rad/s at 1× speed – close-in planets would otherwise flicker
+const EVOLUTION_GYR_PER_SECOND = 0.4; // at 1× speed: 10 Gyr in 25 s
+const SPEED_RANGE = Object.freeze({ min: 0, max: 5, step: 0.1, default: 1 }); // overall animation speed, 0 freezes the scene
 const HIT_LAYER = 1;
 const ZONE_COLOR = 0x5adc8c;
 const STATE_COLORS = Object.freeze({ frozen: 0x9fd8ff, habitable: 0x5adc8c, scorched: 0xff6b4a });
@@ -47,7 +51,7 @@ const DEFAULTS = Object.freeze({
   distanceAU: 1,
   ageGyr: HZ.SUN_AGE_GYR,
   evolution: false,
-  rotationSpeed: PLANET_ROTATION_SPEED_RANGE.default, // visual degrees per second
+  speed: SPEED_RANGE.default, // overall animation speed multiplier
 });
 
 /** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
@@ -583,8 +587,10 @@ export default function mount(container, meta) {
 
   // --- animation ------------------------------------------------------------------------------------------------------------
   function frame(dt) {
+    // one slider scales scene time, so planet spin, orbit, stellar evolution and the shader animations stay in step
+    const sdt = dt * state.speed;
     if (state.playing) {
-      const next = state.ageGyr + dt * EVOLUTION_GYR_PER_SECOND;
+      const next = state.ageGyr + sdt * EVOLUTION_GYR_PER_SECOND;
       if (next >= HZ.MAX_AGE_GYR) {
         state.ageGyr = HZ.MAX_AGE_GYR;
         setPlaying(false);
@@ -594,13 +600,13 @@ export default function mount(container, meta) {
     }
     if (drag?.kind !== 'planet') {
       const omega = Math.min(MAX_ANGULAR_SPEED, (2 * Math.PI) / (model.periodYears * SECONDS_PER_ORBIT_YEAR));
-      state.angle = (state.angle + omega * dt) % (Math.PI * 2);
+      state.angle = (state.angle + omega * sdt) % (Math.PI * 2);
     }
-    planetSpin.rotation.y = (planetSpin.rotation.y + THREE.MathUtils.degToRad(state.rotationSpeed) * dt) % (Math.PI * 2);
-    starMaterial.uniforms.uTime.value += dt;
-    coronaMaterial.uniforms.uTime.value += dt;
-    planetMaterial.uniforms.uTime.value += dt;
-    stepTween(dt);
+    planetSpin.rotation.y = (planetSpin.rotation.y + PLANET_SPIN_RAD_PER_S * sdt) % (Math.PI * 2);
+    starMaterial.uniforms.uTime.value += sdt;
+    coronaMaterial.uniforms.uTime.value += sdt;
+    planetMaterial.uniforms.uTime.value += sdt;
+    stepTween(dt); // camera framing is interface motion, not scene time
     updateScene();
     updateOverlay();
     updateReadouts();
@@ -641,9 +647,9 @@ export default function mount(container, meta) {
     }
     syncPlayButton();
   }
-  function setRotationSpeed(degreesPerSecond, { silent = false } = {}) {
-    state.rotationSpeed = clamp(degreesPerSecond, PLANET_ROTATION_SPEED_RANGE.min, PLANET_ROTATION_SPEED_RANGE.max);
-    if (!silent) rotationSpeedSlider.setValue(state.rotationSpeed, { silent: true });
+  function setSpeed(multiplier, { silent = false } = {}) {
+    state.speed = clamp(multiplier, SPEED_RANGE.min, SPEED_RANGE.max);
+    if (!silent) speedSlider.setValue(state.speed, { silent: true });
   }
   function setDistance(dAU) {
     state.distanceAU = clamp(dAU, HZ.DISTANCE_RANGE_AU.min, HZ.DISTANCE_RANGE_AU.max);
@@ -736,18 +742,8 @@ export default function mount(container, meta) {
     ['insolation', `${KEYS}.planet.insolation`],
     ['period', `${KEYS}.planet.period`],
   ]);
-  const rotationSpeedSlider = createSlider({
-    labelKey: `${KEYS}.planet.rotationSpeed`,
-    unitKey: 'units.degreesPerSecond',
-    min: PLANET_ROTATION_SPEED_RANGE.min,
-    max: PLANET_ROTATION_SPEED_RANGE.max,
-    step: PLANET_ROTATION_SPEED_RANGE.step,
-    value: state.rotationSpeed,
-    decimals: 0,
-    onChange: (v) => setRotationSpeed(v, { silent: true }),
-  });
   const dragNotice = bindText(el('p', 'lp-drag-hint'), `${KEYS}.planet.dragHint`);
-  planetSection.add(distanceSlider, rotationSpeedSlider, readout, planetFacts, dragNotice);
+  planetSection.add(distanceSlider, readout, planetFacts, dragNotice);
 
   // evolution section
   const evolutionSection = createSection(`${KEYS}.sections.evolution`);
@@ -815,12 +811,22 @@ export default function mount(container, meta) {
     onChange: setTempUnit,
   });
   const gridToggle = viewToggle('showGrid', `${KEYS}.view.grid`);
+  const speedSlider = createSlider({
+    labelKey: `${KEYS}.view.speed`,
+    min: SPEED_RANGE.min,
+    max: SPEED_RANGE.max,
+    step: SPEED_RANGE.step,
+    value: state.speed,
+    format: (v) => `${fmt(v, 1)}${t('units.times')}`,
+    onChange: (v) => setSpeed(v, { silent: true }),
+  });
+  const speedNote = bindText(el('p', 'lp-section__note'), `${KEYS}.view.speedNote`);
   const cameraRow = el('div', 'lp-button-row');
   const frameBtn = createButton({ labelKey: `${KEYS}.view.frameZone`, icon: '◎', onClick: () => frameZone() });
   const overviewBtn = createButton({ labelKey: `${KEYS}.view.overview`, icon: '⤢', onClick: () => frameOverview() });
   cameraRow.append(frameBtn.el, overviewBtn.el);
   const legend = createLegend();
-  viewSection.add(zoneToggle, surfaceToggle, shellToggle, tempToggle, unitSwitch, gridToggle, cameraRow, legend);
+  viewSection.add(zoneToggle, surfaceToggle, shellToggle, tempToggle, unitSwitch, gridToggle, speedSlider, speedNote, cameraRow, legend);
 
   const resetBtn = createButton({
     labelKey: 'panel.reset',
@@ -831,7 +837,7 @@ export default function mount(container, meta) {
       luminositySlider.setValue(Math.log10(state.luminosity), { silent: true });
       distanceSlider.setValue(state.distanceAU, { silent: true });
       ageSlider.setValue(state.ageGyr, { silent: true });
-      rotationSpeedSlider.setValue(state.rotationSpeed, { silent: true });
+      speedSlider.setValue(state.speed, { silent: true });
       syncPresetButtons();
       refresh();
       frameZone();
@@ -903,7 +909,7 @@ export default function mount(container, meta) {
   sim.start();
 
   // dev-only hook for automated checks; stripped from production builds
-  if (import.meta.env.DEV) window.__lpHabitableZone = { sim, state, get model() { return model; }, setLuminosity, setDistance, setAge, setPlaying, setRotationSpeed, setTempUnit, frame, frameZone, frameOverview, refresh, planetMaterial, starMaterial };
+  if (import.meta.env.DEV) window.__lpHabitableZone = { sim, state, get model() { return model; }, setLuminosity, setDistance, setAge, setPlaying, setSpeed, setTempUnit, frame, frameZone, frameOverview, refresh, planetMaterial, starMaterial };
 
   return () => {
     if (import.meta.env.DEV) delete window.__lpHabitableZone;

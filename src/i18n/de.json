@@ -48,7 +48,6 @@
   },
   "units": {
     "degrees": "°",
-    "degreesPerSecond": "°/s",
     "hours": "h",
     "days": "d",
     "years": "J",
@@ -390,7 +389,6 @@
       },
       "planet": {
         "distance": "Abstand zum Stern",
-        "rotationSpeed": "Rotationsgeschwindigkeit der Erde",
         "name": "Planet",
         "earth": "Erde",
         "teq": "Gleichgewichtstemperatur",
@@ -430,6 +428,8 @@
         "unitCelsiusAria": "Nur Grad Celsius",
         "unitBothAria": "Kelvin und Grad Celsius",
         "grid": "Bahnraster",
+        "speed": "Gesamtgeschwindigkeit",
+        "speedNote": "Skaliert die gesamte Animation: Rotation und Umlauf des Planeten, Oberfläche und Korona des Sterns sowie das Tempo der Sternentwicklung. Bei 0× steht die Szene still.",
         "frameZone": "Zone einpassen",
         "overview": "Übersicht (5 AE)"
       },
