@@ -48,7 +48,6 @@
   },
   "units": {
     "degrees": "°",
-    "degreesPerSecond": "°/s",
     "hours": "h",
     "days": "d",
     "years": "yr",
@@ -390,7 +389,6 @@
       },
       "planet": {
         "distance": "Distance from star",
-        "rotationSpeed": "Earth rotation speed",
         "name": "Planet",
         "earth": "Earth",
         "teq": "Equilibrium temperature",
@@ -430,6 +428,8 @@
         "unitCelsiusAria": "Degrees Celsius only",
         "unitBothAria": "Kelvin and degrees Celsius",
         "grid": "Orbit grid",
+        "speed": "Overall speed",
+        "speedNote": "Scales the whole animation: the planet’s rotation and orbit, the star’s surface and corona, and the pace of stellar evolution. 0× freezes the scene.",
         "frameZone": "Frame zone",
         "overview": "Overview (5 AU)"
       },
