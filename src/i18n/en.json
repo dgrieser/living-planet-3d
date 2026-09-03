@@ -81,34 +81,109 @@
   },
   "sims": {
     "axialTilt": {
-      "title": "Axial tilt & rotation",
-      "description": "Tilt a planet's rotation axis and watch the seasons emerge: how temperatures and the livable share of the surface change over the year.",
+      "title": "Axial tilt, seasons & day length",
+      "description": "Tilt Earth's axis, change its spin and move it around the Sun – and watch seasons, day length, temperatures and the livable share of the surface respond instantly.",
+      "sections": {
+        "earth": "Earth",
+        "orbit": "Year & orbit",
+        "readout": "Readout for one latitude",
+        "view": "View"
+      },
       "controls": {
         "tilt": "Axial tilt",
-        "rotationSpeed": "Rotation speed",
-        "yearSpeed": "Year speed",
-        "showClimate": "Show temperature bands",
-        "showLivable": "Show livable region",
-        "showAxis": "Show rotation axis",
-        "showEquator": "Show equator",
-        "showTerminator": "Show day/night boundary",
-        "sunLabel": "Sun"
+        "rotationPeriod": "Rotation period",
+        "dayOfYear": "Date (position on the orbit)",
+        "speed": "Speed of the annual cycle",
+        "play": "Play annual cycle",
+        "pause": "Pause annual cycle",
+        "latitude": "Latitude",
+        "presets": "What if …",
+        "stops": "Season stops (northern hemisphere)",
+        "latitudePresets": "Quick latitude selection",
+        "camera": "Camera"
       },
-      "seasonStops": {
-        "june": "June",
-        "september": "September",
-        "december": "December",
-        "march": "March"
+      "presets": {
+        "noTilt": "No tilt (0°)",
+        "earth": "Tilt 23.4° (Earth)",
+        "uranus": "Tilt 90° (Uranus-like)",
+        "slowRotation": "Very slow rotation (300 h)",
+        "fastRotation": "Very fast rotation (6 h)"
+      },
+      "presetNotes": {
+        "noTilt": "Without tilt the Sun stands over the equator all year: no seasons, 12-hour days everywhere and permanent climate bands – at the poles the Sun never rises above the horizon.",
+        "earth": "Earth's 23.4° tilt and 24-hour day produce moderate seasons, day lengths that change gently outside the tropics and a wide range of climate zones – the pattern we know.",
+        "uranus": "At 90° each pole points straight at the Sun in its summer: half a year of daylight, then half a year of darkness. Over the year the poles receive more energy than the equator – extreme seasons everywhere.",
+        "slowRotation": "With a 300-hour day every place bakes under the Sun for about 150 hours and then cools for about 150 hours: scorching days and freezing nights.",
+        "fastRotation": "A 6-hour day would make the Coriolis effect four times stronger: narrower wind belts, far stronger winds and more violent storms – but only mild day–night temperature swings."
+      },
+      "stopLabels": {
+        "march": "Equinox · 20 Mar",
+        "june": "Solstice · 21 Jun",
+        "september": "Equinox · 22 Sep",
+        "december": "Solstice · 21 Dec"
+      },
+      "stopDates": {
+        "march": "20 Mar",
+        "june": "21 Jun",
+        "september": "22 Sep",
+        "december": "21 Dec"
+      },
+      "seasons": {
+        "spring": "Spring",
+        "summer": "Summer",
+        "autumn": "Autumn",
+        "winter": "Winter"
       },
       "readout": {
-        "season": "Current seasons",
+        "season": "Season",
+        "seasonLine": "{north} (north) · {south} (south)",
+        "noSeasons": "None (tilt 0°)",
+        "subsolar": "Sun at zenith over",
+        "tropics": "Tropics",
+        "polarCircles": "Polar circles",
+        "plusMinus": "±{n}°",
+        "none": "–",
+        "dayLength": "Day length at the selected latitude",
+        "polarDay": "Polar day",
+        "polarNight": "Polar night",
+        "midnightSun": "Midnight sun per year",
+        "polarNightDays": "Polar night per year",
+        "days": "{n} days",
+        "insolation": "Daily mean insolation",
+        "temperature": "Estimated mean temperature",
+        "dayNight": "Day / night estimate",
+        "zone": "Climate zone",
+        "zones": {
+          "tropical": "Tropical",
+          "temperate": "Temperate",
+          "polar": "Polar",
+          "extreme": "Extreme (tropical & polar)"
+        },
+        "zoneHints": {
+          "tropical": "The Sun passes through the zenith – little seasonal change.",
+          "temperate": "The Sun is never at the zenith and never stays up or down for a whole day – four seasons.",
+          "polar": "At least one polar day and one polar night per year.",
+          "extreme": "Sun at the zenith in summer and polar night in winter."
+        },
+        "modelNote": "Temperatures are rough estimates from a simple energy-balance model (see “Physics”).",
+        "day": "{n} day",
         "pinned": "Pinned place",
-        "habitable": "Livable surface (year-round)",
-        "midLatitude": "45° latitude: summer / winter",
-        "modelNote": "Simple energy-balance estimate – a teaching aid, not a climate model."
+        "livableSurface": "Livable surface (year-round)",
+        "seasonalMeans": "Seasonal mean: summer / winter",
+        "livableYearRound": "Livable year-round"
+      },
+      "latitudes": {
+        "equator": "Equator",
+        "midLatitude": "Mid-latitude",
+        "polarCircle": "Polar circle",
+        "pole": "North Pole"
+      },
+      "hemisphere": {
+        "north": "N",
+        "south": "S"
       },
       "pin": {
-        "hint": "Click the planet to pin a place – the camera follows it.",
+        "hint": "Click Earth to pin a place – the camera follows it and the readout switches to its latitude.",
         "unpin": "Unpin",
         "livable": "Livable",
         "notLivable": "Not livable"
@@ -125,21 +200,85 @@
         "severe": "Mid-latitudes swing between scorching summers and hard winters; large regions turn hostile.",
         "extreme": "Uranus-like: months of midnight sun roast one hemisphere while the other freezes in darkness – most of the planet is uninhabitable."
       },
+      "view": {
+        "heatMap": "Heat map: incident solar energy",
+        "climateBands": "Temperature bands: seasonal mean",
+        "livable": "Livable region (year-round)",
+        "terminator": "Day/night boundary line",
+        "equator": "Equator",
+        "circles": "Tropics & polar circles",
+        "axis": "Rotation axis",
+        "subsolar": "Subsolar point & sun ray",
+        "grid": "Ecliptic plane & season stops",
+        "labels": "Labels",
+        "cameraEarth": "Earth",
+        "cameraOverview": "Overview",
+        "cameraTop": "Top view",
+        "cameraPin": "Pinned place"
+      },
       "legend": {
-        "title": "Seasonal mean temperature",
-        "low": "−40 °C",
-        "high": "+60 °C"
+        "equator": "Equator",
+        "tropics": "Tropics (±tilt)",
+        "polarCircles": "Polar circles (±(90° − tilt))",
+        "terminator": "Day/night boundary",
+        "selected": "Selected latitude",
+        "subsolar": "Subsolar point (Sun at zenith)",
+        "heatTitle": "Daily mean insolation per latitude",
+        "heatLow": "0 W/m²",
+        "heatHigh": "≥ 550 W/m²",
+        "livableBorder": "Livable-region border",
+        "climateTitle": "Seasonal mean temperature per latitude",
+        "climateLow": "−40 °C",
+        "climateHigh": "+60 °C"
+      },
+      "labels": {
+        "north": "N",
+        "south": "S",
+        "subsolar": "Sun at zenith"
       },
       "info": {
-        "title": "What is axial tilt?",
+        "title": "What is axial tilt – and why 23.4° matters",
         "body": [
           "The axial tilt (obliquity) is the angle between a planet's rotation axis and the perpendicular to its orbital plane. Earth's axis is tilted by about 23.4°.",
-          "The axis keeps pointing at the same spot among the stars while the planet orbits the Sun – shown here from the planet's point of view, with the Sun circling once per year. Whichever hemisphere leans towards the Sun gets long days and a high sun: summer. Half a year later it leans away: winter.",
-          "The coloured bands show an energy-balance estimate of each latitude's seasonal mean temperature (blue = frozen, green = livable, red = scorching), and the readout reports how much of the surface stays livable all year.",
+          "The axis keeps pointing at the same spot among the stars while Earth orbits the Sun. The “Earth” camera travels along and keeps the Sun fixed on screen – the planet's point of view, in which the Sun appears to circle Earth once per year. Whichever hemisphere leans towards the Sun gets long days and a high sun: summer. Half a year later it leans away: winter.",
+          "This tilt creates the seasons, moderate temperatures and a wide range of climate zones. Without it — or with a much larger one — large parts of the planet would swing between extremes.",
+          "The coloured bands show an energy-balance estimate of each latitude's seasonal mean temperature (blue = frozen, green = livable, red = scorching), the livable-region view darkens the latitudes that are not livable all year, and the readout reports how much of the surface stays livable year-round.",
           "At 0° tilt there are no seasons: climate zones are locked in place and the poles, which never see a high sun, stay frozen. Near Earth's 23.4°, mild seasons keep almost the whole surface livable. At 90° (like Uranus) each pole roasts under months of midnight sun and then freezes through months of polar night – most of the planet becomes uninhabitable."
         ]
       },
-      "credit": "Earth textures: Solar System Scope (CC BY 4.0)"
+      "physics": {
+        "title": "Physics",
+        "declinationLabel": "Solar declination (latitude of the subsolar point)",
+        "declinationFormula": "δ = arcsin(sin ε · cos θ)",
+        "declinationNote": "ε = axial tilt, θ = orbit angle counted from the June solstice. The orbit is treated as circular; dates are interpolated between the real equinox and solstice dates.",
+        "dayLengthLabel": "Day length",
+        "dayLengthFormula": "cos H₀ = −tan φ · tan δ · day = (H₀ / 180°) · P",
+        "dayLengthNote": "φ = latitude, P = rotation period. If |tan φ · tan δ| ≥ 1 the Sun never sets (polar day) or never rises (polar night).",
+        "insolationLabel": "Daily mean insolation at the top of the atmosphere",
+        "insolationFormula": "Q̄ = (S₀ / π) · (H₀ · sin φ · sin δ + cos φ · cos δ · sin H₀)",
+        "insolationNote": "S₀ = 1361 W/m². Shown by the heat map; it does not depend on the rotation period.",
+        "temperatureLabel": "Temperature estimate (energy-balance model after North 1975)",
+        "temperatureFormula": "T = (Q̄ · (1 − α) − A + C · T̄) / (B + C)",
+        "temperatureNote": "A = 203.3 W/m², B = 2.09 W/m²/K, C = 3.8 W/m²/K (heat transport), T̄ = 15 °C. Albedo α = 0.31, rising to 0.62 where the annual mean would fall below 0 °C (ice). The seasonal excursion is damped to 60 % to mimic heat storage in the oceans. A rough guide, not a climate model.",
+        "swingLabel": "Day–night temperature swing",
+        "swingFormula": "ΔT ≈ 14 K · √(P / 24 h) · (sin h_noon − sin h_midnight)",
+        "swingNote": "h = height of the Sun above the horizon. Longer days let the ground heat up and cool down more; there is no swing during polar day or polar night.",
+        "seasonalMeansLabel": "Seasonal extremes (summer / winter means)",
+        "seasonalMeansFormula": "T_summer = T(δ = +ε) · T_winter = T(δ = −ε)",
+        "seasonalMeansNote": "The temperature estimate at the two solstices – the warmest and coldest seasonal means on a circular orbit (signs swap south of the equator). The temperature bands colour each latitude by the seasonal mean at the current date on a −40 … +60 °C scale.",
+        "livableLabel": "Livable year-round",
+        "livableFormula": "−25 °C < T_winter · 0 °C < T_summer < 45 °C",
+        "livableNote": "A latitude counts as livable when its coldest seasonal mean stays above −25 °C and its warmest between 0 °C (summer must thaw) and 45 °C. Band edges are refined by bisection so they move smoothly with the tilt.",
+        "livableFractionLabel": "Livable surface",
+        "livableFractionFormula": "f = Σ (sin φ₂ − sin φ₁) / 2 over the livable bands",
+        "livableFractionNote": "Exact area fraction of the sphere covered by the livable latitude bands: ≈ 100 % at 20–35° tilt, ≈ 87 % at 0° (permanently frozen poles), ≈ 45 % at 90° (Uranus-like extremes).",
+        "tiersLabel": "Seasons verdict",
+        "tiersFormula": "ε ≤ 10° none · ≤ 35° moderate · ≤ 55° severe · > 55° extreme",
+        "tiersNote": "Pedagogical labels for fixed tilt ranges; every displayed number comes from the model.",
+        "scaleNote": "Sizes and distances are not to scale, and Earth's spin is shown far slower than the annual motion would require."
+      },
+      "hint": "Drag Earth along its orbit · Click Earth to pin a place",
+      "credit": "Textures: Solar System Scope (CC BY 4.0)"
     },
     "solarOrbit": {
       "title": "Earth's orbit & the habitable zone",
@@ -324,158 +463,6 @@
       },
       "hint": "Drag the planet to move it · pull the star to resize it",
       "credit": "Earth textures: Solar System Scope (CC BY 4.0)"
-    },
-    "seasons": {
-      "title": "Seasons, axial tilt & day length",
-      "description": "Tilt Earth's axis, change its spin and move it around the Sun – and watch seasons, day length and climate zones respond instantly.",
-      "sections": {
-        "earth": "Earth",
-        "orbit": "Year & orbit",
-        "readout": "Readout for one latitude",
-        "view": "View"
-      },
-      "controls": {
-        "tilt": "Axial tilt",
-        "rotationPeriod": "Rotation period",
-        "dayOfYear": "Date (position on the orbit)",
-        "speed": "Speed of the annual cycle",
-        "play": "Play annual cycle",
-        "pause": "Pause annual cycle",
-        "latitude": "Latitude",
-        "presets": "What if …",
-        "stops": "Season stops (northern hemisphere)",
-        "latitudePresets": "Quick latitude selection",
-        "camera": "Camera"
-      },
-      "presets": {
-        "noTilt": "No tilt (0°)",
-        "earth": "Tilt 23.4° (Earth)",
-        "uranus": "Tilt 90° (Uranus-like)",
-        "slowRotation": "Very slow rotation (300 h)",
-        "fastRotation": "Very fast rotation (6 h)"
-      },
-      "presetNotes": {
-        "noTilt": "Without tilt the Sun stands over the equator all year: no seasons, 12-hour days everywhere and permanent climate bands – at the poles the Sun never rises above the horizon.",
-        "earth": "Earth's 23.4° tilt and 24-hour day produce moderate seasons, day lengths that change gently outside the tropics and a wide range of climate zones – the pattern we know.",
-        "uranus": "At 90° each pole points straight at the Sun in its summer: half a year of daylight, then half a year of darkness. Over the year the poles receive more energy than the equator – extreme seasons everywhere.",
-        "slowRotation": "With a 300-hour day every place bakes under the Sun for about 150 hours and then cools for about 150 hours: scorching days and freezing nights.",
-        "fastRotation": "A 6-hour day would make the Coriolis effect four times stronger: narrower wind belts, far stronger winds and more violent storms – but only mild day–night temperature swings."
-      },
-      "stopLabels": {
-        "march": "Equinox · 20 Mar",
-        "june": "Solstice · 21 Jun",
-        "september": "Equinox · 22 Sep",
-        "december": "Solstice · 21 Dec"
-      },
-      "seasons": {
-        "spring": "Spring",
-        "summer": "Summer",
-        "autumn": "Autumn",
-        "winter": "Winter"
-      },
-      "readout": {
-        "season": "Season",
-        "seasonLine": "{north} (north) · {south} (south)",
-        "noSeasons": "None (tilt 0°)",
-        "subsolar": "Sun at zenith over",
-        "tropics": "Tropics",
-        "polarCircles": "Polar circles",
-        "plusMinus": "±{n}°",
-        "none": "–",
-        "dayLength": "Day length at the selected latitude",
-        "polarDay": "Polar day",
-        "polarNight": "Polar night",
-        "midnightSun": "Midnight sun per year",
-        "polarNightDays": "Polar night per year",
-        "days": "{n} days",
-        "insolation": "Daily mean insolation",
-        "temperature": "Estimated mean temperature",
-        "dayNight": "Day / night estimate",
-        "zone": "Climate zone",
-        "zones": {
-          "tropical": "Tropical",
-          "temperate": "Temperate",
-          "polar": "Polar",
-          "extreme": "Extreme (tropical & polar)"
-        },
-        "zoneHints": {
-          "tropical": "The Sun passes through the zenith – little seasonal change.",
-          "temperate": "The Sun is never at the zenith and never stays up or down for a whole day – four seasons.",
-          "polar": "At least one polar day and one polar night per year.",
-          "extreme": "Sun at the zenith in summer and polar night in winter."
-        },
-        "modelNote": "Temperatures are rough estimates from a simple energy-balance model (see “Physics”).",
-        "day": "{n} day"
-      },
-      "latitudes": {
-        "equator": "Equator",
-        "midLatitude": "Mid-latitude",
-        "polarCircle": "Polar circle",
-        "pole": "North Pole"
-      },
-      "hemisphere": {
-        "north": "N",
-        "south": "S"
-      },
-      "view": {
-        "heatMap": "Heat map: incident solar energy",
-        "terminator": "Day/night boundary line",
-        "circles": "Equator, tropics & polar circles",
-        "axis": "Rotation axis",
-        "subsolar": "Subsolar point & sun ray",
-        "grid": "Ecliptic plane & season stops",
-        "labels": "Labels",
-        "cameraEarth": "Earth",
-        "cameraOverview": "Overview",
-        "cameraTop": "Top view"
-      },
-      "legend": {
-        "equator": "Equator",
-        "tropics": "Tropics (±tilt)",
-        "polarCircles": "Polar circles (±(90° − tilt))",
-        "terminator": "Day/night boundary",
-        "selected": "Selected latitude",
-        "subsolar": "Subsolar point (Sun at zenith)",
-        "heatTitle": "Daily mean insolation per latitude",
-        "heatLow": "0 W/m²",
-        "heatHigh": "≥ 550 W/m²"
-      },
-      "labels": {
-        "north": "N",
-        "south": "S",
-        "subsolar": "Sun at zenith"
-      },
-      "info": {
-        "title": "Why 23.4° matters",
-        "body": "Earth's axis is tilted 23.4°. This creates the seasons, moderate temperatures, and a wide range of climate zones. Without this tilt — or with a much larger one — large parts of the planet would swing between extremes."
-      },
-      "physics": {
-        "title": "Physics",
-        "declinationLabel": "Solar declination (latitude of the subsolar point)",
-        "declinationFormula": "δ = arcsin(sin ε · cos θ)",
-        "declinationNote": "ε = axial tilt, θ = orbit angle counted from the June solstice. The orbit is treated as circular; dates are interpolated between the real equinox and solstice dates.",
-        "dayLengthLabel": "Day length",
-        "dayLengthFormula": "cos H₀ = −tan φ · tan δ · day = (H₀ / 180°) · P",
-        "dayLengthNote": "φ = latitude, P = rotation period. If |tan φ · tan δ| ≥ 1 the Sun never sets (polar day) or never rises (polar night).",
-        "insolationLabel": "Daily mean insolation at the top of the atmosphere",
-        "insolationFormula": "Q̄ = (S₀ / π) · (H₀ · sin φ · sin δ + cos φ · cos δ · sin H₀)",
-        "insolationNote": "S₀ = 1361 W/m². Shown by the heat map; it does not depend on the rotation period.",
-        "temperatureLabel": "Temperature estimate (energy-balance model after North 1975)",
-        "temperatureFormula": "T = (Q̄ · (1 − α) − A + C · T̄) / (B + C)",
-        "temperatureNote": "A = 203.3 W/m², B = 2.09 W/m²/K, C = 3.8 W/m²/K (heat transport), T̄ = 15 °C. Albedo α = 0.31, rising to 0.62 where the annual mean would fall below 0 °C (ice). The seasonal excursion is damped to 60 % to mimic heat storage in the oceans. A rough guide, not a climate model.",
-        "swingLabel": "Day–night temperature swing",
-        "swingFormula": "ΔT ≈ 14 K · √(P / 24 h) · (sin h_noon − sin h_midnight)",
-        "swingNote": "h = height of the Sun above the horizon. Longer days let the ground heat up and cool down more; there is no swing during polar day or polar night.",
-        "scaleNote": "Sizes and distances are not to scale, and Earth's spin is shown far slower than the annual motion would require."
-      },
-      "hint": "Drag Earth along its orbit",
-      "credit": "Textures: Solar System Scope (CC BY 4.0)",
-      "stopDates": {
-        "march": "20 Mar",
-        "june": "21 Jun",
-        "september": "22 Sep",
-        "december": "21 Dec"
-      }
     },
     "moonTides": {
       "title": "The Moon & the tides",

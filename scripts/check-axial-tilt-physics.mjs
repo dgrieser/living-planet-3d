@@ -1,8 +1,8 @@
-// Validates the seasons physics (src/sims/seasons/physics.js) against textbook
+// Validates the axial-tilt physics (src/sims/axial-tilt/physics.js) against textbook
 // values: declination, day length (incl. polar day/night), daily and annual
 // insolation, the calendar ↔ orbit mapping and sanity ranges of the
 // temperature estimate.
-import * as S from '../src/sims/seasons/physics.js';
+import * as S from '../src/sims/axial-tilt/physics.js';
 
 let failed = 0;
 const check = (label, actual, expected, tolerance) => {

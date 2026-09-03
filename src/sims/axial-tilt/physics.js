@@ -1,6 +1,6 @@
 /**
- * Pure physics for the seasons simulation. No Three.js / DOM imports so the
- * module can be validated from node (scripts/check-seasons.mjs).
+ * Pure physics for the axial-tilt simulation. No Three.js / DOM imports so the
+ * module can be validated from node (scripts/check-axial-tilt-physics.mjs).
  *
  * Conventions
  * - Angles in degrees at the API boundary, radians internally.

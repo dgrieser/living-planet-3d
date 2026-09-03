@@ -1,13 +1,13 @@
 /**
  * Climate & habitability estimates for the axial-tilt simulation, built on the
- * seasons energy-balance physics (../seasons/physics.js). Pure module – no
- * Three.js / DOM – so scripts/check-axial-tilt.mjs can validate it from node.
+ * energy-balance physics (./physics.js). Pure module – no
+ * Three.js / DOM – so scripts/check-axial-tilt-climate.mjs can validate it from node.
  *
  * "Summer"/"winter" are the seasonal *means* of the energy-balance model at
  * the two solstices – the annual extremes on a circular orbit. A teaching
  * aid, not a climate model.
  */
-import { declinationDeg, annualMeanInsolation, temperatureEstimate, EARTH_ROTATION_H } from '../seasons/physics.js';
+import { declinationDeg, annualMeanInsolation, temperatureEstimate, EARTH_ROTATION_H } from './physics.js';
 
 const DEG = Math.PI / 180;
 
@@ -20,7 +20,7 @@ export const LIVABLE = Object.freeze({
 
 /**
  * Verdict tiers by tilt. The thresholds are pedagogical labels for the model
- * output (see scripts/check-axial-tilt.mjs for the numbers behind them);
+ * output (see scripts/check-axial-tilt-climate.mjs for the numbers behind them);
  * the displayed temperatures and fractions always come from the physics.
  */
 export const VERDICT_TIERS = Object.freeze([

@@ -12,10 +12,9 @@
     "lint": "eslint .",
     "check:i18n": "node scripts/check-i18n.mjs",
     "check:prefs": "node scripts/check-prefs.mjs",
-    "check:axial": "node scripts/check-axial-tilt.mjs",
+    "check:axial": "node scripts/check-axial-tilt-physics.mjs && node scripts/check-axial-tilt-climate.mjs",
     "check:orbits": "node scripts/check-orbits.mjs",
     "check:hz": "node scripts/check-habitable-zone.mjs",
-    "check:seasons": "node scripts/check-seasons.mjs",
     "check:tides": "node scripts/check-moon-tides.mjs",
     "check:mag": "node scripts/check-magnetosphere.mjs",
     "check:galaxy": "node scripts/check-galactic-zone.mjs"

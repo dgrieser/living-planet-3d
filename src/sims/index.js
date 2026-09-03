@@ -39,13 +39,6 @@ export const simulations = [
     load: () => import('./axial-tilt/index.js'),
   },
   {
-    id: 'seasons',
-    titleKey: 'sims.seasons.title',
-    descriptionKey: 'sims.seasons.description',
-    icon: '🍂',
-    load: () => import('./seasons/index.js'),
-  },
-  {
     id: 'magnetosphere',
     titleKey: 'sims.magnetosphere.title',
     descriptionKey: 'sims.magnetosphere.description',
