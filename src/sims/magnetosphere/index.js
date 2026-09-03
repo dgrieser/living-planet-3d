@@ -22,7 +22,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createCollapsibleSection, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as P from './physics.js';
@@ -562,8 +562,13 @@ export default function mount(container, meta) {
   // control panel
   // =============================================================================================
   const panel = createPanel();
+  const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
-  const windSection = createSection(`${KEYS}.sections.wind`);
+  // --- controls: the shield switch and the wind up front, the rest folded away ---------------------
+  const fieldButton = createButton({ labelKey: `${KEYS}.controls.fieldOff`, icon: '🧲', onClick: () => setFieldOn(!state.fieldOn) });
+  const fieldRow = el('div', 'lp-button-row lp-button-row--full');
+  fieldRow.append(fieldButton.el);
+  const fieldOffNotice = createNotice({ textKey: `${KEYS}.warn.fieldOff`, tone: 'warn' });
   const densitySlider = createSlider({
     labelKey: `${KEYS}.controls.density`,
     unitKey: 'units.perCubicCentimeter',
@@ -584,35 +589,21 @@ export default function mount(container, meta) {
     decimals: 0,
     onChange: (v) => setSpeed(v, { fromSlider: true }),
   });
-  const windFacts = createFacts([
-    ['pressure', `${KEYS}.facts.pressure`],
-    ['ratio', `${KEYS}.facts.pressureRatio`],
-    ['standoff', `${KEYS}.facts.standoff`],
-    ['bowShock', `${KEYS}.facts.bowShock`],
-    ['transit', `${KEYS}.facts.transit`],
-  ]);
+
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
   const cmeButton = createButton({ labelKey: `${KEYS}.controls.launchCme`, icon: '☀', variant: 'primary', onClick: launchCme });
-  const cmeRow = el('div', 'lp-button-row');
+  const cmeRow = el('div', 'lp-button-row lp-button-row--full');
   cmeRow.append(cmeButton.el);
   const cmeHint = bindText(el('p', 'lp-section__note'), `${KEYS}.controls.cmeHint`);
-  windSection.add(densitySlider, speedSlider, windFacts, cmeRow, cmeHint);
 
-  const shieldSection = createSection(`${KEYS}.sections.shield`);
-  const fieldButton = createButton({ labelKey: `${KEYS}.controls.fieldOff`, icon: '🧲', onClick: () => setFieldOn(!state.fieldOn) });
-  const fieldRow = el('div', 'lp-button-row');
-  fieldRow.append(fieldButton.el);
-  const fieldOffNotice = createNotice({ textKey: `${KEYS}.warn.fieldOff`, tone: 'warn' });
   const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
   const toggles = {
     showFieldLines: viewToggle('showFieldLines', `${KEYS}.controls.fieldLines`),
     showBoundaries: viewToggle('showBoundaries', `${KEYS}.controls.boundaries`),
     showAurora: viewToggle('showAurora', `${KEYS}.controls.aurora`),
   };
-  shieldSection.add(fieldRow, fieldOffNotice, toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora);
-
-  const viewSection = createSection(`${KEYS}.sections.view`);
-  const cameraTitle = bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`);
-  const cameraRow = el('div', 'lp-presets lp-presets--3', { role: 'group' });
+  const labelsToggle = viewToggle('showLabels', `${KEYS}.controls.labels`);
+  const cameraRow = el('div', 'lp-presets lp-presets--3 lp-presets--compact', { role: 'group' });
   bindAttr(cameraRow, { 'aria-label': `${KEYS}.controls.camera` });
   const cameraButtons = ['side', 'polar', 'tail'].map((id) => {
     const btn = createButton({ labelKey: `${KEYS}.controls.camera${id[0].toUpperCase()}${id.slice(1)}`, onClick: () => setCamera(id) });
@@ -623,7 +614,26 @@ export default function mount(container, meta) {
   function syncCameraButtons() {
     for (const { id, el: btn } of cameraButtons) btn.setAttribute('aria-pressed', String(cameraMode === id));
   }
-  const labelsToggle = viewToggle('showLabels', `${KEYS}.controls.labels`);
+
+  const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
+  const resetRow = el('div', 'lp-button-row lp-button-row--full');
+  resetRow.append(resetBtn.el);
+
+  moreControls.add(cmeRow, cmeHint);
+  if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
+  moreControls.add(
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow,
+    toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora, labelsToggle, resetRow,
+  );
+
+  // --- readouts: what that wind does to the magnetosphere -----------------------------------------
+  const windFacts = createFacts([
+    ['pressure', `${KEYS}.facts.pressure`],
+    ['ratio', `${KEYS}.facts.pressureRatio`],
+    ['standoff', `${KEYS}.facts.standoff`],
+    ['bowShock', `${KEYS}.facts.bowShock`],
+    ['transit', `${KEYS}.facts.transit`],
+  ]);
   const legend = createLegend([
     [`${KEYS}.legend.fieldLines`, COLORS.fieldInner],
     [`${KEYS}.legend.compressed`, COLORS.fieldCompressed],
@@ -635,17 +645,14 @@ export default function mount(container, meta) {
     [`${KEYS}.legend.aurora`, COLORS.aurora],
     [`${KEYS}.legend.erosion`, COLORS.erosion],
   ]);
-  viewSection.add(labelsToggle, cameraTitle, cameraRow, legend);
 
-  const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
-  const resetRow = el('div', 'lp-button-row');
-  resetRow.append(resetBtn.el);
-
-  panel.add(windSection, shieldSection, viewSection, resetRow);
-  if (sim.reducedMotion) panel.add(createNotice({ textKey: 'motion.reducedNotice' }));
-  const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !window.matchMedia('(max-width: 720px)').matches });
+  const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
-  panel.add(infoCard, physicsCard);
+  panel.add(
+    fieldRow, fieldOffNotice, densitySlider, speedSlider, moreControls,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.wind`), windFacts,
+    legend, infoCard, physicsCard,
+  );
   container.append(panel.el);
 
   // --- on-canvas space-weather readout -----------------------------------------------------------
@@ -665,8 +672,8 @@ export default function mount(container, meta) {
     ['aurora', `${KEYS}.storm.aurora`],
     ['geosync', `${KEYS}.storm.geosync`],
   ]);
-  const stormNote = bindText(el('p', 'lp-storm-card__note'), `${KEYS}.storm.schematic`);
-  stormCard.append(stormHeader, stormMain, stormFacts.el, stormNote);
+  // the "schematic Kp index" caveat lives in the physics card, next to the relation it qualifies
+  stormCard.append(stormHeader, stormMain, stormFacts.el);
   container.append(stormCard);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
@@ -678,8 +685,8 @@ export default function mount(container, meta) {
   container.append(hint, credit);
 
   function syncFieldButton() {
-    fieldButton.el.querySelector('.lp-button__icon').textContent = state.fieldOn ? '🧲' : '⚠';
-    bindText(fieldButton.el.querySelector('[data-i18n]'), state.fieldOn ? `${KEYS}.controls.fieldOff` : `${KEYS}.controls.fieldOn`);
+    fieldButton.setIcon(state.fieldOn ? '🧲' : '⚠');
+    fieldButton.setLabel(state.fieldOn ? `${KEYS}.controls.fieldOff` : `${KEYS}.controls.fieldOn`);
     fieldButton.el.classList.toggle('lp-button--primary', !state.fieldOn);
     fieldButton.el.classList.toggle('lp-button--ghost', state.fieldOn);
     fieldOffNotice.el.hidden = state.fieldOn;
@@ -690,7 +697,7 @@ export default function mount(container, meta) {
 
   function syncCmeButton() {
     const running = staticStorm || !!cme;
-    bindText(cmeButton.el.querySelector('[data-i18n]'), running ? `${KEYS}.controls.cmeRunning` : `${KEYS}.controls.launchCme`);
+    cmeButton.setLabel(running ? `${KEYS}.controls.cmeRunning` : `${KEYS}.controls.launchCme`);
     cmeButton.el.disabled = !!cme && !sim.reducedMotion;
     cmeButton.el.setAttribute('aria-pressed', String(running));
   }
@@ -1012,6 +1019,10 @@ function createPhysicsCard() {
   const entries = ['pressure', 'standoff', 'shue', 'shock', 'kp', 'aurora'];
   function render() {
     body.replaceChildren();
+    // the caveat behind the on-canvas storm index
+    const caveat = el('div', 'lp-notice lp-notice--info', { role: 'note' });
+    caveat.textContent = t(`${KEYS}.storm.schematic`);
+    body.append(caveat);
     for (const id of entries) {
       const block = el('div', 'lp-formula');
       const label = el('p', 'lp-formula__label');

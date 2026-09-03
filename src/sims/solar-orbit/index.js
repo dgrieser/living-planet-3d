@@ -11,7 +11,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createStateToggle, createButton, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createCollapsibleSection, createStateToggle, createButton, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
 import { planetPosition, orbitPath, orbitalPeriodDays, apsides, dateToJD, jdToDate, AU_KM, J2000_JD, DAYS_PER_YEAR, VALID_RANGE } from './kepler.js';
@@ -467,8 +467,9 @@ export default function mount(container, meta) {
 
   // --- UI: panel --------------------------------------------------------------------------------------------------------------
   const panel = createPanel();
+  const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
-  const timeSection = createSection(`${KEYS}.sections.time`);
+  // --- controls: the time speed up front, date, view and camera folded away ------------------------
   const speedControl = createSpeedControl({
     value: state.speedSlider,
     onChange: (v) => {
@@ -477,28 +478,26 @@ export default function mount(container, meta) {
       if (v > 0) dateControl.setOutOfRange(false);
     },
   });
+
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
   const dateControl = createDateControl({
     getJD: () => state.jd,
     onChange: (jd) => setJD(jd, { fromInput: true }),
   });
-  timeSection.add(speedControl, dateControl);
-
-  const viewSection = createSection(`${KEYS}.sections.view`);
+  const cameraRow = el('div', 'lp-presets lp-presets--3 lp-presets--compact', { role: 'group' });
+  bindAttr(cameraRow, { 'aria-label': `${KEYS}.sections.camera` });
+  const overviewBtn = createButton({ labelKey: `${KEYS}.controls.overview`, icon: '◎', onClick: presets.overview });
+  const followBtn = createButton({ labelKey: `${KEYS}.controls.followEarth`, icon: '🌍', onClick: presets.followEarth });
+  const outerBtn = createButton({ labelKey: `${KEYS}.controls.outerSystem`, icon: '⟳', onClick: presets.outerSystem });
+  for (const btn of [overviewBtn, followBtn, outerBtn]) {
+    btn.el.classList.add('lp-presets__btn');
+    cameraRow.append(btn.el);
+  }
   const viewToggle = (name, labelKey, onChange) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
   const zoneToggle = viewToggle('showZone', `${KEYS}.controls.habitableZone`, () => applyView());
   const labelsToggle = viewToggle('showLabels', `${KEYS}.controls.labels`, () => applyView());
   const scaleToggle = viewToggle('trueScale', `${KEYS}.controls.trueScale`, () => { applyView(); if (state.follow) presets.followEarth(); });
   const eccentricToggle = viewToggle('showEccentric', `${KEYS}.controls.eccentricOrbit`, () => { applyView(); renderInfo(); });
-  const legend = createLegend();
-  viewSection.add(zoneToggle, labelsToggle, scaleToggle, eccentricToggle, legend);
-
-  const cameraSection = createSection(`${KEYS}.sections.camera`);
-  const cameraRow = el('div', 'lp-button-row');
-  const overviewBtn = createButton({ labelKey: `${KEYS}.controls.overview`, icon: '◎', onClick: presets.overview });
-  const followBtn = createButton({ labelKey: `${KEYS}.controls.followEarth`, icon: '🌍', onClick: presets.followEarth });
-  const outerBtn = createButton({ labelKey: `${KEYS}.controls.outerSystem`, icon: '⟳', onClick: presets.outerSystem });
-  cameraRow.append(overviewBtn.el, followBtn.el, outerBtn.el);
-  cameraSection.add(cameraRow);
 
   const resetBtn = createButton({
     labelKey: 'panel.reset',
@@ -514,11 +513,18 @@ export default function mount(container, meta) {
       presets.overview();
     },
   });
-  const resetRow = el('div', 'lp-button-row');
+  const resetRow = el('div', 'lp-button-row lp-button-row--full');
   resetRow.append(resetBtn.el);
 
-  panel.add(timeSection, viewSection, cameraSection, resetRow);
-  if (sim.reducedMotion) panel.add(createNotice({ textKey: 'motion.reducedNotice' }));
+  moreControls.add(dateControl);
+  if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
+  moreControls.add(
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow,
+    zoneToggle, labelsToggle, scaleToggle, eccentricToggle, resetRow,
+  );
+
+  const legend = createLegend();
+  panel.add(speedControl, moreControls, legend);
 
   // info card (custom content: facts list + notes)
   const info = el('details', 'lp-info');

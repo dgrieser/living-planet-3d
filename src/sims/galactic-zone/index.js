@@ -679,10 +679,8 @@ export default function mount(container, meta) {
   // readouts
   // =============================================================================================
   function syncPlayButton() {
-    const labelKey = state.playing ? `${KEYS}.controls.pause` : `${KEYS}.controls.play`;
-    playBtn.el.querySelector('.lp-button__icon').textContent = state.playing ? '⏸' : '▶';
-    bindText(playBtn.el.querySelector('[data-i18n]'), labelKey);
-    bindAttr(playBtn.el, { 'aria-label': labelKey, title: labelKey });
+    playBtn.setIcon(state.playing ? '⏸' : '▶');
+    playBtn.setLabel(state.playing ? `${KEYS}.controls.pause` : `${KEYS}.controls.play`);
     playBtn.el.setAttribute('aria-pressed', String(state.playing));
     playBtn.el.disabled = sim.reducedMotion;
   }

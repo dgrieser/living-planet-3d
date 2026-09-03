@@ -18,7 +18,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createSlider, createToggle, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createCollapsibleSection, createControlRow, createSlider, createToggle, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as P from './physics.js';
@@ -604,6 +604,7 @@ export default function mount(container, meta) {
   // control panel
   // =============================================================================================
   const panel = createPanel();
+  const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // view switch
   const viewSwitch = el('div', 'lp-view-switch', { role: 'group' });
@@ -616,14 +617,13 @@ export default function mount(container, meta) {
   });
   function syncViewButtons() {
     for (const { id, el: btn } of viewButtons) btn.setAttribute('aria-pressed', String(state.view === id));
-    tidesSection.el.hidden = state.view !== 'tides';
-    axisSection.el.hidden = state.view !== 'axis';
+    for (const group of [tidesControls, tidesReadouts]) group.hidden = state.view !== 'tides';
+    for (const group of [axisControls, axisReadouts]) group.hidden = state.view !== 'axis';
     tidesLegend.hidden = state.view !== 'tides';
     axisLegend.hidden = state.view !== 'axis';
   }
 
-  // Moon section (shared)
-  const moonSection = createSection(`${KEYS}.sections.moon`);
+  // --- controls: the Moon's distance up front, the per-view controls folded away -------------------
   const distanceSlider = createSlider({
     labelKey: `${KEYS}.controls.distance`,
     min: P.DISTANCE_RANGE.min,
@@ -633,29 +633,21 @@ export default function mount(container, meta) {
     format: (v) => `${fmt(v * P.MOON.distanceKm, 0)} ${t('units.kilometers')} (${fmt(v, 2, 2)}×)`,
     onChange: (v) => setDistance(v, { fromSlider: true }),
   });
-  const moonBtn = createButton({ labelKey: `${KEYS}.controls.removeMoon`, icon: '🌑', variant: 'primary', onClick: () => setMoonPresent(!state.moonPresent) });
+  const moonBtn = createButton({ labelKey: `${KEYS}.controls.removeMoon`, icon: '🌑', variant: 'primary', compact: true, onClick: () => setMoonPresent(!state.moonPresent) });
   function syncMoonButton() {
-    moonBtn.el.querySelector('.lp-button__icon').textContent = state.moonPresent ? '🌑' : '🌕';
-    bindText(moonBtn.el.querySelector('[data-i18n]'), state.moonPresent ? `${KEYS}.controls.removeMoon` : `${KEYS}.controls.restoreMoon`);
+    moonBtn.setIcon(state.moonPresent ? '🌑' : '🌕');
+    moonBtn.setLabel(state.moonPresent ? `${KEYS}.controls.removeMoon` : `${KEYS}.controls.restoreMoon`);
     moonBtn.el.classList.toggle('lp-button--primary', state.moonPresent);
     moonBtn.el.classList.toggle('lp-button--ghost', !state.moonPresent);
     moonRemovedNote.hidden = state.moonPresent;
   }
+  const moonRow = createControlRow(distanceSlider, moonBtn);
   const moonRemovedNote = bindText(el('p', 'lp-preset-note lp-preset-note--warn'), `${KEYS}.moonFacts.removed`);
-  const moonFacts = createFacts([
-    ['distance', `${KEYS}.moonFacts.distance`],
-    ['acceleration', `${KEYS}.moonFacts.acceleration`],
-    ['height', `${KEYS}.moonFacts.height`],
-    ['relative', `${KEYS}.moonFacts.relative`],
-    ['month', `${KEYS}.moonFacts.month`],
-    ['lunarDay', `${KEYS}.moonFacts.lunarDay`],
-  ]);
-  const moonBtnRow = el('div', 'lp-button-row');
-  moonBtnRow.append(moonBtn.el);
-  moonSection.add(distanceSlider, moonBtnRow, moonRemovedNote, moonFacts);
 
-  // Tides section (view A)
-  const tidesSection = createSection(`${KEYS}.sections.tides`);
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
+
+  // tides controls (view A)
+  const tidesControls = el('div', 'lp-group');
   const exaggerationSlider = createSlider({
     labelKey: `${KEYS}.controls.exaggeration`,
     min: Math.log10(P.EXAGGERATION_RANGE.min),
@@ -676,9 +668,7 @@ export default function mount(container, meta) {
       state.tideSpeed = Math.pow(10, v);
     },
   });
-  const playBtn = createButton({ labelKey: `${KEYS}.controls.pause`, icon: '⏸', variant: 'primary', onClick: () => setPlaying(!state.playing) });
-  const playRow = el('div', 'lp-button-row');
-  playRow.append(playBtn.el);
+  const playBtn = createButton({ labelKey: `${KEYS}.controls.pause`, icon: '⏸', variant: 'primary', compact: true, onClick: () => setPlaying(!state.playing) });
   const sunToggle = createToggle({ labelKey: `${KEYS}.controls.sun`, checked: state.sunTide, onChange: setSunTide });
   const sunHint = bindText(el('p', 'lp-section__note'), `${KEYS}.tides.sunHint`);
   const elongationSlider = createSlider({
@@ -691,7 +681,7 @@ export default function mount(container, meta) {
     decimals: 0,
     onChange: (v) => setElongation(v, { fromSlider: true }),
   });
-  const phaseRow = el('div', 'lp-presets', { role: 'group' });
+  const phaseRow = el('div', 'lp-presets lp-presets--compact', { role: 'group' });
   bindAttr(phaseRow, { 'aria-label': `${KEYS}.controls.phases` });
   const phaseButtons = PHASE_PRESETS.map((preset) => {
     const btn = createButton({ labelKey: `${KEYS}.phases.${preset.id}`, onClick: () => setElongation(preset.elongation / DEG) });
@@ -708,6 +698,72 @@ export default function mount(container, meta) {
       btn.setAttribute('aria-pressed', String(diff < 12));
     }
   }
+  const toScaleToggle = createToggle({ labelKey: `${KEYS}.controls.toScale`, checked: state.toScale, onChange: setToScale });
+  tidesControls.append(exaggerationSlider.el, createControlRow(speedSlider, playBtn).el, sunToggle.el, sunHint, elongationSlider.el, phaseRow, toScaleToggle.el);
+
+  // axis controls (view B)
+  const axisControls = el('div', 'lp-group');
+  const axisSpeedSlider = createSlider({
+    labelKey: `${KEYS}.controls.axisSpeed`,
+    unitKey: 'units.kyrPerSecond',
+    min: P.AXIS_SPEED_RANGE_KYR_PER_S.min,
+    max: P.AXIS_SPEED_RANGE_KYR_PER_S.max,
+    step: 0.5,
+    value: state.axisSpeed,
+    decimals: 1,
+    onChange: (v) => {
+      state.axisSpeed = v;
+    },
+  });
+  const playBtnB = createButton({ labelKey: `${KEYS}.controls.pause`, icon: '⏸', variant: 'primary', compact: true, onClick: () => setPlaying(!state.playing) });
+  function syncPlayButtons() {
+    for (const btn of [playBtn, playBtnB]) {
+      btn.setIcon(state.playing ? '⏸' : '▶');
+      btn.setLabel(state.playing ? `${KEYS}.controls.pause` : `${KEYS}.controls.play`);
+      btn.el.setAttribute('aria-pressed', String(state.playing));
+    }
+  }
+  const viewToggle = (name, labelKey, onChange = refresh) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
+  const axisToggles = {
+    showTrace: viewToggle('showTrace', `${KEYS}.controls.trace`),
+    showCone: viewToggle('showCone', `${KEYS}.controls.cone`),
+    showOrbitPlane: viewToggle('showOrbitPlane', `${KEYS}.controls.orbitPlane`),
+  };
+  axisControls.append(createControlRow(axisSpeedSlider, playBtnB).el, axisToggles.showTrace.el, axisToggles.showCone.el, axisToggles.showOrbitPlane.el);
+
+  // shared view controls
+  const labelsToggle = viewToggle('showLabels', `${KEYS}.controls.labels`);
+  const cameraRow = el('div', 'lp-presets lp-presets--2 lp-presets--compact', { role: 'group' });
+  bindAttr(cameraRow, { 'aria-label': `${KEYS}.controls.camera` });
+  const cameraButtons = ['side', 'top'].map((id) => {
+    const btn = createButton({ labelKey: `${KEYS}.controls.camera${id === 'side' ? 'Side' : 'Top'}`, onClick: () => setCamera(id) });
+    btn.el.classList.add('lp-presets__btn');
+    cameraRow.append(btn.el);
+    return { id, el: btn.el };
+  });
+  function syncCameraButtons() {
+    for (const { id, el: btn } of cameraButtons) btn.setAttribute('aria-pressed', String(cameraMode === id));
+  }
+
+  const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
+  const resetRow = el('div', 'lp-button-row lp-button-row--full');
+  resetRow.append(resetBtn.el);
+
+  moreControls.add(tidesControls, axisControls);
+  if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
+  moreControls.add(bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow, labelsToggle, resetRow);
+
+  // --- readouts: the Moon's numbers, then whichever view is showing --------------------------------
+  const moonFacts = createFacts([
+    ['distance', `${KEYS}.moonFacts.distance`],
+    ['acceleration', `${KEYS}.moonFacts.acceleration`],
+    ['height', `${KEYS}.moonFacts.height`],
+    ['relative', `${KEYS}.moonFacts.relative`],
+    ['month', `${KEYS}.moonFacts.month`],
+    ['lunarDay', `${KEYS}.moonFacts.lunarDay`],
+  ]);
+
+  const tidesReadouts = el('div', 'lp-group');
   const rangeReadout = el('div', 'lp-readout');
   const rangeLabel = bindText(el('div', 'lp-readout__label'), `${KEYS}.tides.range`);
   const rangeValue = el('div', 'lp-readout__value', { 'aria-live': 'off' });
@@ -721,33 +777,9 @@ export default function mount(container, meta) {
   const tideChart = createStripChart({ labelKey: `${KEYS}.tides.chartLabel`, window: TIDE_CHART_WINDOW_H, yPadding: 0.05, zeroLine: true, formatY: (v) => `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v), 2, 2)} m` });
   const gaugeTime = el('p', 'lp-state__hint');
   gaugeReadout.append(gaugeLabel, gaugeValue, gaugePill, tideChart.el, gaugeTime);
-  const realNote = bindText(el('p', 'lp-section__note'), `${KEYS}.tides.realHeightNote`);
-  const toScaleToggle = createToggle({ labelKey: `${KEYS}.controls.toScale`, checked: state.toScale, onChange: setToScale });
-  tidesSection.add(exaggerationSlider, speedSlider, playRow, sunToggle, sunHint, elongationSlider, phaseRow, rangeReadout, gaugeReadout, realNote, toScaleToggle);
+  tidesReadouts.append(rangeReadout, gaugeReadout);
 
-  // Axis section (view B)
-  const axisSection = createSection(`${KEYS}.sections.axis`);
-  const axisSpeedSlider = createSlider({
-    labelKey: `${KEYS}.controls.axisSpeed`,
-    unitKey: 'units.kyrPerSecond',
-    min: P.AXIS_SPEED_RANGE_KYR_PER_S.min,
-    max: P.AXIS_SPEED_RANGE_KYR_PER_S.max,
-    step: 0.5,
-    value: state.axisSpeed,
-    decimals: 1,
-    onChange: (v) => {
-      state.axisSpeed = v;
-    },
-  });
-  const playBtnB = createButton({ labelKey: `${KEYS}.controls.pause`, icon: '⏸', variant: 'primary', onClick: () => setPlaying(!state.playing) });
-  const playRowB = el('div', 'lp-button-row');
-  playRowB.append(playBtnB.el);
-  function syncPlayButtons() {
-    for (const btn of [playBtn, playBtnB]) {
-      btn.el.querySelector('.lp-button__icon').textContent = state.playing ? '⏸' : '▶';
-      bindText(btn.el.querySelector('[data-i18n]'), state.playing ? `${KEYS}.controls.pause` : `${KEYS}.controls.play`);
-    }
-  }
+  const axisReadouts = el('div', 'lp-group');
   const tiltReadout = el('div', 'lp-readout');
   const tiltLabel = bindText(el('div', 'lp-readout__label'), `${KEYS}.axis.tilt`);
   const tiltValue = el('div', 'lp-readout__value', { 'aria-live': 'off' });
@@ -765,19 +797,11 @@ export default function mount(container, meta) {
   ]);
   const bandNote = bindText(el('p', 'lp-state__hint'), `${KEYS}.axis.stableBand`);
   tiltReadout.append(tiltLabel, tiltValue, tiltPill, tiltChart.el, bandNote);
+  // the pair states what the axis does with the Moon and without it – live, so it stays with the readout
   const stableNote = createNotice({ textKey: `${KEYS}.axis.stableNote`, tone: 'info' });
   const schematicNotice = createNotice({ textKey: `${KEYS}.axis.schematic`, tone: 'warn' });
-  const viewToggle = (name, labelKey, onChange = refresh) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
-  const axisToggles = {
-    showTrace: viewToggle('showTrace', `${KEYS}.controls.trace`),
-    showCone: viewToggle('showCone', `${KEYS}.controls.cone`),
-    showOrbitPlane: viewToggle('showOrbitPlane', `${KEYS}.controls.orbitPlane`),
-  };
-  axisSection.add(axisSpeedSlider, playRowB, tiltReadout, axisFacts, stableNote, schematicNotice, axisToggles.showTrace, axisToggles.showCone, axisToggles.showOrbitPlane);
+  axisReadouts.append(tiltReadout, axisFacts.el, stableNote.el, schematicNotice.el);
 
-  // View section (shared)
-  const viewSection = createSection(`${KEYS}.sections.view`);
-  const labelsToggle = viewToggle('showLabels', `${KEYS}.controls.labels`);
   const tidesLegend = createLegend([
     [`${KEYS}.legend.bulge`, COLORS.ocean],
     [`${KEYS}.legend.seaLevel`, COLORS.seaLevel, 'dashed'],
@@ -789,30 +813,16 @@ export default function mount(container, meta) {
     [`${KEYS}.legend.trace`, COLORS.trace],
     [`${KEYS}.legend.eclipticPole`, COLORS.ecliptic, 'dashed'],
   ]);
-  const cameraTitle = bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`);
-  const cameraRow = el('div', 'lp-presets lp-presets--2', { role: 'group' });
-  bindAttr(cameraRow, { 'aria-label': `${KEYS}.controls.camera` });
-  const cameraButtons = ['side', 'top'].map((id) => {
-    const btn = createButton({ labelKey: `${KEYS}.controls.camera${id === 'side' ? 'Side' : 'Top'}`, onClick: () => setCamera(id) });
-    btn.el.classList.add('lp-presets__btn');
-    cameraRow.append(btn.el);
-    return { id, el: btn.el };
-  });
-  function syncCameraButtons() {
-    for (const { id, el: btn } of cameraButtons) btn.setAttribute('aria-pressed', String(cameraMode === id));
-  }
-  viewSection.add(labelsToggle, cameraTitle, cameraRow, tidesLegend, axisLegend);
 
-  const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
-  const resetRow = el('div', 'lp-button-row');
-  resetRow.append(resetBtn.el);
-
-  panel.add(viewSwitch, moonSection, tidesSection, axisSection, viewSection, resetRow);
-  if (sim.reducedMotion) panel.add(createNotice({ textKey: 'motion.reducedNotice' }));
-  const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !window.matchMedia('(max-width: 720px)').matches });
+  const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const comparisonCard = createComparisonCard();
   const physicsCard = createPhysicsCard();
-  panel.add(infoCard, comparisonCard, physicsCard);
+  panel.add(
+    viewSwitch, moonRow, moonRemovedNote, moreControls,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.moon`), moonFacts,
+    tidesReadouts, axisReadouts, tidesLegend, axisLegend,
+    infoCard, comparisonCard, physicsCard,
+  );
   container.append(panel.el);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
@@ -1222,6 +1232,10 @@ function createPhysicsCard() {
   const entries = ['acceleration', 'height', 'range', 'kepler', 'stability'];
   function render() {
     body.replaceChildren();
+    // the caveat behind every height in the panel: the numbers are real, the 3D bulge is not
+    const caveat = el('div', 'lp-notice lp-notice--info', { role: 'note' });
+    caveat.textContent = t(`${KEYS}.tides.realHeightNote`);
+    body.append(caveat);
     for (const id of entries) {
       const block = el('div', 'lp-formula');
       const label = el('p', 'lp-formula__label');

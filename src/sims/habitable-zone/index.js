@@ -19,7 +19,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as HZ from './physics.js';
@@ -668,10 +668,27 @@ export default function mount(container, meta) {
 
   // --- UI ---------------------------------------------------------------------------------------------------------------------------------
   const panel = createPanel();
+  const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
-  // star section
-  const starSection = createSection(`${KEYS}.sections.star`);
-  const presetRow = el('div', 'lp-presets', { role: 'group' });
+  // --- controls: the planet's distance up front, the rest folded away -----------------------------
+  const distanceSlider = createSlider({
+    labelKey: `${KEYS}.planet.distance`,
+    unitKey: 'units.au',
+    min: HZ.DISTANCE_RANGE_AU.min,
+    max: HZ.DISTANCE_RANGE_AU.max,
+    step: 0.01,
+    value: state.distanceAU,
+    decimals: 2,
+    onChange: (v) => {
+      state.distanceAU = v;
+      refresh();
+    },
+  });
+  const dragNotice = bindText(el('p', 'lp-drag-hint'), `${KEYS}.planet.dragHint`);
+
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
+
+  const presetRow = el('div', 'lp-presets lp-presets--compact', { role: 'group' });
   bindAttr(presetRow, { 'aria-label': `${KEYS}.star.presets` });
   const presetButtons = HZ.STAR_PRESETS.map((preset) => {
     const btn = createButton({
@@ -706,47 +723,8 @@ export default function mount(container, meta) {
     onChange: (v) => setLuminosity(Math.pow(10, v), { silent: true }),
   });
   luminositySlider.input.addEventListener('change', frameZoneIfNeeded);
-  const starFacts = createFacts([
-    ['type', `${KEYS}.star.type`],
-    ['teff', `${KEYS}.star.temperature`],
-    ['mass', `${KEYS}.star.mass`],
-    ['radius', `${KEYS}.star.radius`],
-    ['zone', `${KEYS}.zone.edges`],
-    ['width', `${KEYS}.zone.width`],
-  ]);
   const starDragNotice = bindText(el('p', 'lp-drag-hint'), `${KEYS}.star.dragHint`);
-  starSection.add(presetRow, luminositySlider, starFacts, starDragNotice);
 
-  // planet section
-  const planetSection = createSection(`${KEYS}.sections.planet`);
-  const distanceSlider = createSlider({
-    labelKey: `${KEYS}.planet.distance`,
-    unitKey: 'units.au',
-    min: HZ.DISTANCE_RANGE_AU.min,
-    max: HZ.DISTANCE_RANGE_AU.max,
-    step: 0.01,
-    value: state.distanceAU,
-    decimals: 2,
-    onChange: (v) => {
-      state.distanceAU = v;
-      refresh();
-    },
-  });
-  const readout = el('div', 'lp-readout');
-  const readoutValue = el('div', 'lp-readout__value', { 'aria-live': 'off' });
-  const readoutLabel = bindText(el('div', 'lp-readout__label'), `${KEYS}.planet.teq`);
-  const statePill = el('span', 'lp-state', { role: 'status' });
-  const stateHint = el('p', 'lp-state__hint');
-  readout.append(readoutLabel, readoutValue, statePill, stateHint);
-  const planetFacts = createFacts([
-    ['insolation', `${KEYS}.planet.insolation`],
-    ['period', `${KEYS}.planet.period`],
-  ]);
-  const dragNotice = bindText(el('p', 'lp-drag-hint'), `${KEYS}.planet.dragHint`);
-  planetSection.add(distanceSlider, readout, planetFacts, dragNotice);
-
-  // evolution section
-  const evolutionSection = createSection(`${KEYS}.sections.evolution`);
   const ageSlider = createSlider({
     labelKey: `${KEYS}.evolution.age`,
     min: 0,
@@ -759,26 +737,23 @@ export default function mount(container, meta) {
       setAge(v);
     },
   });
-  const playBtn = createButton({ labelKey: `${KEYS}.evolution.play`, icon: '▶', variant: 'primary', onClick: () => setPlaying(!state.playing) });
+  const playBtn = createButton({ labelKey: `${KEYS}.evolution.play`, icon: '▶', variant: 'primary', compact: true, onClick: () => setPlaying(!state.playing) });
   function syncPlayButton() {
-    playBtn.el.querySelector('.lp-button__icon').textContent = state.playing ? '⏸' : '▶';
-    bindText(playBtn.el.querySelector('[data-i18n]'), state.playing ? `${KEYS}.evolution.pause` : `${KEYS}.evolution.play`);
+    playBtn.setIcon(state.playing ? '⏸' : '▶');
+    playBtn.setLabel(state.playing ? `${KEYS}.evolution.pause` : `${KEYS}.evolution.play`);
+    playBtn.el.setAttribute('aria-pressed', String(state.playing));
   }
   const todayBtn = createButton({
     labelKey: `${KEYS}.evolution.resetToday`,
+    icon: '↺',
+    compact: true,
     onClick: () => {
       setPlaying(false);
       setAge(HZ.SUN_AGE_GYR);
     },
   });
-  const evolutionRow = el('div', 'lp-button-row');
-  evolutionRow.append(playBtn.el, todayBtn.el);
-  const windowNote = el('p', 'lp-window-note', { role: 'status' });
-  const evolutionNote = bindText(el('p', 'lp-section__note'), `${KEYS}.evolution.note`);
-  evolutionSection.add(ageSlider, evolutionRow, windowNote, evolutionNote);
+  const ageRow = createControlRow(ageSlider, playBtn, todayBtn);
 
-  // view section
-  const viewSection = createSection(`${KEYS}.sections.view`);
   const viewToggle = (name, labelKey, onChange = refresh) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
   // the zone toggle owns two sub-toggles (flat annulus / 3D shell) so either representation can be shown alone
   const zoneToggle = viewToggle('showZone', `${KEYS}.view.zone`, (on) => {
@@ -821,12 +796,13 @@ export default function mount(container, meta) {
     onChange: (v) => setSpeed(v, { silent: true }),
   });
   const speedNote = bindText(el('p', 'lp-section__note'), `${KEYS}.view.speedNote`);
-  const cameraRow = el('div', 'lp-button-row');
+  const cameraRow = el('div', 'lp-presets lp-presets--2 lp-presets--compact', { role: 'group' });
   const frameBtn = createButton({ labelKey: `${KEYS}.view.frameZone`, icon: '◎', onClick: () => frameZone() });
   const overviewBtn = createButton({ labelKey: `${KEYS}.view.overview`, icon: '⤢', onClick: () => frameOverview() });
-  cameraRow.append(frameBtn.el, overviewBtn.el);
-  const legend = createLegend();
-  viewSection.add(zoneToggle, surfaceToggle, shellToggle, tempToggle, unitSwitch, gridToggle, speedSlider, speedNote, cameraRow, legend);
+  for (const btn of [frameBtn, overviewBtn]) {
+    btn.el.classList.add('lp-presets__btn');
+    cameraRow.append(btn.el);
+  }
 
   const resetBtn = createButton({
     labelKey: 'panel.reset',
@@ -843,14 +819,49 @@ export default function mount(container, meta) {
       frameZone();
     },
   });
-  const resetRow = el('div', 'lp-button-row');
+  const resetRow = el('div', 'lp-button-row lp-button-row--full');
   resetRow.append(resetBtn.el);
 
-  panel.add(starSection, planetSection, evolutionSection, viewSection, resetRow);
-  if (sim.reducedMotion) panel.add(createNotice({ textKey: 'motion.reducedNotice' }));
-  const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !window.matchMedia('(max-width: 720px)').matches });
+  moreControls.add(
+    presetRow, luminositySlider, starDragNotice,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.evolution`), ageRow,
+  );
+  if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
+  moreControls.add(
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`),
+    cameraRow, zoneToggle, surfaceToggle, shellToggle, tempToggle, unitSwitch, gridToggle, speedSlider, speedNote, resetRow,
+  );
+
+  // --- readouts: the planet's temperature, then the numbers behind it ------------------------------
+  const readout = el('div', 'lp-readout');
+  const readoutValue = el('div', 'lp-readout__value', { 'aria-live': 'off' });
+  const readoutLabel = bindText(el('div', 'lp-readout__label'), `${KEYS}.planet.teq`);
+  const statePill = el('span', 'lp-state', { role: 'status' });
+  const stateHint = el('p', 'lp-state__hint');
+  readout.append(readoutLabel, readoutValue, statePill, stateHint);
+  const planetFacts = createFacts([
+    ['insolation', `${KEYS}.planet.insolation`],
+    ['period', `${KEYS}.planet.period`],
+  ]);
+  const windowNote = el('p', 'lp-window-note', { role: 'status' });
+  const starFacts = createFacts([
+    ['type', `${KEYS}.star.type`],
+    ['teff', `${KEYS}.star.temperature`],
+    ['mass', `${KEYS}.star.mass`],
+    ['radius', `${KEYS}.star.radius`],
+    ['zone', `${KEYS}.zone.edges`],
+    ['width', `${KEYS}.zone.width`],
+  ]);
+  const legend = createLegend();
+
+  const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
-  panel.add(infoCard, physicsCard);
+  panel.add(
+    distanceSlider, dragNotice, moreControls,
+    readout, planetFacts, windowNote,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.star`), starFacts,
+    legend, infoCard, physicsCard,
+  );
   container.append(panel.el);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
@@ -1032,6 +1043,12 @@ function createPhysicsCard() {
         const note = el('p', 'lp-formula__note');
         note.textContent = t(`${KEYS}.physics.${id}Note`);
         block.append(note);
+      }
+      // the plain-language consequence of the brightening, next to the relation it follows from
+      if (id === 'evolution') {
+        const consequence = el('p', 'lp-formula__note');
+        consequence.textContent = t(`${KEYS}.evolution.note`);
+        block.append(consequence);
       }
       body.append(block);
     }

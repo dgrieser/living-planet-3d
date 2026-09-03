@@ -22,7 +22,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createSection, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
 import * as S from './physics.js';
@@ -834,11 +834,11 @@ export default function mount(container, meta) {
   const presetMatches = (preset) =>
     (preset.tiltDeg === undefined || Math.abs(state.tiltDeg - preset.tiltDeg) < 0.05) && (preset.periodH === undefined || Math.abs(state.periodH - preset.periodH) < 0.05);
 
-  // --- UI ----------------------------------------------------------------------------------------------------------------------------
+  // --- UI ----------------------------------------------------------------------------------------------------------------------
   const panel = createPanel();
+  const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
-  // Earth section
-  const earthSection = createSection(`${KEYS}.sections.earth`);
+  // --- controls: the tilt up front, the rest folded away ---------------------------------------------
   const tiltSlider = createSlider({
     labelKey: `${KEYS}.controls.tilt`,
     unitKey: 'units.degrees',
@@ -849,6 +849,9 @@ export default function mount(container, meta) {
     decimals: 1,
     onChange: (v) => setTilt(v, { fromSlider: true }),
   });
+
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
+
   const periodSlider = createSlider({
     labelKey: `${KEYS}.controls.rotationPeriod`,
     min: Math.log10(S.ROTATION_RANGE_H.min),
@@ -876,16 +879,7 @@ export default function mount(container, meta) {
     if (state.activePreset) presetNote.textContent = t(`${KEYS}.presetNotes.${state.activePreset}`);
   }
   const presetsTitle = bindText(el('p', 'lp-subheading'), `${KEYS}.controls.presets`);
-  // year-round livable share of the surface + verdict tier for the current tilt
-  const habReadout = createReadout(`${KEYS}.readout.livableSurface`);
-  habReadout.el.classList.add('lp-readout--zone');
-  const habState = el('span', 'lp-state', { role: 'status' });
-  const habHint = el('p', 'lp-state__hint');
-  habReadout.el.append(habState, habHint);
-  earthSection.add(tiltSlider, periodSlider, presetsTitle, presetRow, presetNote, habReadout);
 
-  // Year / orbit section
-  const orbitSection = createSection(`${KEYS}.sections.orbit`);
   const daySlider = createSlider({
     labelKey: `${KEYS}.controls.dayOfYear`,
     min: 0,
@@ -895,18 +889,20 @@ export default function mount(container, meta) {
     format: (v) => formatDate(v),
     onChange: (v) => setDayOfYear(v, { fromSlider: true }),
   });
-  const stopRow = el('div', 'lp-presets', { role: 'group' });
+  const playBtn = createButton({ labelKey: `${KEYS}.controls.pause`, icon: '⏸', variant: 'primary', compact: true, onClick: () => setPlaying(!state.playing) });
+  function syncPlayButton() {
+    playBtn.setIcon(state.playing ? '⏸' : '▶');
+    playBtn.setLabel(state.playing ? `${KEYS}.controls.pause` : `${KEYS}.controls.play`);
+    playBtn.el.setAttribute('aria-pressed', String(state.playing));
+  }
+  const dayRow = createControlRow(daySlider, playBtn);
+  const stopRow = el('div', 'lp-presets lp-presets--compact', { role: 'group' });
   bindAttr(stopRow, { 'aria-label': `${KEYS}.controls.stops` });
   for (const stop of S.SEASON_STOPS) {
     const btn = createButton({ labelKey: `${KEYS}.seasons.${stop.season}`, onClick: () => setDayOfYear(stop.dayOfYear) });
     btn.el.classList.add('lp-presets__btn', 'lp-presets__btn--stack');
     btn.el.append(bindText(el('span', 'lp-presets__value'), `${KEYS}.stopDates.${stop.id}`));
     stopRow.append(btn.el);
-  }
-  const playBtn = createButton({ labelKey: `${KEYS}.controls.pause`, icon: '⏸', variant: 'primary', onClick: () => setPlaying(!state.playing) });
-  function syncPlayButton() {
-    playBtn.el.querySelector('.lp-button__icon').textContent = state.playing ? '⏸' : '▶';
-    bindText(playBtn.el.querySelector('[data-i18n]'), state.playing ? `${KEYS}.controls.pause` : `${KEYS}.controls.play`);
   }
   const speedSlider = createSlider({
     labelKey: `${KEYS}.controls.speed`,
@@ -920,18 +916,101 @@ export default function mount(container, meta) {
       state.daysPerSecond = v;
     },
   });
-  const playRow = el('div', 'lp-button-row');
-  playRow.append(playBtn.el);
+
+  const viewToggle = (name, labelKey, onChange = refresh) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
+  // the two colour overlays share the hue ramp but mean different things (W/m² vs °C) – only one at a time
+  const toggles = {
+    showHeat: viewToggle('showHeat', `${KEYS}.view.heatMap`, (v) => {
+      if (v && state.showClimate) toggles.showClimate.setChecked(false);
+      heatLegend.el.hidden = !v;
+      refresh();
+    }),
+    showClimate: viewToggle('showClimate', `${KEYS}.view.climateBands`, (v) => {
+      if (v && state.showHeat) toggles.showHeat.setChecked(false);
+      climateLegend.el.hidden = !v;
+      refresh();
+    }),
+    showLivable: viewToggle('showLivable', `${KEYS}.view.livable`),
+    showTerminator: viewToggle('showTerminator', `${KEYS}.view.terminator`),
+    showEquator: viewToggle('showEquator', `${KEYS}.view.equator`),
+    showCircles: viewToggle('showCircles', `${KEYS}.view.circles`),
+    showAxis: viewToggle('showAxis', `${KEYS}.view.axis`),
+    showSubsolar: viewToggle('showSubsolar', `${KEYS}.view.subsolar`),
+    showGrid: viewToggle('showGrid', `${KEYS}.view.grid`),
+    showLabels: viewToggle('showLabels', `${KEYS}.view.labels`),
+  };
+  const heatLegend = createHeatLegend(`${KEYS}.legend.heatTitle`, `${KEYS}.legend.heatLow`, `${KEYS}.legend.heatHigh`);
+  heatLegend.el.hidden = !state.showHeat;
+  const climateLegend = createHeatLegend(`${KEYS}.legend.climateTitle`, `${KEYS}.legend.climateLow`, `${KEYS}.legend.climateHigh`);
+  climateLegend.el.hidden = !state.showClimate;
+  const cameraRow = el('div', 'lp-presets lp-presets--2 lp-presets--compact', { role: 'group' });
+  bindAttr(cameraRow, { 'aria-label': `${KEYS}.controls.camera` });
+  const cameraButtons = [
+    ['earth', '🌍'],
+    ['overview', '◎'],
+    ['top', '⤓'],
+    ['pin', '📍'],
+  ].map(([id, icon]) => {
+    const btn = createButton({ labelKey: `${KEYS}.view.camera${id[0].toUpperCase()}${id.slice(1)}`, icon, onClick: () => { cameraPresets[id](); syncCameraButtons(); } });
+    btn.el.classList.add('lp-presets__btn');
+    cameraRow.append(btn.el);
+    return { id, el: btn.el };
+  });
+  function syncCameraButtons() {
+    for (const { id, el: btn } of cameraButtons) {
+      btn.setAttribute('aria-pressed', String(state.cameraMode === id));
+      if (id === 'pin') btn.disabled = !pin;
+    }
+  }
+
+  const resetBtn = createButton({
+    labelKey: 'panel.reset',
+    icon: '↺',
+    onClick: () => {
+      unpin({ restoreCamera: false });
+      Object.assign(state, DEFAULTS, { activePreset: 'earth' });
+      tiltSlider.setValue(state.tiltDeg, { silent: true });
+      periodSlider.setValue(Math.log10(state.periodH), { silent: true });
+      daySlider.setValue(state.dayOfYear, { silent: true });
+      speedSlider.setValue(state.daysPerSecond, { silent: true });
+      latitudeSlider.setValue(state.latitudeDeg, { silent: true });
+      spinGroup.rotation.y = 0;
+      syncPresets();
+      syncLatitudeButtons();
+      syncPlayButton();
+      refresh();
+      cameraPresets.earth();
+      syncCameraButtons();
+    },
+  });
+  const resetRow = el('div', 'lp-button-row lp-button-row--full');
+  resetRow.append(resetBtn.el);
+
+  moreControls.add(periodSlider, presetsTitle, presetRow, presetNote,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.orbit`), dayRow, stopRow, speedSlider);
+  if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
+  moreControls.add(
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow,
+    toggles.showHeat, heatLegend, toggles.showClimate, climateLegend, toggles.showLivable,
+    toggles.showTerminator, toggles.showEquator, toggles.showCircles, toggles.showAxis, toggles.showSubsolar, toggles.showGrid, toggles.showLabels,
+    resetRow,
+  );
+
+  // --- readouts: what the tilt does to the planet, then the year, then one chosen latitude -----------
+  // year-round livable share of the surface + verdict tier for the current tilt
+  const habReadout = createReadout(`${KEYS}.readout.livableSurface`);
+  habReadout.el.classList.add('lp-readout--zone');
+  const habState = el('span', 'lp-state', { role: 'status' });
+  const habHint = el('p', 'lp-state__hint');
+  habReadout.el.append(habState, habHint);
   const orbitFacts = createFacts([
     ['season', `${KEYS}.readout.season`],
     ['subsolar', `${KEYS}.readout.subsolar`],
     ['tropics', `${KEYS}.readout.tropics`],
     ['polarCircles', `${KEYS}.readout.polarCircles`],
   ]);
-  orbitSection.add(daySlider, stopRow, playRow, speedSlider, orbitFacts);
 
-  // Readout section
-  const readoutSection = createSection(`${KEYS}.sections.readout`);
+  // the latitude block stays one unit: its slider and presets only make sense beside their readouts
   const latitudeSlider = createSlider({
     labelKey: `${KEYS}.controls.latitude`,
     min: -90,
@@ -941,7 +1020,7 @@ export default function mount(container, meta) {
     format: (v) => formatLatitude(v, 1),
     onChange: (v) => setLatitude(v, { fromSlider: true }),
   });
-  const latitudeRow = el('div', 'lp-presets', { role: 'group' });
+  const latitudeRow = el('div', 'lp-presets lp-presets--compact', { role: 'group' });
   bindAttr(latitudeRow, { 'aria-label': `${KEYS}.controls.latitudePresets` });
   const presetLatitude = (preset) => (preset.id === 'polarCircle' ? Math.round((90 - state.tiltDeg) * 10) / 10 : preset.latitudeDeg);
   const latitudeButtons = S.LATITUDE_PRESETS.map((preset) => {
@@ -987,90 +1066,17 @@ export default function mount(container, meta) {
   const livableRow = el('div', 'lp-zone');
   const livablePill = el('span', 'lp-state', { role: 'status' });
   livableRow.append(bindText(el('span', 'lp-zone__label'), `${KEYS}.readout.livableYearRound`), livablePill);
-  const modelNote = bindText(el('p', 'lp-section__note'), `${KEYS}.readout.modelNote`);
-  readoutSection.add(pinReadout, latitudeSlider, latitudeRow, dayReadout, latitudeFacts, zoneRow, livableRow, modelNote);
-
-  // View section
-  const viewSection = createSection(`${KEYS}.sections.view`);
-  const viewToggle = (name, labelKey, onChange = refresh) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
-  // the two colour overlays share the hue ramp but mean different things (W/m² vs °C) – only one at a time
-  const toggles = {
-    showHeat: viewToggle('showHeat', `${KEYS}.view.heatMap`, (v) => {
-      if (v && state.showClimate) toggles.showClimate.setChecked(false);
-      heatLegend.el.hidden = !v;
-      refresh();
-    }),
-    showClimate: viewToggle('showClimate', `${KEYS}.view.climateBands`, (v) => {
-      if (v && state.showHeat) toggles.showHeat.setChecked(false);
-      climateLegend.el.hidden = !v;
-      refresh();
-    }),
-    showLivable: viewToggle('showLivable', `${KEYS}.view.livable`),
-    showTerminator: viewToggle('showTerminator', `${KEYS}.view.terminator`),
-    showEquator: viewToggle('showEquator', `${KEYS}.view.equator`),
-    showCircles: viewToggle('showCircles', `${KEYS}.view.circles`),
-    showAxis: viewToggle('showAxis', `${KEYS}.view.axis`),
-    showSubsolar: viewToggle('showSubsolar', `${KEYS}.view.subsolar`),
-    showGrid: viewToggle('showGrid', `${KEYS}.view.grid`),
-    showLabels: viewToggle('showLabels', `${KEYS}.view.labels`),
-  };
-  const heatLegend = createHeatLegend(`${KEYS}.legend.heatTitle`, `${KEYS}.legend.heatLow`, `${KEYS}.legend.heatHigh`);
-  heatLegend.el.hidden = !state.showHeat;
-  const climateLegend = createHeatLegend(`${KEYS}.legend.climateTitle`, `${KEYS}.legend.climateLow`, `${KEYS}.legend.climateHigh`);
-  climateLegend.el.hidden = !state.showClimate;
-  const cameraTitle = bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`);
-  const cameraRow = el('div', 'lp-button-row');
-  const cameraButtons = [
-    ['earth', '🌍'],
-    ['overview', '◎'],
-    ['top', '⤓'],
-    ['pin', '📍'],
-  ].map(([id, icon]) => {
-    const btn = createButton({ labelKey: `${KEYS}.view.camera${id[0].toUpperCase()}${id.slice(1)}`, icon, onClick: () => { cameraPresets[id](); syncCameraButtons(); } });
-    cameraRow.append(btn.el);
-    return { id, el: btn.el };
-  });
-  function syncCameraButtons() {
-    for (const { id, el: btn } of cameraButtons) {
-      btn.setAttribute('aria-pressed', String(state.cameraMode === id));
-      if (id === 'pin') btn.disabled = !pin;
-    }
-  }
   const legend = createLegend();
-  viewSection.add(
-    toggles.showHeat, heatLegend, toggles.showClimate, climateLegend, toggles.showLivable,
-    toggles.showTerminator, toggles.showEquator, toggles.showCircles, toggles.showAxis, toggles.showSubsolar, toggles.showGrid, toggles.showLabels,
-    cameraTitle, cameraRow, legend,
-  );
 
-  const resetBtn = createButton({
-    labelKey: 'panel.reset',
-    icon: '↺',
-    onClick: () => {
-      unpin({ restoreCamera: false });
-      Object.assign(state, DEFAULTS, { activePreset: 'earth' });
-      tiltSlider.setValue(state.tiltDeg, { silent: true });
-      periodSlider.setValue(Math.log10(state.periodH), { silent: true });
-      daySlider.setValue(state.dayOfYear, { silent: true });
-      speedSlider.setValue(state.daysPerSecond, { silent: true });
-      latitudeSlider.setValue(state.latitudeDeg, { silent: true });
-      spinGroup.rotation.y = 0;
-      syncPresets();
-      syncLatitudeButtons();
-      syncPlayButton();
-      refresh();
-      cameraPresets.earth();
-      syncCameraButtons();
-    },
-  });
-  const resetRow = el('div', 'lp-button-row');
-  resetRow.append(resetBtn.el);
-
-  panel.add(earthSection, orbitSection, readoutSection, viewSection, resetRow);
-  if (sim.reducedMotion) panel.add(createNotice({ textKey: 'motion.reducedNotice' }));
-  const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !window.matchMedia('(max-width: 720px)').matches });
+  const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
-  panel.add(infoCard, physicsCard);
+  panel.add(
+    tiltSlider, moreControls,
+    habReadout, orbitFacts,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.readout`), latitudeSlider, latitudeRow,
+    pinReadout, dayReadout, latitudeFacts, zoneRow, livableRow,
+    legend, infoCard, physicsCard,
+  );
   container.append(panel.el);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
@@ -1293,6 +1299,10 @@ function createPhysicsCard() {
   const entries = ['declination', 'dayLength', 'insolation', 'temperature', 'swing', 'seasonalMeans', 'livable', 'livableFraction', 'tiers'];
   function render() {
     body.replaceChildren();
+    // the caveat that qualifies every temperature the panel shows
+    const caveat = el('div', 'lp-notice lp-notice--info', { role: 'note' });
+    caveat.textContent = t(`${KEYS}.readout.modelNote`);
+    body.append(caveat);
     for (const id of entries) {
       const block = el('div', 'lp-formula');
       const label = el('p', 'lp-formula__label');
