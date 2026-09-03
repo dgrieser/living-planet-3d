@@ -748,8 +748,7 @@
       "sections": {
         "sun": "The Sun",
         "time": "Galactic orbit",
-        "view": "View",
-        "earth": "Life on Earth at this distance"
+        "view": "View"
       },
       "controls": {
         "sunRadius": "Distance from the galactic centre",
@@ -784,33 +783,19 @@
         "orbits": "Orbits on the timeline"
       },
       "earth": {
-        "introHabitable": "Still inside the zone: Earth would stay habitable, but its night sky, its risks and its deep-time rhythm would change. All figures relative to today.",
-        "introInner": "Outside the zone, too close to the centre: complex life would be unlikely to last here in the first place. For comparison, the same what-if figures:",
-        "introOuter": "Outside the zone, too far out: a rocky Earth would have been hard to build here in the first place. For comparison, the same what-if figures:",
-        "sky": "Night sky",
-        "skyValue": "nearest star ≈ {distance} ly · ≈ {stars} naked-eye stars",
-        "skyNote": "Today: 4.25 ly and about 9,000 stars. Closer to the centre the Milky Way band and the bulge loom larger and brighter, while more dust dims the distant view.",
-        "encounters": "Close stellar passages",
-        "encountersValue": "a star within 1 parsec every ≈ {interval}",
-        "encountersNote": "Today about every 51,000 years (Bailer-Jones et al. 2018). Each passage can shake comets loose from the Oort cloud, whose outer edge would sit at about {oort}× today’s distance.",
-        "supernova": "Ozone-damaging supernova",
-        "supernovaValue": "about one every {interval}",
-        "supernovaNote": "A supernova within 8 parsecs can strip the ozone layer; today that happens roughly every 670 million years (Gehrels et al. 2003). Scaled with the schematic supernova hazard.",
-        "planets": "Planet formation",
-        "planetsValue": "giant planets {factor}× as likely",
-        "planetsNote": "Heavy elements set what forms: with more of them, migrating giant planets would more often disrupt rocky orbits (Fischer & Valenti 2005; a hypothesis behind the zone’s inner edge, Lineweaver 2001). With fewer there is less rock, and less uranium and thorium to heat a planet’s interior and drive plate tectonics.",
-        "arms": "Spiral-arm crossings",
-        "armsValue": "every ≈ {interval}",
-        "armsNever": "practically never – the Sun rides with the pattern (corotation)",
-        "armsNote": "Inside an arm, supernovae and giant molecular clouds are far more common. Whether past crossings paced Earth’s ice ages (Shaviv 2003) is debated.",
-        "year": "Galactic year",
-        "yearValue": "{period} · Earth’s 4.6 billion years = {orbits} orbits",
-        "yearNote": "Longer years further out: with a flat rotation curve the period grows in proportion to the radius.",
-        "unchanged": "Unchanged: Earth’s orbit, year, seasons and sunlight are set by the Sun, not by where the Sun is in the galaxy. The what-if is not far-fetched – the Sun has probably drifted several thousand light-years in radius since it formed (Sellwood & Binney 2002).",
-        "caveat": "All figures scale today’s measured values with the schematic exponential disc and the metallicity gradient – read them as orders of magnitude.",
+        "nearestStar": "Nearest star (typical)",
+        "nakedEye": "Naked-eye stars",
+        "encounters": "Star passing within 1 pc",
+        "oort": "Oort cloud edge vs. today",
+        "supernova": "Ozone-damaging supernova (< 8 pc)",
+        "planets": "Giant planets vs. today",
+        "arms": "Spiral-arm crossing",
+        "armsNever": "practically never (corotation)",
+        "every": "every ≈ {interval}",
         "years": "{n} years",
         "millionYears": "{n} million years",
-        "billionYears": "{n} billion years"
+        "billionYears": "{n} billion years",
+        "note": "From “Nearest star” down: how life on Earth would fare at this distance – today’s measured values scaled with the schematic disc and metallicity gradient (sources under “About the model”). Earth’s orbit, year, seasons and sunlight would not change."
       },
       "tooltip": {
         "innerTitle": "Inner galaxy",

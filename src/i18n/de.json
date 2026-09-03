@@ -748,8 +748,7 @@
       "sections": {
         "sun": "Die Sonne",
         "time": "Galaktischer Umlauf",
-        "view": "Ansicht",
-        "earth": "Leben auf der Erde in diesem Abstand"
+        "view": "Ansicht"
       },
       "controls": {
         "sunRadius": "Abstand vom galaktischen Zentrum",
@@ -784,33 +783,19 @@
         "orbits": "Umläufe auf der Zeitleiste"
       },
       "earth": {
-        "introHabitable": "Noch innerhalb der Zone: Die Erde bliebe bewohnbar, aber ihr Nachthimmel, ihre Risiken und ihr Rhythmus über Jahrmillionen würden sich ändern. Alle Werte im Vergleich zu heute.",
-        "introInner": "Außerhalb der Zone, zu nah am Zentrum: Komplexes Leben könnte sich hier vermutlich gar nicht erst lange halten. Zum Vergleich dieselben Was-wäre-wenn-Werte:",
-        "introOuter": "Außerhalb der Zone, zu weit draußen: Eine Gesteinserde wäre hier vermutlich gar nicht erst entstanden. Zum Vergleich dieselben Was-wäre-wenn-Werte:",
-        "sky": "Nachthimmel",
-        "skyValue": "nächster Stern ≈ {distance} Lj · ≈ {stars} Sterne mit bloßem Auge",
-        "skyNote": "Heute: 4,25 Lj und etwa 9.000 Sterne. Näher am Zentrum erscheinen das Band der Milchstraße und der Bulge größer und heller, während mehr Staub den Blick in die Ferne trübt.",
-        "encounters": "Nahe Sternpassagen",
-        "encountersValue": "ein Stern innerhalb von 1 Parsec alle ≈ {interval}",
-        "encountersNote": "Heute etwa alle 51.000 Jahre (Bailer-Jones et al. 2018). Jede Passage kann Kometen aus der Oortschen Wolke lösen, deren Außenrand bei etwa {oort}× des heutigen Abstands läge.",
-        "supernova": "Ozonschädigende Supernova",
-        "supernovaValue": "etwa eine alle {interval}",
-        "supernovaNote": "Eine Supernova innerhalb von 8 Parsec kann die Ozonschicht abtragen; heute passiert das grob alle 670 Millionen Jahre (Gehrels et al. 2003). Skaliert mit der schematischen Supernova-Gefahr.",
-        "planets": "Planetenentstehung",
-        "planetsValue": "Riesenplaneten {factor}× so wahrscheinlich",
-        "planetsNote": "Schwere Elemente bestimmen, was entsteht: Mit mehr davon würden wandernde Riesenplaneten häufiger die Bahnen von Gesteinsplaneten stören (Fischer & Valenti 2005; eine Hypothese hinter dem Innenrand der Zone, Lineweaver 2001). Mit weniger gibt es weniger Gestein und weniger Uran und Thorium, die das Planeteninnere heizen und die Plattentektonik antreiben.",
-        "arms": "Spiralarm-Durchgänge",
-        "armsValue": "alle ≈ {interval}",
-        "armsNever": "praktisch nie – die Sonne läuft mit dem Muster mit (Korotation)",
-        "armsNote": "In einem Arm sind Supernovae und riesige Molekülwolken weit häufiger. Ob frühere Durchgänge die Eiszeiten der Erde getaktet haben (Shaviv 2003), ist umstritten.",
-        "year": "Galaktisches Jahr",
-        "yearValue": "{period} · 4,6 Milliarden Jahre Erdgeschichte = {orbits} Umläufe",
-        "yearNote": "Weiter außen dauern die Jahre länger: Bei flacher Rotationskurve wächst die Umlaufzeit proportional zum Radius.",
-        "unchanged": "Unverändert: Bahn, Jahr, Jahreszeiten und Sonnenlicht der Erde bestimmt die Sonne, nicht ihr Platz in der Galaxis. Das Gedankenspiel ist nicht weit hergeholt – die Sonne ist seit ihrer Entstehung vermutlich um mehrere tausend Lichtjahre im Radius gewandert (Sellwood & Binney 2002).",
-        "caveat": "Alle Werte skalieren heutige Messwerte mit der schematischen exponentiellen Scheibe und dem Metallizitätsgradienten – als Größenordnungen zu lesen.",
+        "nearestStar": "Nächster Stern (typisch)",
+        "nakedEye": "Sterne mit bloßem Auge",
+        "encounters": "Sternpassage innerhalb 1 pc",
+        "oort": "Rand der Oortschen Wolke ggü. heute",
+        "supernova": "Ozonschädigende Supernova (< 8 pc)",
+        "planets": "Riesenplaneten ggü. heute",
+        "arms": "Spiralarm-Durchgang",
+        "armsNever": "praktisch nie (Korotation)",
+        "every": "alle ≈ {interval}",
         "years": "{n} Jahre",
         "millionYears": "{n} Millionen Jahre",
-        "billionYears": "{n} Milliarden Jahre"
+        "billionYears": "{n} Milliarden Jahre",
+        "note": "Ab „Nächster Stern“: Wie es dem Leben auf der Erde in diesem Abstand erginge – heutige Messwerte, skaliert mit der schematischen Scheibe und dem Metallizitätsgradienten (Quellen unter „Zum Modell“). Bahn, Jahr, Jahreszeiten und Sonnenlicht der Erde blieben unverändert."
       },
       "tooltip": {
         "innerTitle": "Innere Galaxis",
