@@ -626,12 +626,21 @@ export default function mount(container, meta) {
   );
 
   // --- readouts: what that wind does to the magnetosphere -----------------------------------------
-  const windFacts = createFacts([
+  // the space-weather readout: the index the whole scene drives, then the numbers behind it
+  const stormReadout = el('div', 'lp-readout lp-readout--storm');
+  const stormKpValue = el('div', 'lp-readout__value', { 'aria-live': 'off' });
+  const stormPill = el('span', 'lp-state');
+  const stormPhase = el('span', 'lp-state lp-state--phase', { hidden: true });
+  stormReadout.append(bindText(el('div', 'lp-readout__label'), `${KEYS}.storm.kp`), stormKpValue, stormPill, stormPhase);
+  // density and speed are the sliders right above, and the boundary rows already carry the standoff
+  const stormFacts = createFacts([
     ['pressure', `${KEYS}.facts.pressure`],
     ['ratio', `${KEYS}.facts.pressureRatio`],
     ['standoff', `${KEYS}.facts.standoff`],
     ['bowShock', `${KEYS}.facts.bowShock`],
     ['transit', `${KEYS}.facts.transit`],
+    ['aurora', `${KEYS}.storm.aurora`],
+    ['geosync', `${KEYS}.storm.geosync`],
   ]);
   const legend = createLegend([
     [`${KEYS}.legend.fieldLines`, COLORS.fieldInner],
@@ -649,31 +658,10 @@ export default function mount(container, meta) {
   const physicsCard = createPhysicsCard();
   panel.add(
     fieldRow, fieldOffNotice, densitySlider, speedSlider, cmeRow, moreControls,
-    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.wind`), windFacts,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.storm.title`), stormReadout, stormFacts,
     legend, infoCard, physicsCard,
   );
   container.append(panel.el);
-
-  // --- on-canvas space-weather readout -----------------------------------------------------------
-  const stormCard = el('aside', 'lp-storm-card');
-  const stormHeader = el('div', 'lp-storm-card__header');
-  stormHeader.append(bindText(el('h2', 'lp-storm-card__title'), `${KEYS}.storm.title`));
-  const stormPhase = el('span', 'lp-storm-card__phase', { hidden: true });
-  stormHeader.append(stormPhase);
-  const stormMain = el('div', 'lp-readout lp-readout--storm');
-  const stormKpLabel = bindText(el('div', 'lp-readout__label'), `${KEYS}.storm.kp`);
-  const stormKpValue = el('div', 'lp-readout__value', { 'aria-live': 'off' });
-  const stormPill = el('span', 'lp-state');
-  stormMain.append(stormKpLabel, stormKpValue, stormPill);
-  const stormFacts = createFacts([
-    ['wind', `${KEYS}.storm.wind`],
-    ['standoff', `${KEYS}.storm.standoff`],
-    ['aurora', `${KEYS}.storm.aurora`],
-    ['geosync', `${KEYS}.storm.geosync`],
-  ]);
-  // the "schematic Kp index" caveat lives in the physics card, next to the relation it qualifies
-  stormCard.append(stormHeader, stormMain, stormFacts.el);
-  container.append(stormCard);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
   hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), bindText(el('span'), `${KEYS}.hint`));
@@ -734,30 +722,27 @@ export default function mount(container, meta) {
     if (!force && key === lastReadoutKey) return;
     lastReadoutKey = key;
 
-    windFacts.set('pressure', `${fmt(m.pressureNPa, m.pressureNPa < 10 ? 2 : 1, 1)} ${t('units.nanopascal')}`);
-    windFacts.set('ratio', `${fmt(m.pressureRatio, m.pressureRatio < 10 ? 1 : 0, 1)}×`);
+    stormFacts.set('pressure', `${fmt(m.pressureNPa, m.pressureNPa < 10 ? 2 : 1, 1)} ${t('units.nanopascal')}`);
+    stormFacts.set('ratio', `${fmt(m.pressureRatio, m.pressureRatio < 10 ? 1 : 0, 1)}×`);
     const noBoundary = t(`${KEYS}.storm.noBoundary`);
-    windFacts.set('standoff', state.fieldOn ? `${fmt(m.standoff, 1, 1)} ${t('units.earthRadii')} · ${fmt(m.standoffKm, 0)} ${t('units.kilometers')}` : noBoundary);
-    windFacts.set('bowShock', state.fieldOn ? `${fmt(m.bowShock, 1, 1)} ${t('units.earthRadii')}` : noBoundary);
-    windFacts.set('transit', formatDuration(m.transitHours));
+    stormFacts.set('standoff', state.fieldOn ? `${fmt(m.standoff, 1, 1)} ${t('units.earthRadii')} · ${fmt(m.standoffKm, 0)} ${t('units.kilometers')}` : noBoundary);
+    stormFacts.set('bowShock', state.fieldOn ? `${fmt(m.bowShock, 1, 1)} ${t('units.earthRadii')}` : noBoundary);
+    stormFacts.set('transit', formatDuration(m.transitHours));
 
-    stormFacts.set('wind', `${fmt(m.density, 0)} ${t('units.perCubicCentimeter')} · ${fmt(m.speed, 0)} ${t('units.kilometersPerSecond')}`);
     if (state.fieldOn) {
       stormKpValue.textContent = `Kp ${fmt(m.kp, 1, 1)}`;
       stormPill.textContent = t(`${KEYS}.storm.level.${m.level}`);
       stormPill.className = `lp-state lp-state--kp-${m.level}`;
-      stormFacts.set('standoff', `${fmt(m.standoff, 1, 1)} ${t('units.earthRadii')}`);
       stormFacts.set('aurora', `${fmt(m.aurora.equatorwardLatDeg, 1, 1)}° ${t(`${KEYS}.storm.latitude`)}`);
       stormFacts.set('geosync', t(`${KEYS}.storm.${m.geosyncExposed ? 'geosyncExposed' : 'geosyncSafe'}`));
     } else {
       stormKpValue.textContent = '—';
       stormPill.textContent = t(`${KEYS}.storm.level.unshielded`);
       stormPill.className = 'lp-state lp-state--kp-unshielded';
-      stormFacts.set('standoff', t(`${KEYS}.storm.noBoundary`));
       stormFacts.set('aurora', t(`${KEYS}.storm.noOval`));
       stormFacts.set('geosync', t(`${KEYS}.storm.geosyncExposed`));
     }
-    stormCard.classList.toggle('is-storm', m.cmeActive || m.kp >= 4.5);
+    stormReadout.classList.toggle('is-storm', m.cmeActive || m.kp >= 4.5);
     stormPhase.hidden = m.phase === 'none';
     if (m.phase !== 'none') stormPhase.textContent = t(`${KEYS}.storm.phase.${m.phase}`);
   }
@@ -827,7 +812,6 @@ export default function mount(container, meta) {
     if (import.meta.env.DEV) delete window.__lpMagnetosphere;
     disposers.forEach((d) => d());
     panel.dispose();
-    stormCard.remove();
     hint.remove();
     credit.remove();
     for (const l of Object.values(labels)) l.dispose();
@@ -979,7 +963,7 @@ function createParaboloidSurface({ color, opacity, rings, meridians }) {
 // DOM helpers
 // ============================================================================================================
 function createFacts(rows) {
-  const dl = el('dl', 'lp-facts lp-facts--accent');
+  const dl = el('dl', 'lp-facts lp-facts--accent lp-facts--wrap');
   const values = new Map();
   for (const [id, labelKey] of rows) {
     const dd = el('dd');

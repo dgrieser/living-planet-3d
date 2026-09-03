@@ -626,7 +626,6 @@
       "description": "Watch Earth's magnetic field deflect the solar wind, fire off a coronal mass ejection and switch the shield off.",
       "sections": {
         "more": "View & camera",
-        "wind": "Solar wind",
         "view": "View"
       },
       "controls": {
@@ -657,8 +656,6 @@
       "storm": {
         "title": "Space weather",
         "kp": "Geomagnetic activity",
-        "wind": "Wind at the boundary",
-        "standoff": "Magnetopause",
         "aurora": "Aurora reaches",
         "latitude": "geomagnetic latitude",
         "geosync": "Geostationary orbit",
