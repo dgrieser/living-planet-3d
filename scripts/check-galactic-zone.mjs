@@ -305,7 +305,7 @@ assert('every neighbourhood value is finite and positive across the slider range
   for (let r = cfg.sunRadiusRangeKly.min; r <= cfg.sunRadiusRangeKly.max; r += 0.5) {
     const n = M.neighbourhoodState(r);
     for (const [k, v] of Object.entries(n)) {
-      if (k === 'zone') continue;
+      if (typeof v !== 'number') continue;
       if (k === 'armCrossingIntervalMyr' && r === 27) continue;
       if (!Number.isFinite(v) || v <= 0) return false;
     }
@@ -322,6 +322,12 @@ assert('nearest-star distance and Oort factor grow outward, star counts and enco
   }
   return true;
 })());
+checkRel('today: a 14 % chance of an ozone-damaging supernova in any 100 Myr (1 − e^(−100/667))', today.supernovaChancePercent, 13.9, 0.01);
+checkRel('13 kly: a 54 % chance in any 100 Myr', inner.supernovaChancePercent, 54.2, 0.01);
+check('an infinite interval means a 0 % chance', M.chanceWithinPercent(Infinity), 0, 1e-12);
+assert('metallicity tiers: rich inside ≈ 24.7 kly, poor outside ≈ 29.5 kly', M.metallicityTier(27) === 'same' && M.metallicityTier(24) === 'rich' && M.metallicityTier(30) === 'poor' && M.metallicityTier(13) === 'rich' && M.metallicityTier(33) === 'poor');
+assert('the Sun overtakes the pattern inside corotation and lags outside', M.neighbourhoodState(20).overtakesPattern && !M.neighbourhoodState(33).overtakesPattern && !today.overtakesPattern);
+assert('only 27 kly counts as today', today.isToday && !M.neighbourhoodState(26.5).isToday && !M.neighbourhoodState(27.5).isToday);
 assert('sunState() carries the same neighbourhood numbers', (() => {
   const s = M.sunState(20, 0);
   const n = M.neighbourhoodState(20);

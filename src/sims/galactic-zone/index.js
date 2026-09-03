@@ -19,10 +19,11 @@
  *    are adjustable (and the dev hook can rebuild them at run time).
  *  - The Sun is a pulsing gold sprite at 27 kly on the Orion spur. The radius
  *    slider moves it along its azimuth for what-if exploration; the readouts
- *    (zone, period, supernova hazard, heavy-element abundance) follow, together with
- *    "life on Earth" rows in the same list – present-day anchors (nearest star,
- *    naked-eye stars, stellar passages, ozone-damaging supernovae, planet formation,
- *    arm crossings) scaled with the same stellar density and metallicity relations.
+ *    (zone, period, supernova hazard, heavy-element abundance) follow. The
+ *    "conditions in the solar system" box turns the same model into prose: the odds
+ *    of ozone-damaging supernovae and comet-shower passages, whether the Sun would
+ *    cross spiral arms here, and what a solar system born here would have got in
+ *    terms of a Jupiter and radiogenic heat – every figure set in bold.
  *  - Timeline: the spiral pattern rotates rigidly once per 230 Myr and the Sun
  *    orbits with the period of its current radius (flat rotation curve), so at
  *    27 kly it stays on the spur, further in it overtakes the arms, further out
@@ -503,10 +504,11 @@ export default function mount(container, meta) {
     onChange: (v) => setSunRadius(v, { fromSlider: true }),
   });
   const zoneReadout = el('div', 'lp-readout lp-readout--zone');
-  const zoneLabel = bindText(el('div', 'lp-readout__label'), `${KEYS}.status.label`);
+  const zoneLabel = bindText(el('div', 'lp-readout__label'), `${KEYS}.conditions.label`);
   const zonePill = el('span', 'lp-state');
-  const zoneHint = el('p', 'lp-state__hint');
-  zoneReadout.append(zoneLabel, zonePill, zoneHint);
+  // prose paragraphs: zone hint (outside the zone only), catastrophe odds, spiral arms, birthplace chemistry
+  const conditionParagraphs = ['zone', 'hazards', 'arms', 'formation'].map(() => el('p', 'lp-state__hint'));
+  zoneReadout.append(zoneLabel, zonePill, ...conditionParagraphs);
   const sunFacts = createFacts([
     ['distance', `${KEYS}.facts.distance`],
     ['period', `${KEYS}.facts.period`],
@@ -514,20 +516,11 @@ export default function mount(container, meta) {
     ['galacticYears', `${KEYS}.facts.galacticYears`],
     ['supernova', `${KEYS}.facts.supernova`],
     ['metals', `${KEYS}.facts.metals`],
-    // life on Earth at this distance – scaled present-day anchors, see neighbourhoodState() in model.js
-    ['nearestStar', `${KEYS}.earth.nearestStar`],
-    ['nakedEye', `${KEYS}.earth.nakedEye`],
-    ['encounters', `${KEYS}.earth.encounters`],
-    ['oort', `${KEYS}.earth.oort`],
-    ['snInterval', `${KEYS}.earth.supernova`],
-    ['giantPlanets', `${KEYS}.earth.planets`],
-    ['armCrossings', `${KEYS}.earth.arms`],
   ]);
-  const earthNote = bindText(el('p', 'lp-section__note'), `${KEYS}.earth.note`);
   const sunHome = createButton({ labelKey: `${KEYS}.controls.sunHome`, icon: '☉', onClick: () => setSunRadius(CONFIG.sun.radiusKly) });
   const sunRow = el('div', 'lp-button-row');
   sunRow.append(sunHome.el);
-  sunSection.add(radiusSlider, zoneReadout, sunFacts, earthNote, sunRow);
+  sunSection.add(radiusSlider, zoneReadout, sunFacts, sunRow);
 
   const timeSection = createSection(`${KEYS}.sections.time`);
   const timeSlider = createSlider({
@@ -697,7 +690,7 @@ export default function mount(container, meta) {
 
     zonePill.textContent = t(`${KEYS}.status.${m.sun.zone}`);
     zonePill.className = `lp-state lp-state--gz-${m.sun.zone}`;
-    zoneHint.textContent = t(`${KEYS}.status.${m.sun.zone}Hint`);
+    updateConditions(m.sun.neighbourhood, m.sun.zone);
     zoneReadout.className = `lp-readout lp-readout--zone is-${m.sun.zone}`;
 
     sunFacts.set('distance', `${fmt(m.sun.radiusLy, 0)} ${t('units.lightYears')} · ${fmt(m.sun.radiusKpc, 1, 1)} ${t('units.kiloparsec')}`);
@@ -707,21 +700,37 @@ export default function mount(container, meta) {
     sunFacts.set('supernova', `${fmt(m.sun.supernovaRate, m.sun.supernovaRate < 10 ? 1 : 0, 1)}×`);
     sunFacts.set('metals', `${fmt(m.sun.metallicity, 2, 2)}×`);
     timeFacts.set('orbits', fmt(m.sun.orbits, 2, 2));
-    // life on Earth at this distance – every value is a scaled present-day anchor (see model.js)
-    const n = m.sun.neighbourhood;
-    const E = `${KEYS}.earth`;
-    sunFacts.set('nearestStar', `≈ ${fmt(n.nearestStarLy, 2, 1)} ${t('units.lightYears')}`);
-    sunFacts.set('nakedEye', `≈ ${fmt(roundSignificant(n.nakedEyeStars, 2), 0)}`);
-    sunFacts.set('encounters', t(`${E}.every`, { interval: fmtDuration(n.encounterIntervalKyr / 1000) }));
-    sunFacts.set('oort', `${fmt(n.oortCloudFactor, 2, 2)}×`);
-    sunFacts.set('snInterval', t(`${E}.every`, { interval: fmtDuration(n.supernovaIntervalMyr) }));
-    sunFacts.set('giantPlanets', `${fmt(n.giantPlanetFactor, n.giantPlanetFactor < 1 ? 2 : 1, 1)}×`);
-    sunFacts.set('armCrossings', n.armCrossingIntervalMyr > M.NEIGHBOURHOOD.neverCrossingMyr ? t(`${E}.armsNever`) : t(`${E}.every`, { interval: fmtDuration(n.armCrossingIntervalMyr) }));
+  }
+
+  /**
+   * The "conditions in the solar system" prose. Every number is a scaled present-day
+   * anchor (see neighbourhoodState() in model.js); the reference is today's Earth.
+   */
+  function updateConditions(n, zone) {
+    const C = `${KEYS}.conditions`;
+    const today = M.neighbourhoodState(CONFIG.sun.radiusKly);
+    const [zoneHint, hazards, arms, formation] = conditionParagraphs;
+    zoneHint.textContent = zone === 'habitable' ? '' : t(`${KEYS}.status.${zone}Hint`);
+    fillTemplate(hazards, `${C}.${n.isToday ? 'hazardsToday' : 'hazards'}`, {
+      supernova: fmtDuration(n.supernovaIntervalMyr),
+      supernovaToday: fmtDuration(today.supernovaIntervalMyr),
+      chance: `${fmt(n.supernovaChancePercent, 0)} %`,
+      chanceToday: `${fmt(today.supernovaChancePercent, 0)} %`,
+      passage: fmtDuration(n.encounterIntervalKyr / 1000),
+      passageToday: fmtDuration(today.encounterIntervalKyr / 1000),
+      oort: `${fmt(n.oortCloudFactor, 2, 2)}×`,
+    });
+    if (n.armCrossingIntervalMyr > M.NEIGHBOURHOOD.neverCrossingMyr) fillTemplate(arms, `${C}.armsCorotation`, {});
+    else fillTemplate(arms, `${C}.arms${n.overtakesPattern ? 'Inside' : 'Outside'}`, { interval: fmtDuration(n.armCrossingIntervalMyr) });
+    fillTemplate(formation, `${C}.formation${cap(n.metallicityTier)}`, {
+      metals: `${fmt(n.metallicity, 2, 2)}×`,
+      giant: `${fmt(n.giantPlanetFactor, n.giantPlanetFactor < 1 ? 2 : 1, 1)}×`,
+    });
   }
 
   /** Durations in Myr rendered as "51,000 years" / "128 million years" / "1.35 billion years". */
   function fmtDuration(myr) {
-    const E = `${KEYS}.earth`;
+    const E = `${KEYS}.conditions`;
     if (myr < 1) return t(`${E}.years`, { n: fmt(roundSignificant(myr * 1e6, 2), 0) });
     if (myr < 1000) return t(`${E}.millionYears`, { n: fmt(myr, myr < 10 ? 1 : 0) });
     return t(`${E}.billionYears`, { n: fmt(myr / 1000, 2) });
@@ -988,7 +997,28 @@ function createFacts(rows) {
   };
 }
 
-/** Round to `digits` significant figures (for "≈ 47,000 stars"). */
+const cap = (s) => s[0].toUpperCase() + s.slice(1);
+
+/**
+ * Render an i18n template into `node`, setting every interpolated value in bold:
+ * the text between placeholders becomes text nodes, each {name} a <strong>.
+ */
+function fillTemplate(node, key, params) {
+  const template = t(key);
+  const parts = template.split(/\{(\w+)\}/g);
+  node.replaceChildren();
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) {
+      if (parts[i]) node.append(document.createTextNode(parts[i]));
+    } else {
+      const strong = el('strong', 'lp-state__figure');
+      strong.textContent = parts[i] in params ? String(params[parts[i]]) : `{${parts[i]}}`;
+      node.append(strong);
+    }
+  }
+}
+
+/** Round to `digits` significant figures. */
 function roundSignificant(v, digits) {
   if (v === 0) return 0;
   const p = Math.pow(10, Math.floor(Math.log10(Math.abs(v))) - digits + 1);

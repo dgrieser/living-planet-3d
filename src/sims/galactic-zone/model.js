@@ -205,7 +205,26 @@ export const NEIGHBOURHOOD = Object.freeze({
   giantPlanetSlopeDex: 2.0,
   /** Crossing intervals above this are shown as "practically never" (the Sun is near corotation). */
   neverCrossingMyr: 1000,
+  /** Window for quoting catastrophe odds: "a x % chance in any 100 million years". */
+  oddsWindowMyr: 100,
+  /** Metallicity above/below these counts as a metal-rich / metal-poor birthplace for the solar system. */
+  richMetallicity: 1.1,
+  poorMetallicity: 0.9,
 });
+
+/** Probability (in %) of at least one event within `windowMyr` for a Poisson process with the given mean interval. */
+export function chanceWithinPercent(intervalMyr, windowMyr = NEIGHBOURHOOD.oddsWindowMyr) {
+  if (!Number.isFinite(intervalMyr)) return 0;
+  return 100 * (1 - Math.exp(-windowMyr / intervalMyr));
+}
+
+/** Birthplace chemistry for a solar system formed at r: 'rich' | 'same' | 'poor'. */
+export function metallicityTier(rKly, cfg = DEFAULT_CONFIG) {
+  const z = relativeMetallicity(rKly, cfg);
+  if (z >= NEIGHBOURHOOD.richMetallicity) return 'rich';
+  if (z <= NEIGHBOURHOOD.poorMetallicity) return 'poor';
+  return 'same';
+}
 
 /** Typical distance to the nearest star (ly): spacing ∝ ρ^(−1/3). */
 export function nearestStarLy(rKly, cfg = DEFAULT_CONFIG) {
@@ -268,6 +287,11 @@ export function neighbourhoodState(rKly, cfg = DEFAULT_CONFIG) {
     supernovaIntervalMyr: ozoneSupernovaIntervalMyr(r, cfg),
     giantPlanetFactor: giantPlanetFactor(r, cfg),
     armCrossingIntervalMyr: armCrossingIntervalMyr(r, cfg),
+    /** Inside corotation the Sun overtakes the pattern, outside it lags behind. */
+    overtakesPattern: angularSpeed(r, cfg) > TAU / cfg.patternPeriodMyr + 1e-12,
+    supernovaChancePercent: chanceWithinPercent(ozoneSupernovaIntervalMyr(r, cfg)),
+    metallicityTier: metallicityTier(r, cfg),
+    isToday: Math.abs(r - cfg.sun.radiusKly) < 0.26,
     periodMyr: orbitalPeriodMyr(r, cfg),
     galacticYears: galacticYearsSinceFormation(r, cfg),
   };

@@ -765,7 +765,6 @@
         "cameraSun": "Standort der Sonne"
       },
       "status": {
-        "label": "Wo die Sonne steht",
         "inner": "Zu nah – lebensfeindlich",
         "innerHint": "Dichte Sternfelder nahe dem Zentrum: intensive Strahlung, häufige Supernovae und nahe Sternbegegnungen, die Planetenbahnen stören.",
         "habitable": "Galaktische habitable Zone",
@@ -782,20 +781,19 @@
         "metals": "Schwere Elemente ggü. Sonne heute",
         "orbits": "Umläufe auf der Zeitleiste"
       },
-      "earth": {
-        "nearestStar": "Nächster Stern (typisch)",
-        "nakedEye": "Sterne mit bloßem Auge",
-        "encounters": "Sternpassage innerhalb 1 pc",
-        "oort": "Rand der Oortschen Wolke ggü. heute",
-        "supernova": "Ozonschädigende Supernova (< 8 pc)",
-        "planets": "Riesenplaneten ggü. heute",
-        "arms": "Spiralarm-Durchgang",
-        "armsNever": "praktisch nie (Korotation)",
-        "every": "alle ≈ {interval}",
+      "conditions": {
+        "label": "Bedingungen im Sonnensystem",
+        "hazardsToday": "Eine ozonschädigende Supernova innerhalb von 8 Parsec trifft etwa alle {supernova} ein – eine Chance von {chance} in jedem 100-Millionen-Jahre-Abschnitt. Alle ≈ {passage} zieht ein Stern innerhalb eines Parsecs vorbei und löst gelegentlich Kometenschauer aus der Oortschen Wolke.",
+        "hazards": "Eine ozonschädigende Supernova innerhalb von 8 Parsec träfe etwa alle {supernova} ein (heute ≈ {supernovaToday}) – eine Chance von {chance} in jedem 100-Millionen-Jahre-Abschnitt (heute {chanceToday}). Alle ≈ {passage} zöge ein Stern innerhalb eines Parsecs vorbei (heute ≈ {passageToday}) und löste Kometenschauer aus einer Oortschen Wolke aus, die {oort} so weit hinausreicht wie heute.",
+        "armsInside": "Schneller als das Spiralmuster kreisend, durchquerte die Sonne etwa alle {interval} einen Arm und verbrächte einen Teil jedes Umlaufs zwischen jungen Sternen, Supernovae und riesigen Molekülwolken – ein Takt, den manche mit Eiszeiten verknüpfen, was aber umstritten ist.",
+        "armsOutside": "Langsamer als das Spiralmuster kreisend, würde die Sonne etwa alle {interval} von einem Arm überholt und verbrächte einen Teil jedes Umlaufs zwischen jungen Sternen, Supernovae und riesigen Molekülwolken – ein Takt, den manche mit Eiszeiten verknüpfen, was aber umstritten ist.",
+        "armsCorotation": "Die Sonne läuft hier mit dem Spiralmuster mit (Korotation) und durchquert kaum je einen Arm – wie heute.",
+        "formationRich": "Wäre das Sonnensystem hier mit {metals} so vielen schweren Elementen wie heute entstanden, wäre ein Gasriese etwa {giant} so wahrscheinlich gewesen – doch metallreiche Systeme bringen häufiger Riesen hervor, die nach innen wandern. Ein weit außen geparkter Jupiter, der Kometen hütet und die inneren Planeten in Ruhe lässt, würde sich weniger wahrscheinlich wiederholen. Die Erde hätte mit mehr Uran und Thorium begonnen: ein heißeres Inneres, stärkerer Vulkanismus und stärkere Plattentektonik als heute.",
+        "formationSame": "Mit etwa dem heutigen Vorrat an schweren Elementen hätte ein hier entstandenes Sonnensystem ungefähr dieselbe Chance auf einen Jupiter gehabt – und auf eine Erde mit dem heutigen Anteil an Uran und Thorium, also derselben inneren Wärme, demselben Vulkanismus und derselben Plattentektonik.",
+        "formationPoor": "Wäre das Sonnensystem hier mit nur {metals} so vielen schweren Elementen wie heute entstanden, wäre ein jupiterähnlicher Riese etwa {giant} so wahrscheinlich gewesen – das System hätte seinen großen Türhüter also womöglich ganz entbehrt (wie schützend Jupiter wirklich ist, bleibt umstritten). Die Erde hätte mit weniger Gestein und weniger Uran und Thorium begonnen: ein kühleres Inneres, schwächere Plattentektonik und ein schwächerer Geodynamo als heute.",
         "years": "{n} Jahre",
         "millionYears": "{n} Millionen Jahre",
-        "billionYears": "{n} Milliarden Jahre",
-        "note": "Ab „Nächster Stern“: Wie es dem Leben auf der Erde in diesem Abstand erginge – heutige Messwerte, skaliert mit der schematischen Scheibe und dem Metallizitätsgradienten (Quellen unter „Zum Modell“). Bahn, Jahr, Jahreszeiten und Sonnenlicht der Erde blieben unverändert."
+        "billionYears": "{n} Milliarden Jahre"
       },
       "tooltip": {
         "innerTitle": "Innere Galaxis",
