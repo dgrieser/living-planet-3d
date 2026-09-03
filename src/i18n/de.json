@@ -67,7 +67,6 @@
     "solarRadius": "R☉",
     "solarFlux": "S☉",
     "gigayears": "Mrd. Jahre",
-    "gigayearsPerSecond": "Mrd. Jahre/s",
     "minutes": "min",
     "wattsPerSquareMeter": "W/m²",
     "hoursPerSecond": "h/s",
@@ -391,6 +390,7 @@
       },
       "planet": {
         "distance": "Abstand zum Stern",
+        "rotationSpeed": "Rotationsgeschwindigkeit der Erde",
         "name": "Planet",
         "earth": "Erde",
         "teq": "Gleichgewichtstemperatur",
@@ -412,7 +412,6 @@
         "today": "heute",
         "play": "Sternentwicklung abspielen",
         "pause": "Sternentwicklung pausieren",
-        "speed": "Geschwindigkeit der Entwicklung",
         "resetToday": "Heute (4,57 Mrd. Jahre)",
         "window": "Bewohnbar bei {d} AE: {from} – {to} Mrd. Jahre",
         "never": "Bei {d} AE um einen sonnenähnlichen Stern nie bewohnbar",

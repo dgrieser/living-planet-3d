@@ -67,7 +67,6 @@
     "solarRadius": "R☉",
     "solarFlux": "S☉",
     "gigayears": "Gyr",
-    "gigayearsPerSecond": "Gyr/s",
     "minutes": "min",
     "wattsPerSquareMeter": "W/m²",
     "hoursPerSecond": "h/s",
@@ -391,6 +390,7 @@
       },
       "planet": {
         "distance": "Distance from star",
+        "rotationSpeed": "Earth rotation speed",
         "name": "Planet",
         "earth": "Earth",
         "teq": "Equilibrium temperature",
@@ -412,7 +412,6 @@
         "today": "today",
         "play": "Play stellar evolution",
         "pause": "Pause stellar evolution",
-        "speed": "Evolution speed",
         "resetToday": "Today (4.57 Gyr)",
         "window": "Habitable at {d} AU: {from} – {to} Gyr",
         "never": "Never habitable at {d} AU around a Sun-like star",
