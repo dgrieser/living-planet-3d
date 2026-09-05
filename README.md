@@ -75,11 +75,14 @@ scripts/
 
 Brand on the left, and on the right three controls of the same round, icon-sized shape
 (`.lp-icon-btn`): the way back to the overview – a house, shown only on a simulation page –
-the EN/DE language pill and the flask that lists the work-in-progress simulations. The house
-and the camera in the panel header are stroked line icons from `ICONS` in `lib/ui.js`
-(`createIcon('home')`), drawn on a 24 grid with their ink centred on (12, 12) so they sit
-straight in a round button; everything else in the UI keeps its emoji glyph. Being icon-only,
-each one carries its name as `aria-label` and `title`, translated like every other string.
+the EN/DE language pill and the lab flask that lists the work-in-progress simulations. The
+house, the flask and the camera in the panel header are stroked line icons from `ICONS` in
+`lib/ui.js` (`createIcon('home')`), drawn on a 24 grid; everything else in the UI keeps its
+emoji glyph. They are balanced by eye rather than by their bounding box – the eye centres on
+the body of a shape (the camera's back, the flask's cone, the walls of the house) and lets
+the light bits above it overhang – so a "technically centred" icon that reads as sitting low
+is wrong. Being icon-only, each one carries its name as `aria-label` and `title`, translated
+like every other string.
 
 ## Panel layout
 

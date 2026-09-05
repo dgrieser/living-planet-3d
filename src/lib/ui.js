@@ -11,10 +11,14 @@ const uid = (prefix) => `${prefix}-${++idCounter}`;
  * Inline icons for the places where an emoji glyph is too soft-edged: they are stroked
  * with `currentColor`, so they take the colour and the hover state of their button.
  */
-// each one is drawn with its ink centred on (12, 12): they sit in a round button
+// Each one is balanced by eye on the middle of a round button, not by its bounding box:
+// what the eye centres on is the body of the shape – the camera's back, the flask's cone,
+// the walls of the house – while the light bits above it (the viewfinder bump, the neck,
+// the roof ridge) are allowed to overhang.
 export const ICONS = Object.freeze({
   home: '<path d="M3.4 11.3 12 4l8.6 7.3"/><path d="M5.9 10V20h12.2V10"/><path d="M9.9 20v-5.2h4.2V20"/>',
-  camera: '<rect x="3" y="7.5" width="18" height="11.5" rx="2"/><path d="M8.6 7.5 10 5h4l1.4 2.5"/><circle cx="12" cy="13.2" r="3.2"/>',
+  camera: '<rect x="2.6" y="5.9" width="18.8" height="12.6" rx="2.2"/><path d="M8.4 5.9 9.9 3.3h4.2l1.5 2.6"/><circle cx="12" cy="12.2" r="3.4"/>',
+  flask: '<path d="M8.6 3h6.8"/><path d="M9.9 3v6.2L4.2 17.8A1.7 1.7 0 0 0 5.6 20.5h12.8a1.7 1.7 0 0 0 1.4-2.7L14.1 9.2V3"/><path d="M7.2 15h9.6"/>',
 });
 
 /** A 24-grid line icon from ICONS, ready to drop into a button. */

@@ -81,7 +81,7 @@ function createLanguageToggle() {
 /** Tiny header button that lists / unlists the work-in-progress simulations on the overview. */
 function createHiddenToggle() {
   const btn = el('button', 'lp-icon-btn lp-wip-toggle', { type: 'button' });
-  btn.textContent = '⚗';
+  btn.append(createIcon('flask')); // a lab flask: these simulations are the experiments
   const sync = () => {
     btn.setAttribute('aria-pressed', String(showHidden));
     bindAttr(btn, { 'aria-label': showHidden ? 'app.hideWip' : 'app.showWip', title: showHidden ? 'app.hideWip' : 'app.showWip' });
