@@ -441,8 +441,11 @@
         "starSizeNote": "Wie viel größer als in Wirklichkeit die Sternscheibe gezeichnet wird. Bei 1× stimmt der Maßstab: Die Sonne wäre am Erdhimmel ein halbes Grad groß, in dieser Ansicht also ein Punkt. Das ändert nur das Bild — der wirkliche Radius des Sterns ist ein eigener Regler, und seine scheinbare Größe vom Planeten aus steht in den Anzeigen.",
         "speed": "Gesamtgeschwindigkeit",
         "speedNote": "Skaliert die gesamte Animation: Rotation und Umlauf des Planeten, Oberfläche und Korona des Sterns sowie das Tempo der Sternentwicklung. Bei 0× steht die Szene still.",
+        "camera": "Kamera",
         "frameZone": "Zone einpassen",
         "frameZoneAria": "Zone einpassen: Stern, Planet und bewohnbare Zone automatisch im Blick behalten",
+        "followPlanet": "Planet",
+        "followPlanetAria": "Planet aus der Nähe: mit dem Planeten mitfliegen, den Stern in der Ferne dahinter",
         "overview": "Übersicht (5 AE)"
       },
       "legend": {

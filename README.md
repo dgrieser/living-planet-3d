@@ -127,7 +127,7 @@ disposers.push(viewShift.dispose);
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout in the panel (Kp, storm phase, boundary distances, aurora reach, geostationary exposure), and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
 | `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes as Beer–Lambert extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and a "Conditions in the solar system" box that explains in prose, against today's Earth as the reference, the odds of ozone-damaging supernovae and comet-shower passages, whether the Sun would cross spiral arms here, and what a solar system born here would have got in terms of a Jupiter and radiogenic heat, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
-| `habitable-zone` | The habitable zone | Adjustable star set by its two physical properties – effective temperature (2600–7200 K) and radius, with the luminosity following from `L = R²T⁴`, so it can be pulled off the main sequence into a subgiant or a giant – with M/K/G/F presets, a colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged up and down (mouse or touch) for its type, carrying temperature, size and brightness together along the main sequence, with a slider to inflate it off that sequence into a subgiant or giant; draggable planet (0.1–5 AU) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into cracked rock with pulsing fissures and star-facing lava seas; live Kopparapu zone (T_eff-dependent flux limits, so the zone is not a plain √L scaling) with a master toggle and flat-annulus / 3D-shell sub-toggles, a "frame zone" mode that keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
+| `habitable-zone` | The habitable zone | Adjustable star set by its two physical properties – effective temperature (2600–7200 K) and radius, with the luminosity following from `L = R²T⁴`, so it can be pulled off the main sequence into a subgiant or a giant – with M/K/G/F presets, a colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged up and down (mouse or touch) for its type, carrying temperature, size and brightness together along the main sequence, with a slider to inflate it off that sequence into a subgiant or giant; draggable planet (0.1–5 AU) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into cracked rock with pulsing fissures and star-facing lava seas; live Kopparapu zone (T_eff-dependent flux limits, so the zone is not a plain √L scaling) with a master toggle and flat-annulus / 3D-shell sub-toggles, three camera modes on one row — "frame zone" keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), "planet" rides along with the planet for a close-up with the star in the distance behind it, "overview" hands the camera back — Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
 
 ### axial-tilt notes
 
@@ -261,14 +261,29 @@ disposers.push(viewShift.dispose);
   halo, and the planet's name and temperature labels, which mark it when it is only a speck. Only the
   invisible hit spheres stay generous, so both bodies remain easy to grab; the rings around them are a
   drag/hover cue and nothing else.
-- "Frame zone" is a mode, not a one-off (`autoFrame`, a remembered preference, on by default): while it is
-  pressed the camera keeps the planet's orbit, the star's disc (plus a little corona) and – when it is
-  shown – the outer zone edge in view, at `fitDistance()` for that radius and along whatever viewing
-  direction the visitor has. It re-frames when a gesture *ends* – pointer up, touch released, a slider's
-  `change` event, a preset or the zone toggle – never while one runs, so the view cannot pump in and out
-  under a finger; a 6 % tolerance suppresses pointless tweens. Stellar evolution has no pointer to wait
-  for, so playback re-frames itself with a wider 30 % tolerance, as does a window resize. "Overview"
-  switches the mode off and hands the camera back.
+- The camera has three modes (`cameraMode`, a remembered preference, `fit` by default), one per button on
+  the camera row; switching into one flies there, so pressing the button shows what it does.
+- **`fit` — "Frame zone".** The camera keeps the planet's orbit, the star's disc (plus a little corona) and
+  – when it is shown – the outer zone edge in view, at `fitDistance()` for that radius and along whatever
+  viewing direction the visitor has. It re-frames when a gesture *ends* – pointer up, touch released, a
+  slider's `change` event, a preset or the zone toggle – never while one runs, so the view cannot pump in
+  and out under a finger; a 6 % tolerance suppresses pointless tweens. Stellar evolution has no pointer to
+  wait for, so playback re-frames itself with a wider 30 % tolerance, as does a window resize.
+- **`follow` — "Planet".** A close-up that rides along with the planet, for seeing what its surface looks
+  like at the moment. The camera stands 11 planet radii outside the orbit, 4.5 to the side and 2.6 above
+  the plane — all in planet radii, so the planet keeps the same apparent size at any orbit — and aims
+  between the two bodies, turning about the vertical so they end up beside each other rather than
+  diagonally: the planet sits 45 % of the way from the centre to the right edge, the star smaller and
+  further left, both measured against the frame's own half-angle so a phone gets the same picture as a
+  desktop (the lateral offset shrinks on a portrait frame, the height above the plane does not — that
+  height is what keeps the star clear of the planet's disc where there is no room beside it). Left alone
+  the camera stays on that framing; once the visitor has taken hold of the view (`start` on the controls)
+  it keeps their own angle and distance, carried around with the planet — the offsets are re-read from the
+  live camera every frame, so orbiting and zooming keep working, and a planet dragged to another orbit
+  takes the view with it. The tween into the mode re-evaluates its destination every step, since the
+  planet is moving while the camera flies to it. A star swollen far past its own orbit can still fill this
+  view; the camera keeps clear of its drawn disc, and the "Star size on screen" control is the way out.
+- **`free` — "Overview".** Flies out to 5 AU and leaves the camera to the visitor.
 - Surface visuals are driven by `stateMix()`: `thaw`/`scorch` blend across the edges (±4 K), `cold` ramps
   over 120 K below the outer edge (partly glaciated → deep-frozen) and `heat` over 500 K above the inner
   edge (Venus-like cloud deck → cracked rock with glowing fissures → lava seas on the star-facing side).
