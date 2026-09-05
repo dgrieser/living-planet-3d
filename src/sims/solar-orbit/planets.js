@@ -3,6 +3,7 @@
  * Radii: IAU mean radii (km). Rotation: sidereal rotation period (days, negative = retrograde).
  * Textures: Solar System Scope, CC BY 4.0 – https://www.solarsystemscope.com/textures/
  */
+import { zoneEdgesAU, SOLAR_TEFF_K } from '../habitable-zone/physics.js';
 export const SUN = Object.freeze({
   id: 'sun',
   radiusKm: 695700,
@@ -22,8 +23,13 @@ export const PLANETS = Object.freeze([
   { id: 'neptune', radiusKm: 24622, rotationDays: 0.6713, texture: '2k_neptune.jpg', color: 0x4b70dd, orbitColor: 0x6d8ae6 },
 ]);
 
-/** Conservative circumstellar habitable zone (Kopparapu et al. 2013, "moist greenhouse" – "maximum greenhouse"). */
-export const HABITABLE_ZONE_AU = Object.freeze({ inner: 0.95, outer: 1.37 });
+/**
+ * Conservative circumstellar habitable zone of the Sun: runaway greenhouse to maximum greenhouse,
+ * 0.95–1.68 AU. Taken from the habitable-zone simulation's physics module rather than written out
+ * again, so the two simulations cannot drift apart on the same number.
+ */
+const sunZone = zoneEdgesAU(1, SOLAR_TEFF_K);
+export const HABITABLE_ZONE_AU = Object.freeze({ inner: sunZone.inner, outer: sunZone.outer });
 
 /** Hypothetical eccentric Earth orbit used for comparison. */
 export const HYPOTHETICAL_ECCENTRICITY = 0.3;

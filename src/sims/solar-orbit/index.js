@@ -3,7 +3,8 @@
  *
  * All eight planets orbit the Sun at positions computed from the JPL approximate
  * Keplerian elements (1800–2050). Earth is highlighted, the conservative habitable
- * zone (0.95–1.37 au) is drawn as a translucent annulus, and a hypothetical
+ * zone (0.95–1.68 au, from the habitable-zone simulation's physics) is drawn as a
+ * translucent annulus, and a hypothetical
  * eccentric Earth orbit (e = 0.3) can be overlaid for comparison.
  *
  * Scene units: 1 au = AU_UNITS. Ecliptic (x, y, z) → scene (x, z, −y) so the

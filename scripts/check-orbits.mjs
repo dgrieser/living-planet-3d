@@ -1,12 +1,13 @@
 // Sanity checks for src/sims/solar-orbit/kepler.js (pure JS, runs in Node).
 //
-//  1. Earth's orbit stays inside the conservative habitable zone (0.95–1.37 au)
+//  1. Earth's orbit stays inside the conservative habitable zone (0.95–1.68 au)
 //     for every month 1900–2050 and never deviates from a circle by more than e·a.
 //  2. Heliocentric longitudes match well-known astronomical events
 //     (equinoxes/solstices → Earth; oppositions → outer planets; inferior
 //     conjunctions → inner planets) to well below the 0.05 au acceptance limit.
 //  3. Kepler solver round-trips M = E − e·sin E for all planets.
 import { planetPosition, dateToJD, orbitalPeriodDays, PLANET_IDS, solveKepler, apsides } from '../src/sims/solar-orbit/kepler.js';
+import { HABITABLE_ZONE_AU } from '../src/sims/solar-orbit/planets.js';
 
 const DEG = Math.PI / 180;
 let failed = false;
@@ -27,7 +28,7 @@ for (let y = 1900; y <= 2050; y++) {
     rMax = Math.max(rMax, r);
   }
 }
-ok(rMin > 0.95 && rMax < 1.37, `Earth distance 1900–2050 within habitable zone: ${rMin.toFixed(4)}–${rMax.toFixed(4)} au`);
+ok(rMin > HABITABLE_ZONE_AU.inner && rMax < HABITABLE_ZONE_AU.outer, `Earth distance 1900–2050 within habitable zone (${HABITABLE_ZONE_AU.inner.toFixed(2)}–${HABITABLE_ZONE_AU.outer.toFixed(2)} au): ${rMin.toFixed(4)}–${rMax.toFixed(4)} au`);
 ok(Math.abs(rMin - 0.9833) < 0.002 && Math.abs(rMax - 1.0167) < 0.002, `Earth perihelion/aphelion ≈ 0.983 / 1.017 au`);
 const eccOrbit = apsides('earth', jd('2000-01-01T12:00:00Z'), { e: 0.3 });
 ok(eccOrbit.perihelion < 0.95, `Hypothetical e=0.3 orbit leaves the zone (perihelion ${eccOrbit.perihelion.toFixed(3)} au)`);

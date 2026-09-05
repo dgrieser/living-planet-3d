@@ -16,7 +16,7 @@ npm run check:i18n # verify de.json mirrors en.json 1:1
 npm run check:prefs # verify the remembered view toggles (src/lib/prefs.js)
 npm run check:axial  # validate axial-tilt physics (declination, day length, insolation, calendar mapping) and climate module (habitable fraction vs. tilt, seasonal extremes, verdict tiers)
 npm run check:orbits # validate planet-position algorithm against known events
-npm run check:hz     # validate habitable-zone physics (zone edges, T_eq, stellar evolution)
+npm run check:hz     # validate habitable-zone physics (Kopparapu flux limits, zone edges, T_eq, stellar evolution, true sizes)
 npm run check:tides   # validate moon-tides physics (2GMR/r³, 1/r³ scaling, spring/neap, periods, tilt models)
 npm run check:mag     # validate magnetosphere physics (ram pressure, standoff, boundary fits, field-line deformation, Kp, aurora)
 npm run check:galaxy  # validate galactic-zone model (Sun's orbit, zone edges, metallicity gradient, spiral geometry, point cloud statistics, "life on Earth" scalings, haze/dust/globular generators)
@@ -49,8 +49,9 @@ src/
                      climate.js (seasonal extremes, livable bands & fraction, verdict tiers, colour ramp – pure JS,
                      built on physics.js), index.js
   sims/solar-orbit/  kepler.js (JPL approximate elements, pure JS), planets.js (physical data), index.js
-  sims/habitable-zone/ physics.js (zone edges, T_eq, stellar evolution, star relations, radius↔luminosity
-                     inverse for the star drag, surface-state ramps – pure JS), index.js
+  sims/habitable-zone/ physics.js (Kopparapu flux limits & zone edges, T_eq, stellar evolution, star
+                     relations, radius↔luminosity inverse for the star drag, surface-state ramps, true
+                     radii – pure JS; solar-orbit imports the Sun's zone edges from here), index.js
   sims/moon-tides/   physics.js (tidal acceleration, equilibrium bulge, spring/neap, Kepler periods, tilt models – pure JS), index.js
   sims/magnetosphere/ physics.js (ram pressure, magnetopause standoff, Shue boundary, dipole lines,
                      field-line deformation, streamlines, Kp-style index, aurora oval – pure JS), index.js
@@ -122,11 +123,11 @@ disposers.push(viewShift.dispose);
 | id | Module | Content |
 |----|--------|---------|
 | `axial-tilt` | Axial tilt, seasons & day length | Earth orbiting an emissive Sun with adjustable tilt (0–90°) and rotation period (6–300 h); shader day/night terminator with real city lights on the night side, switchable overlays for the insolation heat map or the seasonal-mean temperature bands (energy-balance model per latitude), livable-region view (green border rings + darkened hostile bands), live tropics/polar circles/subsolar point, draggable orbit position with season stops, annual-cycle animation, day-length/insolation/temperature/seasonal-extremes/climate-zone readout for any latitude, click-to-pin a place (camera follows it, readout switches to its latitude, livable verdict), year-round livable surface fraction with a verdict (no / moderate / severe / extreme seasons), camera modes Earth / overview / top / pinned place, bilingual what-if presets (0°, 23.4°, 90°, 300 h, 6 h). |
-| `solar-orbit` | Earth's orbit & the habitable zone | All 8 planets from JPL Keplerian elements (1800–2050), habitable-zone annulus (0.95–1.37 AU), Earth highlight, hypothetical e = 0.3 orbit, true/visual scale, date picker, camera presets, bilingual planet info cards. |
+| `solar-orbit` | Earth's orbit & the habitable zone | All 8 planets from JPL Keplerian elements (1800–2050), habitable-zone annulus (0.95–1.68 AU, shared with the habitable-zone simulation), Earth highlight, hypothetical e = 0.3 orbit, true/visual scale, date picker, camera presets, bilingual planet info cards. |
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout in the panel (Kp, storm phase, boundary distances, aurora reach, geostationary exposure), and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
 | `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes drawn as multiplicative extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and a "Conditions in the solar system" box that explains in prose, against today's Earth as the reference, the odds of ozone-damaging supernovae and comet-shower passages, whether the Sun would cross spiral arms here, and what a solar system born here would have got in terms of a Jupiter and radiogenic heat, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
-| `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged with one two-axis gesture (mouse or touch – sideways for the type, up/down for how large the disc is drawn, 0.3–6×); draggable planet (0.1–5 AU) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into cracked rock with pulsing fissures and star-facing lava seas; live Kopparapu zone with a master toggle and flat-annulus / 3D-shell sub-toggles, a "frame zone" mode that keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
+| `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged with one two-axis gesture (mouse or touch – sideways for the type, up/down for how large the disc is drawn, 0.3–6×); draggable planet (0.1–5 AU) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into cracked rock with pulsing fissures and star-facing lava seas; live Kopparapu zone (T_eff-dependent flux limits, so the zone is not a plain √L scaling) with a master toggle and flat-annulus / 3D-shell sub-toggles, a "frame zone" mode that keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
 
 ### axial-tilt notes
 
@@ -195,19 +196,33 @@ disposers.push(viewShift.dispose);
 
 ### habitable-zone notes
 
-- Zone edges (conservative limits, Kopparapu et al. 2013): `d_inner = √(L/1.1) AU`, `d_outer = √(L/0.53) AU`.
-  Since the inner/outer ratio is constant, the zone geometry is built once and scaled by √L.
-- Equilibrium temperature `T_eq = 278 K · L^¼ / √d`. The surface state is derived from T_eq thresholds
-  that coincide with the zone edges (frozen < 237 K, scorched > 285 K), so state and zone always agree.
+- Zone edges (conservative limits, Kopparapu et al. 2014, Table 1, 1 M⊕): `d = √(L / S_eff) AU` with the
+  flux limit itself a quartic in the star's temperature, `S_eff = S_☉ + a·T* + b·T*² + c·T*³ + d·T*⁴`,
+  `T* = T_eff − 5780 K` — runaway greenhouse (inner) and maximum greenhouse (outer), 1.107 and 0.356 S☉ for
+  the Sun, i.e. **0.95–1.68 AU**. The fit is valid for 2600–7200 K and is held at those ends outside them
+  (the luminosity range reaches ≈ 2350 K and ≈ 7800 K). Because a planet absorbs a red star's light more
+  readily, both limits fall for cooler stars: an M dwarf's zone sits 10–20 % farther out than a plain √L
+  scaling of the solar values gives. The two edges therefore move independently — the annulus is a unit
+  disc whose shader drops everything inside the inner/outer ratio, and the edge loops and shells are unit
+  geometry scaled to each radius, so nothing has to be rebuilt while the star is dragged.
+- Equilibrium temperature `T_eq = 278 K · L^¼ / √d`, for albedo 0 and no greenhouse effect — a radiative
+  balance, not a surface temperature (Earth's albedo of 0.3 puts its equilibrium temperature at 255 K, and
+  its greenhouse effect lifts the surface to 288 K). The surface state is derived from T_eq thresholds that
+  coincide with the zone edges (215 K and 285 K around the Sun, ≈ 20 K lower around an M dwarf), so state
+  and zone always agree whatever the star.
 - Stellar evolution uses Gough (1981): `L(t) = L☉ / (1 + 0.4 (1 − t/4.57 Gyr))` – Earth reaches the inner
   edge at ≈ 5.6 Gyr (≈ 1 Gyr from now).
 - Star appearance from main-sequence relations `T_eff ≈ 5778 K · L^0.13`, `M ≈ L^(1/3.5)`, `R = √L (5778/T_eff)²`;
-  colours follow a spectral-class ramp (red M dwarfs → blue-white A stars). Star and planet are drawn
-  with a minimum on-screen size; distances are to scale (1 AU = 10 units).
-- The star's drawn radius is `min(0.8, 0.5 · R/R☉) · size`, where `size` (0.3–6×, "Star size") is a
-  remembered *display* preference on top of the main-sequence radius – it leaves the physical radius, the
-  zone and every temperature untouched, and it scales the minimum on-screen size with it so shrinking
-  the disc still shows.
+  colours follow a spectral-class ramp (red M dwarfs → blue-white A stars). Distances are to scale
+  (1 AU = 10 units).
+- Both bodies are built from their true radii times a stated exaggeration, rather than from a made-up
+  size: `1 R☉ = 0.00465 AU` and `1 R⊕ = 4.26·10⁻⁵ AU`, the planet fixed at 375× and the star at the
+  "Star size" setting — 1× is true to scale (a dot), the default 11× reproduces the previous drawing, up
+  to 60×. It is a remembered *display* preference: the physical radius, the zone and every temperature are
+  untouched, the physics card states the current factor, and the star readouts carry the star's true
+  angular diameter as seen from the planet (0.53° for the Sun from Earth, ≈ 1.1° for an M dwarf from the
+  middle of its zone). The minimum on-screen size follows the exaggeration, so pulling the star back
+  towards true scale really does shrink it.
 - The planet can be dragged in the orbital plane; the pointerdown handler is registered in the capture
   phase and disables OrbitControls for the duration of the drag.
 - The star is dragged with one two-axis gesture, measured from wherever it was first touched: sideways
