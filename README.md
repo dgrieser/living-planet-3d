@@ -87,9 +87,9 @@ finds their way around the next:
    preset rows, the camera presets on one line, the display toggles and the overall
    reset (full width) – folded away by default on small screens
    (`createCollapsibleSection()`).
-3. **The readouts**: the status box, then its follow-up stats. A control whose readout
-   is only readable beside it (axial-tilt's latitude, moon-tides' tide gauge) travels
-   with that readout as one block instead of moving up into the fold.
+3. **The readouts**: the status box, then its follow-up stats – one `lp-facts` listing,
+   not a stack of boxes. A control whose readout is only readable beside it (moon-tides'
+   tide gauge) travels with that readout as one block instead of moving up into the fold.
 4. **The legend**, then the essay card, and last the physics / model card, which opens
    with the schematic caveats that qualify the numbers above it. Live warnings – the
    magnetic field is off, the Moon is gone, the date is out of range – stay next to the
@@ -162,12 +162,21 @@ disposers.push(viewShift.dispose);
   darken every latitude outside them, and draws the band edges as green latitude rings from a fixed pool; the
   displayed fraction is the exact band area `Δsin φ / 2`, which the check script keeps within 3 % of the
   sampled area-weighted fraction.
+- Panel: the tilt slider up front, everything else folded away – rotation period, the what-if presets, the
+  year & orbit group and, under "Readout for one latitude", the latitude slider with its four presets, which
+  pick the latitude every per-latitude figure describes. The readouts are one verdict box plus one table: the
+  box carries the year-round livable surface fraction with its verdict tier and, under a hairline, what the
+  chosen latitude makes of that tilt (climate zone with its hint, livable year-round); the table lists every
+  figure in reading order – the year for the planet as a whole (season, subsolar latitude, tropics, polar
+  circles), then the chosen latitude (pinned place, day length, midnight sun, polar night, insolation,
+  temperature, day/night, seasonal means). Two rows carry more than a number: the pinned place its release
+  button, the day length its polar-day / polar-night pill.
 - Camera modes: "Earth" follows Earth in its co-rotating frame (camera offset is rotated by Δθ each frame), so
   the Sun keeps its place on screen while the tilt geometry changes through the year – the planet-centric view
   in which the Sun appears to circle Earth once a year; "overview" and "top" look at the whole orbit. Dragging
   Earth along the orbit freezes the follow and catches up with a short tween afterwards.
 - Clicking Earth (a press that moves less than 6 px) raycasts the surface and pins that place: a marker in the
-  spinning group, the latitude slider and every per-latitude readout jump to it, and the fourth camera mode
+  spinning group, the latitude slider and every per-latitude figure jump to it, and the fourth camera mode
   "pinned place" holds the camera above the point every frame (zoom preserved, orbit rotation disabled, follow
   frozen during an orbit drag). The latitude slider and presets slide the pin along its meridian; a click on
   the sky, the Unpin button or Reset release it and return to the previous camera mode.
