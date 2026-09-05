@@ -78,6 +78,11 @@ const { clamp } = P;
 const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const smoothstep = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 const fmt = (v, digits, min = 0) => formatNumber(v, { maximumFractionDigits: digits, minimumFractionDigits: min });
+/** The views in the order the panel's header button steps through them. */
+const CAMERA_VIEWS = Object.freeze([
+  { id: 'side', labelKey: `${KEYS}.controls.cameraSide` },
+  { id: 'top', labelKey: `${KEYS}.controls.cameraTop` },
+]);
 const PHASE_PRESETS = Object.freeze([
   { id: 'new', elongation: 0 },
   { id: 'firstQuarter', elongation: Math.PI / 2 },
@@ -506,9 +511,9 @@ export default function mount(container, meta) {
   };
   let cameraMode = 'side';
   const cameraFor = () => new THREE.Vector3(...(state.view === 'axis' ? CAMERA.axis : state.toScale ? CAMERA.tidesToScale : CAMERA.tides)[cameraMode]);
-  function setCamera(mode) {
+  function setCamera(mode, { announce = false } = {}) {
     cameraMode = mode;
-    syncCameraButtons();
+    syncCameraButtons({ announce });
     tweenCamera(cameraFor());
   }
 
@@ -606,7 +611,10 @@ export default function mount(container, meta) {
   // while the panel is open on a wide screen the picture slides left, so what the
   // simulation shows stays centred in the free part of the canvas
   const viewShift = createPanelShift({ sim, viewport });
-  const panel = createPanel({ onToggle: () => viewShift.sync() });
+  const panel = createPanel({
+    onToggle: () => viewShift.sync(),
+    camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
+  });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // view switch
@@ -738,14 +746,15 @@ export default function mount(container, meta) {
   const labelsToggle = viewToggle('showLabels', `${KEYS}.controls.labels`);
   const cameraRow = el('div', 'lp-presets lp-presets--2 lp-presets--compact', { role: 'group' });
   bindAttr(cameraRow, { 'aria-label': `${KEYS}.controls.camera` });
-  const cameraButtons = ['side', 'top'].map((id) => {
-    const btn = createButton({ labelKey: `${KEYS}.controls.camera${id === 'side' ? 'Side' : 'Top'}`, onClick: () => setCamera(id) });
+  const cameraButtons = CAMERA_VIEWS.map(({ id, labelKey }) => {
+    const btn = createButton({ labelKey, onClick: () => setCamera(id) });
     btn.el.classList.add('lp-presets__btn');
     cameraRow.append(btn.el);
     return { id, el: btn.el };
   });
-  function syncCameraButtons() {
+  function syncCameraButtons({ announce = false } = {}) {
     for (const { id, el: btn } of cameraButtons) btn.setAttribute('aria-pressed', String(cameraMode === id));
+    panel.setCameraView(cameraMode, { announce });
   }
 
   const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });

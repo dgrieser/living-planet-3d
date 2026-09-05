@@ -7,7 +7,7 @@
  */
 import './style.css';
 import { t, setLanguage, getLanguage, onLanguageChange, applyTranslations, bindText, bindAttr, LANGUAGES } from './lib/i18n.js';
-import { el, createMessage, createButton } from './lib/ui.js';
+import { el, createIcon, createMessage, createButton } from './lib/ui.js';
 import { isWebGLAvailable } from './lib/webgl.js';
 import { listSimulations, findSimulation } from './sims/index.js';
 
@@ -44,10 +44,10 @@ function renderShell() {
   brand.append(logo, bindText(el('span'), 'app.title'), bindText(el('span', 'lp-brand__sub'), 'app.tagline'));
 
   const nav = el('nav', 'lp-header__nav');
-  const back = el('a', 'lp-header__back', { href: '#/', hidden: true });
-  back.append(bindText(el('span', 'lp-header__back-text'), 'app.backToOverview'));
-  back.prepend('← ');
-  bindAttr(back, { 'aria-label': 'app.backToOverview' });
+  // icon only: the house is the way back to the overview on every simulation page
+  const back = el('a', 'lp-icon-btn lp-header__back', { href: '#/', hidden: true });
+  back.append(createIcon('home'), bindText(el('span', 'visually-hidden'), 'app.backToOverview'));
+  bindAttr(back, { 'aria-label': 'app.backToOverview', title: 'app.backToOverview' });
   nav.append(back, createLanguageToggle(), createHiddenToggle());
   header.append(brand, nav);
 
@@ -80,8 +80,8 @@ function createLanguageToggle() {
 
 /** Tiny header button that lists / unlists the work-in-progress simulations on the overview. */
 function createHiddenToggle() {
-  const btn = el('button', 'lp-wip-toggle', { type: 'button' });
-  btn.textContent = '⚗';
+  const btn = el('button', 'lp-icon-btn lp-wip-toggle', { type: 'button' });
+  btn.append(createIcon('flask')); // a lab flask: these simulations are the experiments
   const sync = () => {
     btn.setAttribute('aria-pressed', String(showHidden));
     bindAttr(btn, { 'aria-label': showHidden ? 'app.hideWip' : 'app.showWip', title: showHidden ? 'app.hideWip' : 'app.showWip' });

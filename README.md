@@ -35,7 +35,7 @@ src/
   lib/ui.js          UI kit: createPanel, createPanelShift, createSlider, createToggle,
                      createStateToggle, createButton, createInfoCard, createNotice,
                      createMessage, createSection, createCollapsibleSection,
-                     createControlRow, el()
+                     createControlRow, createIcon() / ICONS (line icons), el()
   lib/prefs.js       createViewPrefs(): remembers a simulation's display toggles
                      (legends, labels, helper lines, overlays) in localStorage
   lib/scene.js       scene bootstrap: renderer (DPR ≤ 2), camera, OrbitControls,
@@ -71,6 +71,19 @@ scripts/
   check-galactic-zone.mjs validates the galactic-zone model (npm run check:galaxy)
 ```
 
+## App header
+
+Brand on the left, and on the right three controls of the same round, icon-sized shape
+(`.lp-icon-btn`): the way back to the overview – a house, shown only on a simulation page –
+the EN/DE language pill and the lab flask that lists the work-in-progress simulations. The
+house, the flask and the camera in the panel header are stroked line icons from `ICONS` in
+`lib/ui.js` (`createIcon('home')`), drawn on a 24 grid; everything else in the UI keeps its
+emoji glyph. They are balanced by eye rather than by their bounding box – the eye centres on
+the body of a shape (the camera's back, the flask's cone, the walls of the house) and lets
+the light bits above it overhang – so a "technically centred" icon that reads as sitting low
+is wrong. Being icon-only, each one carries its name as `aria-label` and `title`, translated
+like every other string.
+
 ## Panel layout
 
 Every simulation's control panel follows the same order, so a visitor who learns one
@@ -96,12 +109,40 @@ finds their way around the next:
    magnetic field is off, the Moon is gone, the date is out of range – stay next to the
    control or readout they describe.
 
+### The camera button in the panel header
+
+Every simulation's panel header carries a camera button next to the collapse chevron, and it
+is there whether the panel is open or collapsed – so the views stay one press away while the
+panel is out of the way. Each press steps to the next view in the simulation's list and the
+header names it for about two seconds, in place of the "Controls" title, before fading back.
+The panel keeps no camera state of its own: the simulation reports every change – its own
+preset row, a click in the scene, a reset – so the button stays in step, and a view the
+visitor set up by hand simply leaves no view marked as active, with the next press carrying
+on from the last preset. One list per simulation wires it up:
+
+```js
+const CAMERA_VIEWS = Object.freeze([
+  { id: 'overview', labelKey: `${KEYS}.controls.cameraOverview`, icon: '🌌' },
+  { id: 'sun', labelKey: `${KEYS}.controls.cameraSun`, icon: '☉' },
+]);
+const panel = createPanel({
+  onToggle: () => viewShift.sync(),
+  camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
+});
+...
+panel.setCameraView(cameraMode, { announce });   // from the simulation's syncCameraButtons()
+```
+
+The same list builds the preset row inside the panel, so the two can never drift apart. Views
+that are not a step of the cycle stay off the list and keep their own button: axial-tilt's
+"pinned place" (it only exists while a place is pinned) is one.
+
 Below 720 px the panel is a bottom sheet, and there its header doubles as a drag handle
 (the grip above the title): press it and pull to resize the sheet anywhere between closed
 and the full height of the canvas, and it stays where it is let go. Releasing within 56 px
 of the default height (70 % of the canvas) or of the closed position snaps to it, and
-pulling a closed sheet upwards opens it. A press that starts on the chevron never drags, so
-the button keeps toggling as before.
+pulling a closed sheet upwards opens it. A press that starts on one of the header's buttons
+never drags, so the chevron and the camera button keep working as buttons.
 
 Above the breakpoint the panel floats over the top-right corner of the canvas, and every
 simulation slides its picture out from under it: while the panel is open the projection is
@@ -126,7 +167,7 @@ disposers.push(viewShift.dispose);
 | `solar-orbit` | Earth's orbit & the habitable zone | All 8 planets from JPL Keplerian elements (1800–2050), habitable-zone annulus (0.95–1.68 AU, shared with the habitable-zone simulation), Earth highlight, hypothetical e = 0.3 orbit, true/visual scale, date picker, camera presets, bilingual planet info cards. |
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout in the panel (Kp, storm phase, boundary distances, aurora reach, geostationary exposure), and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
-| `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes as Beer–Lambert extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and a "Conditions in the solar system" box that explains in prose, against today's Earth as the reference, the odds of ozone-damaging supernovae and comet-shower passages, whether the Sun would cross spiral arms here, and what a solar system born here would have got in terms of a Jupiter and radiogenic heat, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
+| `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes as Beer–Lambert extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood (click the Sun or the galactic centre to fly to either view), what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and a "Conditions in the solar system" box that explains in prose, against today's Earth as the reference, the odds of ozone-damaging supernovae and comet-shower passages, whether the Sun would cross spiral arms here, and what a solar system born here would have got in terms of a Jupiter and radiogenic heat, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
 | `habitable-zone` | The habitable zone | Adjustable star set by its two physical properties – effective temperature (2600–7200 K) and radius, with the luminosity following from `L = R²T⁴`, so it can be pulled off the main sequence into a subgiant or a giant – with M/K/G/F presets, a colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged up and down (mouse or touch) for its type, carrying temperature, size and brightness together along the main sequence, with a slider to inflate it off that sequence into a subgiant or giant; draggable planet (0.1–5 AU) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into cracked rock with pulsing fissures and star-facing lava seas; live Kopparapu zone (T_eff-dependent flux limits, so the zone is not a plain √L scaling) with a master toggle and flat-annulus / 3D-shell sub-toggles, three camera modes on one row — "frame zone" keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), "planet" rides along with the planet for a close-up with the star in the distance behind it, "overview" hands the camera back — Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
 
 ### axial-tilt notes
@@ -366,6 +407,10 @@ disposers.push(viewShift.dispose);
   27 000 ly" button inline on its right) and the "Conditions in the solar system" box leading the readouts.
   The schematic caveat opens the model card. Like every simulation it slides the picture left while the panel
   is open on a wide screen (see *Panel layout*), so the galaxy stays centred in the free part of the canvas.
+- Clicking or tapping the Sun or the galactic centre in the scene flies to its view – the Sun
+  marker and a hit sphere the width of the drawn nucleus are the two targets that carry a
+  "click to fly here" line in their tooltip, and the panel header names the view it switched to.
+  A press that travels more than 6 px was an orbit drag and flies nowhere.
 - Camera presets: "Overview" looks down on the galactic centre from 133 kly (dead centre – the panel is
   dodged by the shared view shift, not by moving the camera). "The Sun" flies down to the Sun's own height, 2.4 kly
   outside it, and aims 21.6 kly inward along the radius: the disc lies across the frame as the band we see

@@ -100,6 +100,10 @@ const CAMERA_PRESETS = Object.freeze({
   polar: { position: [0.02, 9, 0.01], target: [0, 0, 0] },
   tail: { position: [-52, 13, 24], target: [-16, 0, 0] },
 });
+/** The views in the order the panel's header button steps through them. */
+const CAMERA_VIEWS = Object.freeze(
+  ['side', 'polar', 'tail'].map((id) => ({ id, labelKey: `${KEYS}.controls.camera${id[0].toUpperCase()}${id.slice(1)}` })),
+);
 
 const { clamp } = P;
 const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
@@ -482,9 +486,9 @@ export default function mount(container, meta) {
     controls.target.lerpVectors(cameraTween.fromTarget, cameraTween.target, k);
     if (cameraTween.t >= 1) cameraTween = null;
   }
-  function setCamera(mode) {
+  function setCamera(mode, { announce = false } = {}) {
     cameraMode = mode;
-    syncCameraButtons();
+    syncCameraButtons({ announce });
     tweenCamera(CAMERA_PRESETS[mode]);
   }
 
@@ -564,7 +568,10 @@ export default function mount(container, meta) {
   // while the panel is open on a wide screen the picture slides left, so what the
   // simulation shows stays centred in the free part of the canvas
   const viewShift = createPanelShift({ sim, viewport });
-  const panel = createPanel({ onToggle: () => viewShift.sync() });
+  const panel = createPanel({
+    onToggle: () => viewShift.sync(),
+    camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
+  });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the shield switch and the wind up front, the rest folded away ---------------------
@@ -608,14 +615,15 @@ export default function mount(container, meta) {
   const labelsToggle = viewToggle('showLabels', `${KEYS}.controls.labels`);
   const cameraRow = el('div', 'lp-presets lp-presets--3 lp-presets--compact', { role: 'group' });
   bindAttr(cameraRow, { 'aria-label': `${KEYS}.controls.camera` });
-  const cameraButtons = ['side', 'polar', 'tail'].map((id) => {
-    const btn = createButton({ labelKey: `${KEYS}.controls.camera${id[0].toUpperCase()}${id.slice(1)}`, onClick: () => setCamera(id) });
+  const cameraButtons = CAMERA_VIEWS.map(({ id, labelKey }) => {
+    const btn = createButton({ labelKey, onClick: () => setCamera(id) });
     btn.el.classList.add('lp-presets__btn');
     cameraRow.append(btn.el);
     return { id, el: btn.el };
   });
-  function syncCameraButtons() {
+  function syncCameraButtons({ announce = false } = {}) {
     for (const { id, el: btn } of cameraButtons) btn.setAttribute('aria-pressed', String(cameraMode === id));
+    panel.setCameraView(cameraMode, { announce });
   }
 
   const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });

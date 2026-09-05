@@ -56,6 +56,16 @@ const STAR_DRAG_TRAVEL_PX = Object.freeze({ min: 260, max: 900 }); // ... but ne
  */
 const PLANET_VIEW = Object.freeze({ out: 11, side: 4.5, up: 2.6, frame: 0.45, starFrame: 0.75, edge: 0.9, starClearance: 1.4, portrait: 0.5 });
 const CAMERA_MODES = Object.freeze(['fit', 'follow', 'free']);
+/**
+ * The camera views the panel's header button steps through, in the order of their buttons
+ * in the panel. "Overview" is not a mode of its own: it flies out wide and hands the camera
+ * back to the visitor ('free'), so the header button shows no view as active afterwards.
+ */
+const CAMERA_VIEWS = Object.freeze([
+  { id: 'fit', labelKey: `${KEYS}.view.frameZone` },
+  { id: 'follow', labelKey: `${KEYS}.view.followPlanet` },
+  { id: 'overview', labelKey: `${KEYS}.view.overview` },
+]);
 const FIT_TOLERANCE = 1.06; // how far the framing may drift before the fit mode re-frames
 const FIT_TOLERANCE_PLAYING = 1.3; // ... and while stellar evolution runs, so the camera does not creep along with it
 const SECONDS_PER_ORBIT_YEAR = 20; // visual time: at 1× speed a 1-year orbit takes 20 s
@@ -858,14 +868,20 @@ export default function mount(container, meta) {
    * slider ends; 'follow' rides along with the planet; 'free' leaves the camera alone. Switching
    * into a mode flies there, so pressing the button shows what it does.
    */
-  function setCameraMode(mode, { fly = true, duration } = {}) {
+  function setCameraMode(mode, { fly = true, duration, announce = false } = {}) {
     state.cameraMode = CAMERA_MODES.includes(mode) ? mode : 'free';
     viewPrefs.set('cameraMode', state.cameraMode);
     followAutopilot = true; // a mode always starts on its own framing again
-    syncCameraButtons();
+    syncCameraButtons({ announce });
     if (fly && state.cameraMode === 'fit') fitView(duration);
     if (fly && state.cameraMode === 'follow') tweenCamera(planetView, duration ?? 1.2);
     sim.requestRender();
+  }
+  /** The header button's view ids – 'overview' is the wide shot, not a mode. */
+  function selectCameraView(id) {
+    if (id !== 'overview') return setCameraMode(id);
+    setCameraMode('free', { fly: false }); // an explicit wide view: the camera is the visitor's again
+    frameOverview();
   }
   function setTempUnit(unit) {
     if (!TEMP_UNITS.includes(unit)) return;
@@ -881,7 +897,10 @@ export default function mount(container, meta) {
   // while the panel is open on a wide screen the picture slides left, so what the
   // simulation shows stays centred in the free part of the canvas
   const viewShift = createPanelShift({ sim, viewport });
-  const panel = createPanel({ onToggle: () => viewShift.sync() });
+  const panel = createPanel({
+    onToggle: () => viewShift.sync(),
+    camera: { views: CAMERA_VIEWS, onSelect: selectCameraView },
+  });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the planet's distance up front, the rest folded away -----------------------------
@@ -1090,17 +1109,15 @@ export default function mount(container, meta) {
     icon: '◐',
     onClick: () => setCameraMode(state.cameraMode === 'follow' ? 'free' : 'follow'),
   });
-  function syncCameraButtons() {
+  function syncCameraButtons({ announce = false } = {}) {
     frameBtn.el.setAttribute('aria-pressed', String(state.cameraMode === 'fit'));
     followBtn.el.setAttribute('aria-pressed', String(state.cameraMode === 'follow'));
+    panel.setCameraView(state.cameraMode, { announce });
   }
   const overviewBtn = createButton({
     labelKey: `${KEYS}.view.overview`,
     icon: '⤢',
-    onClick: () => {
-      setCameraMode('free', { fly: false }); // an explicit wide view: the camera is the visitor's again
-      frameOverview();
-    },
+    onClick: () => selectCameraView('overview'),
   });
   for (const btn of [frameBtn, followBtn, overviewBtn]) {
     btn.el.classList.add('lp-presets__btn');

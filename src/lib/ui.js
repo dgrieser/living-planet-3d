@@ -7,6 +7,36 @@ import { t, bindText, bindAttr, onLanguageChange, formatNumber } from './i18n.js
 let idCounter = 0;
 const uid = (prefix) => `${prefix}-${++idCounter}`;
 
+/**
+ * Inline icons for the places where an emoji glyph is too soft-edged: they are stroked
+ * with `currentColor`, so they take the colour and the hover state of their button.
+ */
+// Each one is balanced by eye on the middle of a round button, not by its bounding box:
+// what the eye centres on is the body of the shape – the camera's back, the flask's cone,
+// the walls of the house – while the light bits above it (the viewfinder bump, the neck,
+// the roof ridge) are allowed to overhang.
+export const ICONS = Object.freeze({
+  home: '<path d="M3.4 11.3 12 4l8.6 7.3"/><path d="M5.9 10V20h12.2V10"/><path d="M9.9 20v-5.2h4.2V20"/>',
+  camera: '<rect x="2.6" y="5.9" width="18.8" height="12.6" rx="2.2"/><path d="M8.4 5.9 9.9 3.3h4.2l1.5 2.6"/><circle cx="12" cy="12.2" r="3.4"/>',
+  flask: '<path d="M8.6 3h6.8"/><path d="M9.9 3v6.2L4.2 17.8A1.7 1.7 0 0 0 5.6 20.5h12.8a1.7 1.7 0 0 0 1.4-2.7L14.1 9.2V3"/><path d="M7.2 15h9.6"/>',
+});
+
+/** A 24-grid line icon from ICONS, ready to drop into a button. */
+export function createIcon(name, className = 'lp-icon') {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', className);
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.8');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  svg.innerHTML = ICONS[name] ?? '';
+  return svg;
+}
+
 export function el(tag, className, attrs = {}) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -22,6 +52,7 @@ const SHEET_MARGIN = 8; // the sheet's inset from the canvas edge, mirrors the C
 const SHEET_DEFAULT = 0.7; // its default height as a fraction of the canvas, mirrors the CSS max-height
 const SHEET_SNAP = 56; // px – releasing this close to a snap position lands on it
 const DRAG_SLOP = 4; // px – below this a press is still a click, not a drag
+const ANNOUNCE_MS = 1900; // how long the header names the camera view that was just switched to
 
 /**
  * Collapsible control panel.
@@ -29,24 +60,70 @@ const DRAG_SLOP = 4; // px – below this a press is still a click, not a drag
  * On narrow screens the panel is a bottom sheet, and there its header doubles as a
  * drag handle: press it and pull to resize the sheet anywhere between "closed" and
  * the full height of the canvas, and it stays where it is let go. Releasing close to
- * the default height or to the closed position snaps to it. The toggle button keeps
- * working as a button – a press that starts on it never drags.
+ * the default height or to the closed position snaps to it. The header's buttons keep
+ * working as buttons – a press that starts on one of them never drags.
  *
- * @param {{ titleKey?: string, collapsedByDefault?: boolean, onToggle?: (collapsed: boolean) => void }} opts
+ * With `camera` the header carries a camera button next to the chevron – open or
+ * collapsed, so the views stay one tap away while the panel is out of the way. Each
+ * press steps to the next view in the list and the header names it for a moment.
+ * The simulation keeps the button in step by calling `setCameraView()` whenever its
+ * own camera changes (its preset row, a click in the scene, a reset).
+ *
+ * @param {{ titleKey?: string, collapsedByDefault?: boolean, onToggle?: (collapsed: boolean) => void,
+ *           camera?: { views: Array<{ id: string, labelKey: string }>, onSelect: (id: string) => void } }} opts
  */
-export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onToggle } = {}) {
+export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onToggle, camera } = {}) {
   const disposers = [];
   const panel = el('aside', 'lp-panel', { 'aria-labelledby': uid('panel-title') });
   const header = el('div', 'lp-panel__header');
   const grip = el('span', 'lp-panel__grip', { 'aria-hidden': 'true' });
   const title = bindText(el('h2', 'lp-panel__title', { id: panel.getAttribute('aria-labelledby') }), titleKey);
+  const announce = el('span', 'lp-panel__announce', { role: 'status' });
+  const actions = el('div', 'lp-panel__actions');
   const toggle = el('button', 'lp-panel__toggle', { type: 'button', 'aria-expanded': 'true' });
   toggle.innerHTML = '<span class="lp-panel__chevron" aria-hidden="true"></span>';
   const body = el('div', 'lp-panel__body');
   body.id = uid('panel-body');
   toggle.setAttribute('aria-controls', body.id);
 
-  header.append(grip, title, toggle);
+  // --- the header's camera button: one press, the next view ------------------
+  const views = camera?.views ?? [];
+  let cameraBtn = null;
+  let cursor = -1; // the view the last press landed on – where the next one carries on from
+  let activeView = null; // what the simulation says it is showing (null: a view of the visitor's own)
+  let announceTimer = 0;
+
+  /** Name a view in the header for a moment, then fade it out again. */
+  function announceView(labelKey) {
+    bindText(announce, labelKey);
+    header.classList.add('is-announcing');
+    clearTimeout(announceTimer);
+    announceTimer = setTimeout(() => header.classList.remove('is-announcing'), ANNOUNCE_MS);
+  }
+  function syncCameraButton() {
+    if (!cameraBtn) return;
+    // not aria-pressed: the button steps through the views, it does not switch one on and off
+    cameraBtn.classList.toggle('is-active', views.some((v) => v.id === activeView));
+  }
+  if (views.length) {
+    cameraBtn = el('button', 'lp-panel__camera', { type: 'button' });
+    bindAttr(cameraBtn, { 'aria-label': 'panel.cameraNext', title: 'panel.cameraNext' });
+    cameraBtn.append(createIcon('camera', 'lp-panel__camera-icon'));
+    cameraBtn.addEventListener('click', () => {
+      cursor = (cursor + 1) % views.length;
+      const view = views[cursor];
+      activeView = view.id;
+      syncCameraButton();
+      announceView(view.labelKey);
+      camera.onSelect?.(view.id);
+    });
+    actions.append(cameraBtn);
+    syncCameraButton();
+    disposers.push(() => clearTimeout(announceTimer));
+  }
+
+  actions.append(toggle);
+  header.append(grip, title, announce, actions);
   panel.append(header, body);
 
   const isSheet = () => window.matchMedia(SHEET_QUERY).matches;
@@ -86,7 +163,7 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onTo
   // --- drag the header to resize the sheet ---------------------------------
   let drag = null;
   const onPointerDown = (e) => {
-    if (drag || !isSheet() || e.button > 0 || e.target.closest('.lp-panel__toggle')) return;
+    if (drag || !isSheet() || e.button > 0 || e.target.closest('button')) return;
     drag = { id: e.pointerId, y: e.clientY, from: collapsed ? sheetBounds().min : panel.offsetHeight, bounds: null };
     header.setPointerCapture?.(e.pointerId);
   };
@@ -154,6 +231,19 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onTo
     setCollapsed(v) {
       collapsed = v;
       render();
+    },
+    /**
+     * Tell the header which camera view is showing – `null` (or an id that is not in the
+     * list) for a view the visitor set up themselves, which leaves the next press carrying
+     * on from the last preset. Pass `{ announce: true }` to name it in the header as well,
+     * for a switch the visitor made somewhere other than this button.
+     */
+    setCameraView(id, { announce: say = false } = {}) {
+      const index = views.findIndex((v) => v.id === id);
+      activeView = index >= 0 ? views[index].id : null;
+      if (index >= 0) cursor = index;
+      syncCameraButton();
+      if (say && index >= 0) announceView(views[index].labelKey);
     },
     dispose() {
       disposers.forEach((d) => d());
