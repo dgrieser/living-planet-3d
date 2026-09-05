@@ -478,7 +478,7 @@
         "periodFormula": "P = √(d³ / M) Jahre",
         "scaleNote": "Abstände sind maßstabsgetreu (1 AE = 10 Szeneneinheiten), die beiden Körper nicht. Der Stern wird mit dem {starScale}-Fachen seines wirklichen Radius gezeichnet (1 R☉ = 0,00465 AE, etwa 1/215 der Erdbahn), der Planet mit dem {planetScale}-Fachen des Erdradius — maßstabsgetreu wären beide unsichtbare Punkte. Die Überhöhung des Sterns ist der Regler „Sterngröße“ und ändert nichts an der Physik."
       },
-      "hint": "Planeten ziehen, um ihn zu verschieben · Stern seitlich ziehen für die Temperatur, hoch und runter für den Radius",
+      "hint": "Planeten ziehen, um ihn zu verschieben · Stern seitlich ziehen ändert seinen Typ – Farbe und Größe folgen mit",
       "credit": "Erdtexturen: Solar System Scope (CC BY 4.0)"
     },
     "moonTides": {
