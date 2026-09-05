@@ -71,26 +71,17 @@ const FIT_TOLERANCE_PLAYING = 1.3; // ... and while stellar evolution runs, so t
 const SECONDS_PER_ORBIT_YEAR = 20; // visual time: at 1× speed a 1-year orbit takes 20 s
 const MAX_ANGULAR_SPEED = Math.PI; // rad/s at 1× speed – close-in planets would otherwise flicker
 /**
- * Dragging the planet. The pointer names a place in the orbital plane and the planet eases there
- * over this time constant, which takes the twitch out of a gesture that spans two and a half
- * decades of temperature: the planet still ends up under the finger, it just no longer snaps there.
- * Within `DRAG_GUARD_AU` of the star that place has no meaningful *direction* – a few pixels swing
- * it through any angle at all – so there the planet parks at the inner limit and keeps the angle it
- * has, rather than retracing its way out on the same side as the finger carries on across the star.
- * `DRAG_GRAB_MAX_AU` caps the offset the planet is grabbed with: it is there to stop it jumping when
- * it is picked up off centre, and a shallow view can otherwise put the plane under the pointer a
- * long way from the planet – an offset that large would keep it from ever reaching the limits.
+ * Dragging the planet. The pointer's travel is read in a frame fixed when the planet is picked up
+ * (see `planetDragFrame()`) and the planet eases towards where that puts it over this time
+ * constant, which takes the twitch out of a gesture that spans two and a half decades of
+ * temperature. Crossing the whole 0.1–5 AU range always takes at least `DRAG_RANGE_TRAVEL` canvas
+ * heights of travel: a roomy view then drags one-to-one, while a phone – where the whole system is
+ * squeezed into a few hundred pixels, and pointing at a place in the plane turns a nudge into a
+ * sweep across the zone – is slowed to something steerable.
  */
 const DRAG_EASE_S = 0.13;
-const DRAG_GUARD_AU = 0.3;
-const DRAG_GRAB_MAX_AU = 0.35;
-/**
- * How fast the planet may travel while it catches up. The plane the pointer names is read through
- * a perspective camera, and the closer the view sits to the plane the further a few pixels reach –
- * in the planet close-up the camera is 2° above it, so the ground under the pointer runs away
- * towards the horizon. Bounding the speed turns that into a glide the visitor can steer out of,
- * instead of the planet being flung across the system by a twitch.
- */
+const DRAG_RANGE_TRAVEL = 1.4;
+/** How fast the planet may travel while it catches up, so a flick cannot fling it across the system. */
 const DRAG_MAX_AU_PER_S = 3.5;
 const DRAG_MAX_RAD_PER_S = 5;
 /** The ease lands on the target rather than approaching it forever. */
@@ -99,6 +90,11 @@ const DRAG_SNAP_RAD = 0.002;
 const EVOLUTION_GYR_PER_SECOND = 0.4; // at 1× speed: 10 Gyr in 25 s
 const SPEED_RANGE = Object.freeze({ min: 0, max: 5, step: 0.1, default: 1 }); // overall animation speed, 0 freezes the scene
 const HIT_LAYER = 1;
+// Hit spheres are sized in screen pixels, not in a fraction of the viewing distance: what makes a
+// body easy to grab is how big it is under a fingertip, and a phone's canvas is a third the height
+// of a desktop's. Radii, so 22 px is a 44 px target – about a fingertip.
+const PLANET_TARGET_PX = 22;
+const STAR_TARGET_PX = 26;
 const ZONE_COLOR = 0x5adc8c;
 const STATE_COLORS = Object.freeze({ frozen: 0x9fd8ff, habitable: 0x5adc8c, scorched: 0xff6b4a });
 const LABEL_DIRECTION = new THREE.Vector3(-0.62, 0, 0.78).normalize(); // where zone-edge labels sit (lower left in the default view)
@@ -462,6 +458,11 @@ export default function mount(container, meta) {
     labels.grid.forEach((l, i) => l.setText(`${fmt(GRID_LABEL_AU[i], GRID_LABEL_AU[i] % 1 ? 1 : 0)} ${t('units.au')}`));
   }
 
+  /** How much of the world one CSS pixel covers at `distance` from the camera. */
+  function worldPerPixel(distance) {
+    return (2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / (renderer.domElement.clientHeight || 1);
+  }
+
   /** Camera-dependent bits: label placement, hit-sphere sizes, markers, corona billboard, near plane. */
   function updateOverlay() {
     tmpUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
@@ -480,8 +481,8 @@ export default function mount(container, meta) {
     corona.quaternion.copy(camera.quaternion);
     coronaMaterial.uniforms.uStarFrac.value = 1 / CORONA_EXTENT;
     planetHit.position.copy(planetPos);
-    planetHit.scale.setScalar(Math.max(planetRadius * 1.6, planetDist * 0.02)); // easy to grab even when it is a speck
-    starHit.scale.setScalar(Math.max(starRadius * 1.2, starDist * 0.03)); // a little generous: the pull may start anywhere on the disc
+    planetHit.scale.setScalar(Math.max(planetRadius * 1.6, worldPerPixel(planetDist) * PLANET_TARGET_PX)); // easy to grab even when it is a speck
+    starHit.scale.setScalar(Math.max(starRadius * 1.2, worldPerPixel(starDist) * STAR_TARGET_PX)); // a little generous: the pull may start anywhere on the disc
     planetMarker.position.copy(planetPos);
     planetMarker.visible = drag?.kind === 'planet' || hovering === 'planet';
     // sizeAttenuation is off: a scale of 2·r/d spans the star's apparent diameter, the ring sits at 0.42 of the sprite
@@ -666,11 +667,12 @@ export default function mount(container, meta) {
   const raycaster = new THREE.Raycaster();
   raycaster.layers.set(HIT_LAYER);
   const pointer = new THREE.Vector2();
-  const orbitalPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const ORIGIN = new THREE.Vector3(); // the star, for measuring a ray against its disc
-  const dragPoint = new THREE.Vector2(); // scratch: the pointer's place in the orbital plane, in AU
-  const tmpDrag = new THREE.Vector3();
-  let drag = null; // null | { kind: 'planet', offsetAU, offsetAngle } | { kind: 'star', y, startTeffLog, startInflation, pxPerTypeDecade }
+  const dragRadial = new THREE.Vector3(); // scratch: the outward direction at the planet
+  const dragAcross = new THREE.Vector3(); // scratch: the way the orbit runs there
+  const dragProbe = new THREE.Vector3(); // scratch: a point a small step from the planet, in the plane
+  const dragScreen = new THREE.Vector2(); // scratch: where that point lands on screen
+  let drag = null; // null | { kind: 'planet', frame } | { kind: 'star', y, startTeffLog, startInflation, pxPerTypeDecade }
   let dragTarget = null; // where the pointer wants the planet: { distanceAU, angle } – it eases there
   let hovering = null; // null | 'planet' | 'star'
   const canvas = renderer.domElement;
@@ -724,45 +726,72 @@ export default function mount(container, meta) {
       pxPerTypeDecade: pxPerDecade(rect.height, STAR_DRAG_TYPE_SPAN, TEFF_DECADES),
     };
   }
+  /** Where a world point lands on screen, in the CSS pixels a pointer event speaks in. */
+  function toScreen(world, out) {
+    tmpV.copy(world).project(camera);
+    const rect = canvas.getBoundingClientRect();
+    return out.set(rect.left + ((tmpV.x + 1) / 2) * rect.width, rect.top + ((1 - tmpV.y) / 2) * rect.height);
+  }
   /**
-   * Where the pointer points in the orbital plane, in AU as (x, z). A ray that runs nearly along the
-   * plane meets it far outside the orbit, and past the horizon it never meets it at all – which used
-   * to mean the drag simply stopped responding. Such a ray is read as "as far out as the range goes,
-   * that way", so the gesture always says something and the annulus clamp does the rest.
+   * The frame a planet drag is read in, measured once at the planet when it is picked up: a map from
+   * pointer travel in pixels to the planet's movement in its own plane – outwards along the radius,
+   * and around the orbit.
+   *
+   * Reading the plane *under the pointer* afresh on every move is what made this gesture wild. A view
+   * that lies near the orbital plane makes a pixel worth astronomical units towards the horizon and
+   * nothing at all past it; a pointer crossing the star reverses the direction it means, flipping the
+   * planet to the far side; and in the close-up, where the camera rides along with the planet, moving
+   * the planet moved the ground under the finger with it. Measured once, none of that can happen.
+   *
+   * The gain is capped too: crossing the whole range takes at least DRAG_RANGE_TRAVEL canvas heights,
+   * so a roomy view drags one-to-one while a phone's cramped one is slowed to something steerable.
    */
-  function pointerInPlane(e, out) {
-    setPointer(e);
-    if (!raycaster.ray.intersectPlane(orbitalPlane, tmpV)) {
-      tmpV.copy(raycaster.ray.direction).setY(0);
-      if (tmpV.lengthSq() < 1e-12) tmpV.set(1, 0, 0);
-      tmpV.setLength(HZ.DISTANCE_RANGE_AU.max * AU_UNITS).add(tmpDrag.copy(camera.position).setY(0));
-    }
-    return out.set(tmpV.x / AU_UNITS, tmpV.z / AU_UNITS);
+  function planetDragFrame(e) {
+    const step = Math.max(0.02, state.distanceAU * 0.05) * AU_UNITS; // a small move to measure with
+    const radial = dragRadial.copy(planetPos).setY(0);
+    if (radial.lengthSq() < 1e-9) radial.set(1, 0, 0);
+    radial.normalize();
+    const across = dragAcross.set(-radial.z, 0, radial.x); // the way the orbit runs, at the planet
+    const at = toScreen(planetPos, dragScreen);
+    const outward = toScreen(dragProbe.copy(planetPos).addScaledVector(radial, step), new THREE.Vector2()).sub(at);
+    const around = toScreen(dragProbe.copy(planetPos).addScaledVector(across, step), new THREE.Vector2()).sub(at);
+    const det = outward.x * around.y - around.x * outward.y;
+    if (!Number.isFinite(det) || Math.abs(det) < 1e-9) return null; // exactly edge-on: nothing to read
+    const auPerPixel = step / AU_UNITS / Math.max(outward.length(), 1e-6);
+    const roomy = (HZ.DISTANCE_RANGE_AU.max - HZ.DISTANCE_RANGE_AU.min) / (DRAG_RANGE_TRAVEL * (canvas.clientHeight || 1));
+    return {
+      x: e.clientX,
+      y: e.clientY,
+      distanceAU: state.distanceAU,
+      angle: state.angle,
+      gain: Math.min(1, roomy / auPerPixel),
+      stepAU: step / AU_UNITS,
+      // the arc is turned into an angle at the distance the planet was picked up from, so a sweep
+      // keeps its rate as the planet travels in and out
+      radPerStep: step / (Math.max(state.distanceAU, HZ.DISTANCE_RANGE_AU.min) * AU_UNITS),
+      // Cramer's rule on [outward around], so a screen delta becomes a movement in the plane
+      ax: around.y / det,
+      ay: -around.x / det,
+      bx: -outward.y / det,
+      by: outward.x / det,
+    };
   }
-  /** The planet's own place in the plane, in the same (x, z) AU coordinates. */
-  function planetInPlane(out) {
-    return out.set(state.distanceAU * Math.cos(state.angle), -state.distanceAU * Math.sin(state.angle));
-  }
-  /** Grab the planet where it is, so it does not jump to the pointer when it is picked up. */
   function startPlanetDrag(e) {
     dragTarget = null; // a fresh grab starts from where the planet is, not from an ease still in flight
-    const grab = planetInPlane(new THREE.Vector2()).sub(pointerInPlane(e, dragPoint));
-    if (grab.length() > DRAG_GRAB_MAX_AU) grab.setLength(DRAG_GRAB_MAX_AU);
-    return { kind: 'planet', grab };
+    return { kind: 'planet', frame: planetDragFrame(e) };
   }
   /** Point the drag at the pointer; the planet eases the rest of the way in stepPlanetDrag(). */
   function dragPlanetTo(e) {
-    const at = pointerInPlane(e, dragPoint).add(drag.grab);
-    const r = at.length();
+    const f = drag.frame;
+    if (!f) return;
+    const dx = e.clientX - f.x;
+    const dy = e.clientY - f.y;
+    const outwards = (f.ax * dx + f.ay * dy) * f.gain;
+    const around = (f.bx * dx + f.by * dy) * f.gain;
     dragTarget = dragTarget ?? { distanceAU: state.distanceAU, angle: state.angle };
-    if (r > DRAG_GUARD_AU) {
-      dragTarget.distanceAU = Math.round(clamp(r, HZ.DISTANCE_RANGE_AU.min, HZ.DISTANCE_RANGE_AU.max) * 1000) / 1000;
-      dragTarget.angle = Math.atan2(-at.y, at.x);
-    } else {
-      // over the star, where no direction is meant: sit at the inner limit and keep the angle, so a
-      // finger carrying on across the star parks the planet instead of walking it back out again
-      dragTarget.distanceAU = HZ.DISTANCE_RANGE_AU.min;
-    }
+    dragTarget.distanceAU = Math.round(clamp(f.distanceAU + outwards * f.stepAU, HZ.DISTANCE_RANGE_AU.min, HZ.DISTANCE_RANGE_AU.max) * 1000) / 1000;
+    // +x on the orbit runs the other way round than the angle does (see planetPos in updateScene)
+    dragTarget.angle = f.angle - around * f.radPerStep;
     // with motion reduced there are no frames to ease over, so land on the target and redraw here
     if (sim.reducedMotion) {
       stepPlanetDrag(1);
