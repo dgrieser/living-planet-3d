@@ -17,14 +17,28 @@ export function el(tag, className, attrs = {}) {
   return node;
 }
 
+const SHEET_QUERY = '(max-width: 720px)';
+const SHEET_MARGIN = 8; // the sheet's inset from the canvas edge, mirrors the CSS
+const SHEET_DEFAULT = 0.7; // its default height as a fraction of the canvas, mirrors the CSS max-height
+const SHEET_SNAP = 56; // px – releasing this close to a snap position lands on it
+const DRAG_SLOP = 4; // px – below this a press is still a click, not a drag
+
 /**
  * Collapsible control panel.
- * @param {{ titleKey?: string, collapsedByDefault?: boolean }} opts
+ *
+ * On narrow screens the panel is a bottom sheet, and there its header doubles as a
+ * drag handle: press it and pull to resize the sheet anywhere between "closed" and
+ * the full height of the canvas, and it stays where it is let go. Releasing close to
+ * the default height or to the closed position snaps to it. The toggle button keeps
+ * working as a button – a press that starts on it never drags.
+ *
+ * @param {{ titleKey?: string, collapsedByDefault?: boolean, onToggle?: (collapsed: boolean) => void }} opts
  */
-export function createPanel({ titleKey = 'panel.title', collapsedByDefault } = {}) {
+export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onToggle } = {}) {
   const disposers = [];
   const panel = el('aside', 'lp-panel', { 'aria-labelledby': uid('panel-title') });
   const header = el('div', 'lp-panel__header');
+  const grip = el('span', 'lp-panel__grip', { 'aria-hidden': 'true' });
   const title = bindText(el('h2', 'lp-panel__title', { id: panel.getAttribute('aria-labelledby') }), titleKey);
   const toggle = el('button', 'lp-panel__toggle', { type: 'button', 'aria-expanded': 'true' });
   toggle.innerHTML = '<span class="lp-panel__chevron" aria-hidden="true"></span>';
@@ -32,26 +46,104 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault } = {
   body.id = uid('panel-body');
   toggle.setAttribute('aria-controls', body.id);
 
-  header.append(title, toggle);
+  header.append(grip, title, toggle);
   panel.append(header, body);
 
-  const isSmallScreen = () => window.matchMedia('(max-width: 720px)').matches;
-  let collapsed = collapsedByDefault ?? isSmallScreen();
+  const isSheet = () => window.matchMedia(SHEET_QUERY).matches;
+  let collapsed = collapsedByDefault ?? isSheet();
+  let sheetHeight = null; // px the visitor dragged the sheet to; null = the height CSS gives it
+
+  /** Where the sheet may go: header-only, the whole canvas, and the height it opens to. */
+  function sheetBounds() {
+    const area = panel.offsetParent ?? panel.parentElement;
+    const areaHeight = area?.clientHeight || window.innerHeight;
+    const min = header.offsetHeight || 48;
+    const max = Math.max(min, areaHeight - 2 * SHEET_MARGIN);
+    const preferred = Math.round(areaHeight * SHEET_DEFAULT);
+    // while it is collapsed the body has no measurable height – fall back to the CSS default
+    const natural = collapsed ? preferred : header.offsetHeight + body.scrollHeight;
+    return { min, max, def: Math.min(Math.max(Math.min(preferred, natural), min), max) };
+  }
+
+  function applySheetHeight() {
+    const sized = isSheet() && !collapsed && sheetHeight != null;
+    panel.classList.toggle('lp-panel--sized', sized);
+    panel.style.height = sized ? `${sheetHeight}px` : '';
+  }
 
   function render() {
     panel.classList.toggle('is-collapsed', collapsed);
     toggle.setAttribute('aria-expanded', String(!collapsed));
     bindAttr(toggle, { 'aria-label': collapsed ? 'panel.expand' : 'panel.collapse', title: collapsed ? 'panel.expand' : 'panel.collapse' });
+    applySheetHeight();
+    onToggle?.(collapsed);
   }
   toggle.addEventListener('click', () => {
     collapsed = !collapsed;
     render();
   });
+
+  // --- drag the header to resize the sheet ---------------------------------
+  let drag = null;
+  const onPointerDown = (e) => {
+    if (drag || !isSheet() || e.button > 0 || e.target.closest('.lp-panel__toggle')) return;
+    drag = { id: e.pointerId, y: e.clientY, from: collapsed ? sheetBounds().min : panel.offsetHeight, bounds: null };
+    header.setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dy = drag.y - e.clientY; // up is taller
+    if (!drag.bounds) {
+      if (Math.abs(dy) < DRAG_SLOP) return; // still a click
+      panel.classList.add('is-dragging');
+      if (collapsed) {
+        collapsed = false; // pulling a closed sheet open
+        render();
+      }
+      drag.bounds = sheetBounds();
+    }
+    const { min, max } = drag.bounds;
+    sheetHeight = Math.min(Math.max(drag.from + dy, min), max);
+    applySheetHeight();
+  };
+  const onPointerUp = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { bounds } = drag;
+    header.releasePointerCapture?.(e.pointerId);
+    drag = null;
+    panel.classList.remove('is-dragging');
+    if (!bounds) return; // a click, handled by the toggle button
+    if (sheetHeight <= bounds.min + SHEET_SNAP) {
+      collapsed = true;
+      sheetHeight = null;
+    } else if (Math.abs(sheetHeight - bounds.def) <= SHEET_SNAP) {
+      sheetHeight = bounds.def;
+    }
+    render();
+  };
+  header.addEventListener('pointerdown', onPointerDown);
+  header.addEventListener('pointermove', onPointerMove);
+  header.addEventListener('pointerup', onPointerUp);
+  header.addEventListener('pointercancel', onPointerUp);
+
+  // a dragged height is kept across resizes, but never beyond what still fits
+  const onResize = () => {
+    if (sheetHeight == null) return;
+    const { min, max } = sheetBounds();
+    sheetHeight = Math.min(Math.max(sheetHeight, min), max);
+    applySheetHeight();
+  };
+  window.addEventListener('resize', onResize);
+  disposers.push(() => window.removeEventListener('resize', onResize));
+
   render();
 
   return {
     el: panel,
     body,
+    get collapsed() {
+      return collapsed;
+    },
     add(...components) {
       for (const c of components) {
         body.append(c.el ?? c);
@@ -66,6 +158,58 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault } = {
     dispose() {
       disposers.forEach((d) => d());
       panel.remove();
+    },
+  };
+}
+
+const MIN_FREE_WIDTH = 480; // px of canvas that must be left over for shifting to be worth it
+
+/**
+ * Keeps the picture out from under the control panel.
+ *
+ * On a wide screen the panel floats over the top-right corner of the canvas; while it is
+ * open the picture slides left by half of what the panel covers, so the subject sits
+ * centred in the free part of the canvas. The camera, its target and picking all stay
+ * where they are – only the projection is offset (see `setViewShift()` in scene.js).
+ * Below the breakpoint the panel is a bottom sheet and there is nothing to dodge
+ * sideways, and neither is there when the panel would leave too little canvas over.
+ *
+ *   const viewShift = createPanelShift({ sim, viewport });
+ *   const panel = createPanel({ onToggle: () => viewShift.sync() });
+ *   …
+ *   container.append(panel.el);
+ *   viewShift.attach(panel);            // measures from here on
+ *   disposers.push(viewShift.dispose);
+ *
+ * @param {{ sim: { setViewShift: Function }, viewport: HTMLElement, minFreeWidth?: number }} opts
+ */
+export function createPanelShift({ sim, viewport, minFreeWidth = MIN_FREE_WIDTH }) {
+  let panel = null;
+
+  function shiftPx() {
+    if (!panel || panel.collapsed || window.matchMedia(SHEET_QUERY).matches) return 0;
+    const view = viewport.getBoundingClientRect();
+    const rect = panel.el.getBoundingClientRect();
+    if (!view.width || !rect.width) return 0;
+    const covered = Math.max(0, view.right - rect.left);
+    if (view.width - covered < minFreeWidth) return 0;
+    return Math.round(covered / 2);
+  }
+
+  const sync = (opts) => sim.setViewShift(shiftPx(), opts);
+  const onResize = () => sync({ animate: false });
+  window.addEventListener('resize', onResize);
+
+  return {
+    /** Re-measure and slide the picture; animated unless `{ animate: false }`. */
+    sync,
+    /** Start following this panel – call once it is in the DOM. */
+    attach(p) {
+      panel = p;
+      sync({ animate: false });
+    },
+    dispose() {
+      window.removeEventListener('resize', onResize);
     },
   };
 }

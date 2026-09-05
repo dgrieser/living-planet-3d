@@ -32,14 +32,16 @@ src/
   i18n/de.json       all German UI strings (1:1 mirror of en.json)
   lib/i18n.js        t(), tList(), setLanguage(), getLanguage(), onLanguageChange(),
                      applyTranslations(), bindText(), bindAttr(), formatNumber()
-  lib/ui.js          UI kit: createPanel, createSlider, createToggle, createStateToggle,
-                     createButton, createInfoCard, createNotice, createMessage,
-                     createSection, createCollapsibleSection, createControlRow, el()
+  lib/ui.js          UI kit: createPanel, createPanelShift, createSlider, createToggle,
+                     createStateToggle, createButton, createInfoCard, createNotice,
+                     createMessage, createSection, createCollapsibleSection,
+                     createControlRow, el()
   lib/prefs.js       createViewPrefs(): remembers a simulation's display toggles
                      (legends, labels, helper lines, overlays) in localStorage
   lib/scene.js       scene bootstrap: renderer (DPR ≤ 2), camera, OrbitControls,
                      starfield, resize, delta-time loop, tab-hidden pause,
-                     prefers-reduced-motion handling
+                     prefers-reduced-motion handling, setViewShift() (slides the
+                     picture sideways out from under an overlaying panel)
   lib/webgl.js       WebGL availability check (no Three.js import)
   sims/index.js      simulation registry (lazy-loaded modules)
   sims/<name>/       one folder per simulation
@@ -85,13 +87,35 @@ finds their way around the next:
    preset rows, the camera presets on one line, the display toggles and the overall
    reset (full width) – folded away by default on small screens
    (`createCollapsibleSection()`).
-3. **The readouts**: the status box, then its follow-up stats. A control whose readout
-   is only readable beside it (axial-tilt's latitude, moon-tides' tide gauge) travels
-   with that readout as one block instead of moving up into the fold.
+3. **The readouts**: the status box, then its follow-up stats – one `lp-facts` listing,
+   not a stack of boxes. A control whose readout is only readable beside it (moon-tides'
+   tide gauge) travels with that readout as one block instead of moving up into the fold.
 4. **The legend**, then the essay card, and last the physics / model card, which opens
    with the schematic caveats that qualify the numbers above it. Live warnings – the
    magnetic field is off, the Moon is gone, the date is out of range – stay next to the
    control or readout they describe.
+
+Below 720 px the panel is a bottom sheet, and there its header doubles as a drag handle
+(the grip above the title): press it and pull to resize the sheet anywhere between closed
+and the full height of the canvas, and it stays where it is let go. Releasing within 56 px
+of the default height (70 % of the canvas) or of the closed position snaps to it, and
+pulling a closed sheet upwards opens it. A press that starts on the chevron never drags, so
+the button keeps toggling as before.
+
+Above the breakpoint the panel floats over the top-right corner of the canvas, and every
+simulation slides its picture out from under it: while the panel is open the projection is
+offset to the left by half of what the panel covers, so the subject sits centred in the free
+part of the canvas. It is a projection offset, not a camera move – the camera, its orbit
+target and picking all stay where they are – it animates over 420 ms, and it is skipped when
+less than 480 px of canvas would be left over. One line per simulation wires it up:
+
+```js
+const viewShift = createPanelShift({ sim, viewport });          // lib/ui.js
+const panel = createPanel({ onToggle: () => viewShift.sync() });
+container.append(panel.el);
+viewShift.attach(panel);                                        // measures from here on
+disposers.push(viewShift.dispose);
+```
 
 ## Simulations
 
@@ -138,12 +162,21 @@ finds their way around the next:
   darken every latitude outside them, and draws the band edges as green latitude rings from a fixed pool; the
   displayed fraction is the exact band area `Δsin φ / 2`, which the check script keeps within 3 % of the
   sampled area-weighted fraction.
+- Panel: the tilt slider up front, everything else folded away – rotation period, the what-if presets, the
+  year & orbit group and, under "Readout for one latitude", the latitude slider with its four presets, which
+  pick the latitude every per-latitude figure describes. The readouts are one verdict box plus one table: the
+  box carries the year-round livable surface fraction with its verdict tier and, under a hairline, what the
+  chosen latitude makes of that tilt (climate zone with its hint, livable year-round); the table lists every
+  figure in reading order – the year for the planet as a whole (season, subsolar latitude, tropics, polar
+  circles), then the chosen latitude (pinned place, day length, midnight sun, polar night, insolation,
+  temperature, day/night, seasonal means). Two rows carry more than a number: the pinned place its release
+  button, the day length its polar-day / polar-night pill.
 - Camera modes: "Earth" follows Earth in its co-rotating frame (camera offset is rotated by Δθ each frame), so
   the Sun keeps its place on screen while the tilt geometry changes through the year – the planet-centric view
   in which the Sun appears to circle Earth once a year; "overview" and "top" look at the whole orbit. Dragging
   Earth along the orbit freezes the follow and catches up with a short tween afterwards.
 - Clicking Earth (a press that moves less than 6 px) raycasts the surface and pins that place: a marker in the
-  spinning group, the latitude slider and every per-latitude readout jump to it, and the fourth camera mode
+  spinning group, the latitude slider and every per-latitude figure jump to it, and the fourth camera mode
   "pinned place" holds the camera above the point every frame (zoom preserved, orbit rotation disabled, follow
   frozen during an orbit drag). The latitude slider and presets slide the pin along its meridian; a click on
   the sky, the Unpin button or Reset release it and return to the previous camera mode.
@@ -257,7 +290,15 @@ finds their way around the next:
   overview) on the Orion spur; arms trail, i.e. their azimuth decreases with radius.
 - Panel: the shared layout above, with the radius slider as the headline control (a small "back to
   27 000 ly" button inline on its right) and the "Conditions in the solar system" box leading the readouts.
-  The schematic caveat opens the model card.
+  The schematic caveat opens the model card. Like every simulation it slides the picture left while the panel
+  is open on a wide screen (see *Panel layout*), so the galaxy stays centred in the free part of the canvas.
+- Camera presets: "Overview" looks down on the galactic centre from 133 kly (dead centre – the panel is
+  dodged by the shared view shift, not by moving the camera). "The Sun" flies down to the Sun's own height, 2.4 kly
+  outside it, and aims 21.6 kly inward along the radius: the disc lies across the frame as the band we see
+  from Earth, the bulge glows at the far end and the Sun burns in the foreground. That view keeps a slow
+  hands-off parallax (a 44 s sway across the orbit and in height) and rides along with the Sun; the first
+  drag or zoom hands it over, after which the visitor's own angle and distance are kept and only rotated
+  with the Sun. The lateral offsets shrink with the aspect ratio so the Sun stays in frame on a portrait phone.
 - Everything adjustable lives in `DEFAULT_CONFIG` in `model.js`; `createConfig({ zone: { innerKly, outerKly } })`
   changes the habitable-zone edges and the overlays, labels and readouts follow. The dev hook
   `window.__lpGalacticZone.setZoneEdges()` rebuilds them at run time.
@@ -351,7 +392,8 @@ remembered: every visit starts from the teaching defaults.
 ## Quality bar
 
 - Target 60 fps on a mid-range laptop; `devicePixelRatio` capped at 2.
-- Touch support via OrbitControls; the control panel collapses on small screens.
+- Touch support via OrbitControls; on small screens the control panel becomes a bottom sheet
+  that collapses and can be dragged to any height by its header.
 - `prefers-reduced-motion`: animation is paused and a static frame is rendered on demand;
   the view can still be rotated and zoomed.
 - Graceful bilingual fallback message when WebGL is unavailable.

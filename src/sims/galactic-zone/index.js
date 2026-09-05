@@ -28,6 +28,11 @@
  *    orbits with the period of its current radius (flat rotation curve), so at
  *    27 kly it stays on the spur, further in it overtakes the arms, further out
  *    it lags behind.
+ *  - Camera: "overview" sits dead centre on the galactic centre; while the panel is open
+ *    on a wide screen the picture slides left by half of what the panel covers instead
+ *    (a projection offset – the camera stays put). "The Sun" flies down to the Sun's own
+ *    height and aims inward along the radius, so the disc lies across the frame as the
+ *    band we see from Earth; it drifts slowly until the visitor takes hold of the view.
  *  - Panel: the controls come first – the radius slider with a small "back to 27 kly"
  *    button inline on its right, then a collapsible group holding the timeline slider
  *    with its play/pause button, the camera presets, the view toggles and the overall
@@ -39,7 +44,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as M from './model.js';
@@ -83,17 +88,32 @@ const DEFAULTS = Object.freeze({
   playing: true,
 });
 
-/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. Off to begin with: the
+ *  galaxy speaks for itself, and the overlays and labels are one tap away in the panel. */
 const VIEW_DEFAULTS = Object.freeze({
-  showRing: true,
-  showZones: true,
-  showArmLabels: true,
+  showRing: false,
+  showZones: false,
+  showArmLabels: false,
 });
 
-// shifted a little to the left so the galaxy is centred in the space beside the control panel
-const CAMERA_OVERVIEW = Object.freeze({ position: [-9, 104, 82], target: [-9, 0, 0] });
-/** Sun preset: outside the Sun, looking inward with the bulge in the background. */
-const SUN_VIEW = Object.freeze({ outward: 5.4, up: 1.7, side: 1.4 });
+// dead centre on the galactic centre – the panel is made room for by shifting the
+// projection instead (see panelShiftPx below), which leaves the camera where it belongs
+const CAMERA_OVERVIEW = Object.freeze({ position: [0, 104, 82], target: [0, 0, 0] });
+/**
+ * Sun preset: down at the Sun's own height, a step outside it, aimed inward along the
+ * radius – the disc lies across the frame as the band we see from Earth, the bulge glows
+ * at the far end of it and the Sun burns in the foreground. `lookKly` is how far inward
+ * the camera aims (capped so it never overshoots the centre); the lateral offsets shrink
+ * with the aspect ratio so the Sun stays in frame on a portrait phone, and `drift` is the
+ * slow parallax the view keeps until the visitor takes hold of it.
+ */
+const SUN_VIEW = Object.freeze({
+  outward: 2.4,
+  side: 0.75,
+  up: 0.5,
+  lookKly: 22,
+  drift: { side: 0.35, up: 0.15, periodS: 44 },
+});
 
 /** Arm labels sit at these radii (kly) along the centre lines. */
 const ARM_LABEL_RADII = Object.freeze({ scutumCentaurus: 26, sagittarius: 31, perseus: 41, norma: 36, orion: 30.5 });
@@ -372,6 +392,7 @@ export default function mount(container, meta) {
     applyModel();
     updateOverlay();
     updateReadouts(true);
+    syncHint();
     sim.requestRender();
   }
 
@@ -379,17 +400,31 @@ export default function mount(container, meta) {
   let cameraTween = null;
   let cameraMode = 'overview';
   let followAzimuth = 0;
+  let sunAutopilot = true; // cleared as soon as the visitor grabs the view themselves
+
+  /** Phase of the slow hands-off drift of the Sun view; frozen for reduced motion. */
+  const driftPhase = () => (sim.reducedMotion ? 0 : (time / SUN_VIEW.drift.periodS) * TAU);
+
+  /** The point the Sun view aims at: a stretch of the disc between the Sun and the centre. */
+  function sunLookTarget(out) {
+    const r = Math.max(sunPos.length(), 1e-6);
+    return out.copy(sunPos).multiplyScalar(1 - Math.min(SUN_VIEW.lookKly, r * 0.8) / r).setY(0);
+  }
 
   /** Camera end state for the Sun preset, computed from the Sun's current position. */
-  function sunPreset() {
+  function sunPreset(phase = 0) {
+    // a portrait frame sees far less to the sides: pull the Sun back towards the view axis
+    const frame = clamp((camera.aspect - 0.55) / 1.05, 0.35, 1);
+    const side = (SUN_VIEW.side + SUN_VIEW.drift.side * Math.sin(phase)) * frame;
+    const up = (SUN_VIEW.up + SUN_VIEW.drift.up * Math.sin(phase * 0.63 + 1.1)) * frame;
     const outward = tmpV.copy(sunPos).setY(0).normalize();
-    const side = new THREE.Vector3(-outward.z, 0, outward.x);
-    const position = sunPos.clone().addScaledVector(outward, SUN_VIEW.outward).addScaledVector(side, SUN_VIEW.side);
-    position.y += SUN_VIEW.up;
-    return { position, target: sunPos.clone() };
+    const across = new THREE.Vector3(-outward.z, 0, outward.x);
+    const position = sunPos.clone().addScaledVector(outward, SUN_VIEW.outward).addScaledVector(across, side);
+    position.y += up;
+    return { position, target: sunLookTarget(new THREE.Vector3()) };
   }
   function presetFor(mode) {
-    if (mode === 'sun') return sunPreset();
+    if (mode === 'sun') return sunPreset(driftPhase());
     return { position: new THREE.Vector3(...CAMERA_OVERVIEW.position), target: new THREE.Vector3(...CAMERA_OVERVIEW.target) };
   }
   function tweenCamera(mode, { duration = 2.2 } = {}) {
@@ -415,7 +450,11 @@ export default function mount(container, meta) {
     camera.position.y += Math.sin(Math.PI * k) * 0.12 * cameraTween.from.distanceTo(end.position);
     if (cameraTween.t >= 1) cameraTween = null;
   }
-  /** In "Sun" mode the camera rides along: the offset from the target is rotated with the Sun. */
+  /**
+   * In "Sun" mode the camera rides along with the Sun. Left alone it stays on the
+   * drifting preset; once the visitor has grabbed the view it keeps their angle and
+   * distance, rotated with the Sun so the framing does not slide away underneath them.
+   */
   function followSun() {
     if (cameraMode !== 'sun' || cameraTween) {
       followAzimuth = model.sun.azimuth;
@@ -423,14 +462,21 @@ export default function mount(container, meta) {
     }
     const dAz = model.sun.azimuth - followAzimuth;
     followAzimuth = model.sun.azimuth;
+    if (sunAutopilot) {
+      const end = sunPreset(driftPhase());
+      camera.position.copy(end.position);
+      controls.target.copy(end.target);
+      return;
+    }
     const offset = tmpV.copy(camera.position).sub(controls.target);
     if (Math.abs(dAz) > 1e-9) offset.applyAxisAngle(THREE.Object3D.DEFAULT_UP, -dAz);
-    controls.target.copy(sunPos);
-    camera.position.copy(sunPos).add(offset);
+    sunLookTarget(controls.target);
+    camera.position.copy(controls.target).add(offset);
   }
   function setCamera(mode) {
     cameraMode = mode;
     followAzimuth = model ? model.sun.azimuth : CONFIG.sunAzimuth;
+    sunAutopilot = true; // a preset always starts on autopilot again
     syncCameraButtons();
     tweenCamera(mode);
   }
@@ -460,8 +506,15 @@ export default function mount(container, meta) {
   const onControlsChange = () => {
     if (sim.reducedMotion) updateOverlay();
   };
+  const onControlsStart = () => {
+    sunAutopilot = false; // the drift stops the moment the view is touched
+  };
   controls.addEventListener('change', onControlsChange);
-  disposers.push(() => controls.removeEventListener('change', onControlsChange));
+  controls.addEventListener('start', onControlsStart);
+  disposers.push(() => {
+    controls.removeEventListener('change', onControlsChange);
+    controls.removeEventListener('start', onControlsStart);
+  });
 
   // =============================================================================================
   // state setters
@@ -497,7 +550,10 @@ export default function mount(container, meta) {
   // =============================================================================================
   // control panel
   // =============================================================================================
-  const panel = createPanel();
+  // while the panel is open on a wide screen the picture slides left to keep the galaxy
+  // centred in the free part of the canvas – the camera stays on the galactic centre
+  const viewShift = createPanelShift({ sim, viewport });
+  const panel = createPanel({ onToggle: () => viewShift.sync() });
 
   // --- controls: the distance slider up front, the rest folded away -------------------------------
   const radiusSlider = createSlider({
@@ -588,6 +644,8 @@ export default function mount(container, meta) {
   const modelCard = createModelCard(CONFIG);
   panel.add(radiusRow, moreControls, zoneReadout, facts, legend, infoCard, modelCard);
   container.append(panel.el);
+  viewShift.attach(panel);
+  disposers.push(viewShift.dispose);
 
   // --- on-canvas: schematic badge, tooltip, hint ---------------------------------------------------
   const badge = el('div', 'lp-schematic-badge', { role: 'note' });
@@ -601,7 +659,13 @@ export default function mount(container, meta) {
   container.append(tooltip);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
-  hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), bindText(el('span'), `${KEYS}.hint`));
+  // the zone half of the hint only holds while there are zones on screen to hover
+  const hintZones = el('span');
+  hintZones.append(bindText(el('span'), `${KEYS}.hintZones`), document.createTextNode(' · '));
+  hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), hintZones, bindText(el('span'), `${KEYS}.hint`));
+  function syncHint() {
+    hintZones.hidden = !state.showRing && !state.showZones;
+  }
   container.append(hint);
 
   // --- interaction: hover tooltips over the zones and the Sun ---------------------------------------

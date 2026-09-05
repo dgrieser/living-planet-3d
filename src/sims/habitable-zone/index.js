@@ -19,7 +19,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as HZ from './physics.js';
@@ -54,14 +54,15 @@ const DEFAULTS = Object.freeze({
   speed: SPEED_RANGE.default, // overall animation speed multiplier
 });
 
-/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. The scene starts on the
+ *  star and its planet alone; switching the zone back on brings the flat annulus with it. */
 const VIEW_DEFAULTS = Object.freeze({
-  showZone: true,
-  showZoneSurface: true, // flat annulus with its edge lines
+  showZone: false,
+  showZoneSurface: false, // flat annulus with its edge lines
   showZoneShell: false, // translucent 3D shell
   showTempLabels: true,
-  showGrid: true,
-  tempUnit: 'both', // 'both' | 'kelvin' | 'celsius' – for the star and the planet alike
+  showGrid: false,
+  tempUnit: 'celsius', // 'both' | 'kelvin' | 'celsius' – for the star and the planet alike
 });
 
 const { clamp } = HZ;
@@ -667,7 +668,10 @@ export default function mount(container, meta) {
   }
 
   // --- UI ---------------------------------------------------------------------------------------------------------------------------------
-  const panel = createPanel();
+  // while the panel is open on a wide screen the picture slides left, so what the
+  // simulation shows stays centred in the free part of the canvas
+  const viewShift = createPanelShift({ sim, viewport });
+  const panel = createPanel({ onToggle: () => viewShift.sync() });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the planet's distance up front, the rest folded away -----------------------------
@@ -858,6 +862,8 @@ export default function mount(container, meta) {
     legend, infoCard, physicsCard,
   );
   container.append(panel.el);
+  viewShift.attach(panel);
+  disposers.push(viewShift.dispose);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
   hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), bindText(el('span'), `${KEYS}.hint`));

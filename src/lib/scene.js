@@ -9,13 +9,15 @@
  *
  * Features: capped devicePixelRatio (≤ 2), OrbitControls with touch + damping,
  * procedural starfield, resize handling, delta-time loop, auto-pause when the tab
- * is hidden, prefers-reduced-motion support (static frame, render on demand).
+ * is hidden, prefers-reduced-motion support (static frame, render on demand) and
+ * an animated horizontal view shift for making room for an overlaying panel.
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const MAX_PIXEL_RATIO = 2;
 const MAX_DELTA = 0.1; // seconds – avoids huge jumps after a tab was hidden
+const VIEW_SHIFT_MS = 420; // how long setViewShift() takes to slide the picture across
 
 export { isWebGLAvailable } from './webgl.js';
 
@@ -136,6 +138,34 @@ export function createScene({
   controls.addEventListener('change', requestRender);
   controls.addEventListener('start', requestRender);
 
+  // --- view shift -----------------------------------------------------------
+  // A panel floating over one side of the canvas can be compensated for by sliding
+  // the projection sideways: the scene keeps its own centre – the orbit target, the
+  // controls and picking all stay where they are – while the picture moves out from
+  // under the panel. Positive values move the picture to the left, in CSS pixels.
+  let viewShift = 0;
+  let viewShiftTo = 0;
+  let shiftRaf = 0;
+  let shiftFrom = 0;
+  let shiftStart = 0;
+
+  function applyViewShift() {
+    const width = container.clientWidth || 1;
+    const height = container.clientHeight || 1;
+    if (Math.abs(viewShift) < 0.5) camera.clearViewOffset();
+    else camera.setViewOffset(width, height, viewShift, 0, width, height);
+  }
+
+  function stepShift(now) {
+    shiftRaf = 0;
+    const k = Math.min(1, (now - shiftStart) / VIEW_SHIFT_MS);
+    const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    viewShift = shiftFrom + (viewShiftTo - shiftFrom) * e;
+    applyViewShift();
+    requestRender();
+    if (k < 1) shiftRaf = requestAnimationFrame(stepShift);
+  }
+
   // --- resize ---------------------------------------------------------------
   function resize() {
     const width = container.clientWidth || 1;
@@ -143,6 +173,7 @@ export function createScene({
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    applyViewShift();
     requestRender();
   }
   const resizeObserver = new ResizeObserver(resize);
@@ -173,6 +204,28 @@ export function createScene({
       return () => frameCallbacks.delete(cb);
     },
     requestRender,
+    /**
+     * Slide the rendered picture sideways without moving the camera or its target.
+     * @param {number} px  CSS pixels to move the picture to the left (0 = centred).
+     */
+    setViewShift(px, { animate = true } = {}) {
+      const next = Number.isFinite(px) ? px : 0;
+      if (next === viewShiftTo && !shiftRaf) return;
+      viewShiftTo = next;
+      if (shiftRaf) {
+        cancelAnimationFrame(shiftRaf);
+        shiftRaf = 0;
+      }
+      if (!animate || reducedMotion) {
+        viewShift = next;
+        applyViewShift();
+        requestRender();
+        return;
+      }
+      shiftFrom = viewShift;
+      shiftStart = performance.now();
+      shiftRaf = requestAnimationFrame(stepShift);
+    },
     start() {
       if (running) return;
       running = true;
@@ -186,6 +239,7 @@ export function createScene({
     },
     dispose() {
       this.stop();
+      if (shiftRaf) cancelAnimationFrame(shiftRaf);
       motionQuery.removeEventListener('change', onMotionChange);
       document.removeEventListener('visibilitychange', onVisibility);
       resizeObserver.disconnect();

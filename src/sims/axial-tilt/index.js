@@ -22,7 +22,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
 import * as S from './physics.js';
@@ -71,20 +71,21 @@ const DEFAULTS = Object.freeze({
   dayOfYear: 171.5, // June solstice
   playing: true,
   daysPerSecond: 10,
-  latitudeDeg: 45,
+  latitudeDeg: 0,
 });
 
-/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. Only the axis and the pole
+ *  labels to begin with: Earth arrives bare, and every overlay is one tap away in the panel. */
 const VIEW_DEFAULTS = Object.freeze({
   showHeat: false, // insolation heat map – exclusive with showClimate
-  showClimate: true, // seasonal-mean temperature bands
-  showLivable: true, // livable-region view (darkened hostile bands + border rings)
-  showTerminator: true,
-  showEquator: true,
-  showCircles: true, // tropics + polar circles
+  showClimate: false, // seasonal-mean temperature bands
+  showLivable: false, // livable-region view (darkened hostile bands + border rings)
+  showTerminator: false,
+  showEquator: false,
+  showCircles: false, // tropics + polar circles
   showAxis: true,
-  showSubsolar: true,
-  showGrid: true,
+  showSubsolar: false,
+  showGrid: false,
   showLabels: true,
 });
 
@@ -835,7 +836,10 @@ export default function mount(container, meta) {
     (preset.tiltDeg === undefined || Math.abs(state.tiltDeg - preset.tiltDeg) < 0.05) && (preset.periodH === undefined || Math.abs(state.periodH - preset.periodH) < 0.05);
 
   // --- UI ----------------------------------------------------------------------------------------------------------------------
-  const panel = createPanel();
+  // while the panel is open on a wide screen the picture slides left, so what the
+  // simulation shows stays centred in the free part of the canvas
+  const viewShift = createPanelShift({ sim, viewport });
+  const panel = createPanel({ onToggle: () => viewShift.sync() });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the tilt up front, the rest folded away ---------------------------------------------
@@ -917,6 +921,35 @@ export default function mount(container, meta) {
     },
   });
 
+  // which latitude the readout describes – the slider and its four presets pick it
+  const latitudeSlider = createSlider({
+    labelKey: `${KEYS}.controls.latitude`,
+    min: -90,
+    max: 90,
+    step: 0.5,
+    value: state.latitudeDeg,
+    format: (v) => formatLatitude(v, 1),
+    onChange: (v) => setLatitude(v, { fromSlider: true }),
+  });
+  const latitudeRow = el('div', 'lp-presets lp-presets--compact', { role: 'group' });
+  bindAttr(latitudeRow, { 'aria-label': `${KEYS}.controls.latitudePresets` });
+  const presetLatitude = (preset) => (preset.id === 'polarCircle' ? Math.round((90 - state.tiltDeg) * 10) / 10 : preset.latitudeDeg);
+  const latitudeButtons = S.LATITUDE_PRESETS.map((preset) => {
+    const btn = createButton({ labelKey: `${KEYS}.latitudes.${preset.id}`, onClick: () => setLatitude(presetLatitude(preset)) });
+    btn.el.classList.add('lp-presets__btn', 'lp-presets__btn--stack');
+    const value = el('span', 'lp-presets__value');
+    btn.el.append(value);
+    latitudeRow.append(btn.el);
+    return { preset, el: btn.el, value };
+  });
+  function syncLatitudeButtons() {
+    for (const { preset, el: btn, value } of latitudeButtons) {
+      const lat = presetLatitude(preset);
+      value.textContent = formatLatitude(lat, 1);
+      btn.setAttribute('aria-pressed', String(Math.abs(state.latitudeDeg - lat) < 0.01));
+    }
+  }
+
   const viewToggle = (name, labelKey, onChange = refresh) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
   // the two colour overlays share the hue ramp but mean different things (W/m² vs °C) – only one at a time
   const toggles = {
@@ -987,7 +1020,8 @@ export default function mount(container, meta) {
   resetRow.append(resetBtn.el);
 
   moreControls.add(periodSlider, presetsTitle, presetRow, presetNote,
-    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.orbit`), dayRow, stopRow, speedSlider);
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.orbit`), dayRow, stopRow, speedSlider,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.readout`), latitudeSlider, latitudeRow);
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow,
@@ -996,61 +1030,30 @@ export default function mount(container, meta) {
     resetRow,
   );
 
-  // --- readouts: what the tilt does to the planet, then the year, then one chosen latitude -----------
-  // year-round livable share of the surface + verdict tier for the current tilt
+  // --- readouts: one verdict box, then every number in one table --------------------------------------
+  // the box carries the year-round livable share of the surface with its verdict, and under it what the
+  // chosen latitude makes of that tilt: its climate zone and whether it is livable all year round
   const habReadout = createReadout(`${KEYS}.readout.livableSurface`);
   habReadout.el.classList.add('lp-readout--zone');
   const habState = el('span', 'lp-state', { role: 'status' });
   const habHint = el('p', 'lp-state__hint');
-  habReadout.el.append(habState, habHint);
-  const orbitFacts = createFacts([
+  const zoneRow = el('div', 'lp-zone');
+  const zonePill = el('span', 'lp-state', { role: 'status' });
+  const zoneHint = el('p', 'lp-state__hint');
+  zoneRow.append(bindText(el('span', 'lp-zone__label'), `${KEYS}.readout.zone`), zonePill, zoneHint);
+  const livableRow = el('div', 'lp-zone');
+  const livablePill = el('span', 'lp-state', { role: 'status' });
+  livableRow.append(bindText(el('span', 'lp-zone__label'), `${KEYS}.readout.livableYearRound`), livablePill);
+  habReadout.el.append(habState, habHint, zoneRow, livableRow);
+
+  // every figure in one listing: what the year does to the planet first, then the chosen latitude
+  const facts = createFacts([
     ['season', `${KEYS}.readout.season`],
     ['subsolar', `${KEYS}.readout.subsolar`],
     ['tropics', `${KEYS}.readout.tropics`],
     ['polarCircles', `${KEYS}.readout.polarCircles`],
-  ]);
-
-  // the latitude block stays one unit: its slider and presets only make sense beside their readouts
-  const latitudeSlider = createSlider({
-    labelKey: `${KEYS}.controls.latitude`,
-    min: -90,
-    max: 90,
-    step: 0.5,
-    value: state.latitudeDeg,
-    format: (v) => formatLatitude(v, 1),
-    onChange: (v) => setLatitude(v, { fromSlider: true }),
-  });
-  const latitudeRow = el('div', 'lp-presets lp-presets--compact', { role: 'group' });
-  bindAttr(latitudeRow, { 'aria-label': `${KEYS}.controls.latitudePresets` });
-  const presetLatitude = (preset) => (preset.id === 'polarCircle' ? Math.round((90 - state.tiltDeg) * 10) / 10 : preset.latitudeDeg);
-  const latitudeButtons = S.LATITUDE_PRESETS.map((preset) => {
-    const btn = createButton({ labelKey: `${KEYS}.latitudes.${preset.id}`, onClick: () => setLatitude(presetLatitude(preset)) });
-    btn.el.classList.add('lp-presets__btn', 'lp-presets__btn--stack');
-    const value = el('span', 'lp-presets__value');
-    btn.el.append(value);
-    latitudeRow.append(btn.el);
-    return { preset, el: btn.el, value };
-  });
-  function syncLatitudeButtons() {
-    for (const { preset, el: btn, value } of latitudeButtons) {
-      const lat = presetLatitude(preset);
-      value.textContent = formatLatitude(lat, 1);
-      btn.setAttribute('aria-pressed', String(Math.abs(state.latitudeDeg - lat) < 0.01));
-    }
-  }
-  // pinned place: latitude · season · seasonal-mean temperature, livable verdict, unpin
-  const pinReadout = createReadout(`${KEYS}.readout.pinned`);
-  pinReadout.el.classList.add('lp-readout--zone');
-  const pinState = el('span', 'lp-state', { role: 'status' });
-  const unpinBtn = createButton({ labelKey: `${KEYS}.pin.unpin`, icon: '✕', onClick: () => unpin() });
-  const pinHint = bindText(el('p', 'lp-state__hint'), `${KEYS}.pin.hint`);
-  pinReadout.el.append(pinState, unpinBtn.el, pinHint);
-  const dayReadout = el('div', 'lp-readout');
-  const dayReadoutLabel = bindText(el('div', 'lp-readout__label'), `${KEYS}.readout.dayLength`);
-  const dayReadoutValue = el('div', 'lp-readout__value', { 'aria-live': 'off' });
-  const dayReadoutTag = el('span', 'lp-state', { role: 'status', hidden: true });
-  dayReadout.append(dayReadoutLabel, dayReadoutValue, dayReadoutTag);
-  const latitudeFacts = createFacts([
+    ['pinned', `${KEYS}.readout.pinned`],
+    ['dayLength', `${KEYS}.readout.dayLength`],
     ['midnightSun', `${KEYS}.readout.midnightSun`],
     ['polarNight', `${KEYS}.readout.polarNightDays`],
     ['insolation', `${KEYS}.readout.insolation`],
@@ -1058,26 +1061,29 @@ export default function mount(container, meta) {
     ['dayNight', `${KEYS}.readout.dayNight`],
     ['seasonalMeans', `${KEYS}.readout.seasonalMeans`],
   ]);
-  const zoneRow = el('div', 'lp-zone');
-  const zoneLabel = bindText(el('span', 'lp-zone__label'), `${KEYS}.readout.zone`);
-  const zonePill = el('span', 'lp-state', { role: 'status' });
-  const zoneHint = el('p', 'lp-state__hint');
-  zoneRow.append(zoneLabel, zonePill, zoneHint);
-  const livableRow = el('div', 'lp-zone');
-  const livablePill = el('span', 'lp-state', { role: 'status' });
-  livableRow.append(bindText(el('span', 'lp-zone__label'), `${KEYS}.readout.livableYearRound`), livablePill);
+  // two rows carry more than a number: the pinned place its release button, the day length its polar tag
+  const pinValue = el('span');
+  const unpinBtn = createButton({ labelKey: `${KEYS}.pin.unpin`, icon: '✕', compact: true, onClick: () => unpin() });
+  facts.cell('pinned').classList.add('lp-facts__cell');
+  facts.cell('pinned').append(pinValue, unpinBtn.el);
+  const dayValue = el('span');
+  const dayTag = el('span', 'lp-state lp-state--inline', { role: 'status', hidden: true });
+  facts.cell('dayLength').classList.add('lp-facts__cell');
+  facts.cell('dayLength').append(dayValue, dayTag);
+  const pinHint = bindText(el('p', 'lp-section__note'), `${KEYS}.pin.hint`);
+
   const legend = createLegend();
 
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
     tiltSlider, moreControls,
-    habReadout, orbitFacts,
-    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.readout`), latitudeSlider, latitudeRow,
-    pinReadout, dayReadout, latitudeFacts, zoneRow, livableRow,
+    habReadout, facts, pinHint,
     legend, infoCard, physicsCard,
   );
   container.append(panel.el);
+  viewShift.attach(panel);
+  disposers.push(viewShift.dispose);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
   hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), bindText(el('span'), `${KEYS}.hint`));
@@ -1104,44 +1110,36 @@ export default function mount(container, meta) {
     habReadout.el.classList.add(VERDICT_ZONE[verdict]);
 
     const noSeasons = state.tiltDeg < 0.05;
-    orbitFacts.set('season', noSeasons ? t(`${KEYS}.readout.noSeasons`) : t(`${KEYS}.readout.seasonLine`, { north: t(`${KEYS}.seasons.${season.north}`), south: t(`${KEYS}.seasons.${season.south}`) }));
-    orbitFacts.set('subsolar', formatLatitude(declDeg, 1));
-    orbitFacts.set('tropics', noSeasons ? t(`${KEYS}.readout.none`) : t(`${KEYS}.readout.plusMinus`, { n: fmt(state.tiltDeg, 1) }));
-    orbitFacts.set('polarCircles', noSeasons ? t(`${KEYS}.readout.none`) : t(`${KEYS}.readout.plusMinus`, { n: fmt(90 - state.tiltDeg, 1) }));
+    facts.set('season', noSeasons ? t(`${KEYS}.readout.noSeasons`) : t(`${KEYS}.readout.seasonLine`, { north: t(`${KEYS}.seasons.${season.north}`), south: t(`${KEYS}.seasons.${season.south}`) }));
+    facts.set('subsolar', formatLatitude(declDeg, 1));
+    facts.set('tropics', noSeasons ? t(`${KEYS}.readout.none`) : t(`${KEYS}.readout.plusMinus`, { n: fmt(state.tiltDeg, 1) }));
+    facts.set('polarCircles', noSeasons ? t(`${KEYS}.readout.none`) : t(`${KEYS}.readout.plusMinus`, { n: fmt(90 - state.tiltDeg, 1) }));
 
-    dayReadoutValue.textContent = formatDuration(dayLengthH);
+    dayValue.textContent = formatDuration(dayLengthH);
     const polarTag = fraction >= 1 - 1e-6 ? 'polarDay' : fraction <= 1e-6 ? 'polarNight' : null;
-    dayReadoutTag.hidden = !polarTag;
+    dayTag.hidden = !polarTag;
     if (polarTag) {
-      dayReadoutTag.textContent = t(`${KEYS}.readout.${polarTag}`);
-      dayReadoutTag.className = `lp-state lp-state--${polarTag === 'polarDay' ? 'scorched' : 'frozen'}`;
+      dayTag.textContent = t(`${KEYS}.readout.${polarTag}`);
+      dayTag.className = `lp-state lp-state--inline lp-state--${polarTag === 'polarDay' ? 'scorched' : 'frozen'}`;
     }
     const daysText = (n) => (n > 0 ? t(`${KEYS}.readout.${n === 1 ? 'day' : 'days'}`, { n: fmt(n, 0) }) : t(`${KEYS}.readout.none`));
-    latitudeFacts.set('midnightSun', daysText(polar.midnightSun));
-    latitudeFacts.set('polarNight', daysText(polar.polarNight));
-    latitudeFacts.set('insolation', `${fmt(temps.insolation, 0)} ${t('units.wattsPerSquareMeter')}`);
-    latitudeFacts.set('temperature', `≈ ${formatTemperature(temps.meanC)}`);
-    latitudeFacts.set('dayNight', `${formatTemperature(temps.dayC)} / ${formatTemperature(temps.nightC)}`);
-    latitudeFacts.set('seasonalMeans', `${formatTemperature(extremes.summerC)} / ${formatTemperature(extremes.winterC)}`);
+    facts.set('midnightSun', daysText(polar.midnightSun));
+    facts.set('polarNight', daysText(polar.polarNight));
+    facts.set('insolation', `${fmt(temps.insolation, 0)} ${t('units.wattsPerSquareMeter')}`);
+    facts.set('temperature', `≈ ${formatTemperature(temps.meanC)}`);
+    facts.set('dayNight', `${formatTemperature(temps.dayC)} / ${formatTemperature(temps.nightC)}`);
+    facts.set('seasonalMeans', `${formatTemperature(extremes.summerC)} / ${formatTemperature(extremes.winterC)}`);
     zonePill.textContent = t(`${KEYS}.readout.zones.${zone}`);
     zonePill.className = `lp-state lp-state--zone-${zone}`;
     zoneHint.textContent = t(`${KEYS}.readout.zoneHints.${zone}`);
     livablePill.textContent = t(`${KEYS}.pin.${livable ? 'livable' : 'notLivable'}`);
     livablePill.className = `lp-state lp-state--${livable ? 'habitable' : 'scorched'}`;
 
-    pinReadout.el.classList.remove('is-inner', 'is-habitable');
-    pinState.hidden = !pin;
+    // the pinned place is one row of the table: where it is. Its season, its temperature and whether it
+    // is livable are the rows and the box around it – the readout follows the pin's latitude
     unpinBtn.el.hidden = !pin;
     pinHint.hidden = !!pin;
-    if (pin) {
-      const hemisphere = state.latitudeDeg >= 0 ? 'north' : 'south';
-      pinReadout.value.textContent = `${formatLatitude(state.latitudeDeg, 0)} · ${t(`${KEYS}.seasons.${season[hemisphere]}`)} · ${formatTemperature(temps.meanC)}`;
-      pinState.className = `lp-state lp-state--${livable ? 'habitable' : 'scorched'}`;
-      pinState.textContent = t(`${KEYS}.pin.${livable ? 'livable' : 'notLivable'}`);
-      pinReadout.el.classList.add(livable ? 'is-habitable' : 'is-inner');
-    } else {
-      pinReadout.value.textContent = '–';
-    }
+    pinValue.textContent = pin ? formatLatitude(state.latitudeDeg, 1) : '–';
   }
 
   // --- language -------------------------------------------------------------------------------------------------------------------------
@@ -1232,7 +1230,8 @@ function formatTemperature(c) {
 // ============================================================================================================
 /** Definition list of live facts: set(id, text) updates a value. */
 function createFacts(rows) {
-  const dl = el('dl', 'lp-facts lp-facts--accent');
+  // --wrap: the labels are long enough to overflow a 340 px panel if they were sized to fit
+  const dl = el('dl', 'lp-facts lp-facts--accent lp-facts--wrap');
   const values = new Map();
   for (const [id, labelKey] of rows) {
     const dd = el('dd');
@@ -1244,6 +1243,10 @@ function createFacts(rows) {
     set(id, text) {
       const dd = values.get(id);
       if (dd && dd.textContent !== text) dd.textContent = text;
+    },
+    /** The value cell of a row – for the few that carry a pill or a button beside their text. */
+    cell(id) {
+      return values.get(id);
     },
     dispose() {},
   };

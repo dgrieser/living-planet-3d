@@ -186,7 +186,8 @@ a:hover { color: #a9d9ff; }
 
 /* ---------- control panel ---------- */
 .lp-panel {
-  position: absolute; top: 16px; right: 16px; z-index: 10;
+  /* above the on-canvas cards and badges (z 10): a full-height sheet may cover them */
+  position: absolute; top: 16px; right: 16px; z-index: 11;
   width: min(340px, calc(100vw - 32px));
   max-height: calc(100% - 32px);
   display: flex; flex-direction: column;
@@ -198,10 +199,13 @@ a:hover { color: #a9d9ff; }
   box-shadow: var(--lp-shadow);
 }
 .lp-panel__header {
+  position: relative;
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid var(--lp-border);
 }
+/* the grab handle of the bottom sheet – see the responsive block */
+.lp-panel__grip { display: none; }
 .lp-panel.is-collapsed .lp-panel__header { border-bottom-color: transparent; }
 .lp-panel__title { margin: 0; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lp-text-muted); }
 .lp-panel__toggle {
@@ -356,9 +360,23 @@ a:hover { color: #a9d9ff; }
 /* ---------- responsive ---------- */
 @media (max-width: 720px) {
   .lp-brand__sub, .lp-header__back-text { display: none; }
+  /* bottom sheet: anchored to the bottom edge, its header doubles as a drag handle */
   .lp-panel {
     top: auto; right: 8px; left: 8px; bottom: 8px;
     width: auto; max-height: 70%;
+    transition: height 220ms ease;
+  }
+  .lp-panel--sized { max-height: none; }
+  .lp-panel.is-dragging { transition: none; }
+  .lp-panel__header {
+    padding-top: 18px;
+    cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .lp-panel.is-dragging .lp-panel__header { cursor: grabbing; }
+  .lp-panel__grip {
+    display: block; position: absolute; top: 7px; left: 50%;
+    width: 40px; height: 4px; margin-left: -20px; border-radius: 2px;
+    background: var(--lp-border);
   }
   .lp-sim__hint { display: none; }
 }
@@ -393,8 +411,11 @@ a:hover { color: #a9d9ff; }
 .lp-facts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .lp-facts--accent dd { color: var(--lp-accent); }
 /* long labels next to long values: let both columns shrink and wrap instead of overflowing */
-.lp-facts--wrap { grid-template-columns: minmax(48%, 1fr) minmax(0, 1fr); }
+.lp-facts--wrap { grid-template-columns: minmax(48%, 1fr) minmax(0, 1fr); row-gap: 7px; }
 .lp-facts--wrap dd { white-space: normal; }
+/* value cells that carry a pill or a small button beside their number */
+.lp-facts dd.lp-facts__cell { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 8px; }
+.lp-facts__cell .lp-button--compact { width: 24px; height: 24px; font-size: 0.8rem; }
 
 .lp-legend { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--lp-text-muted); margin: 4px 0; }
 .lp-legend__item { display: flex; align-items: center; gap: 8px; }
@@ -469,6 +490,8 @@ a:hover { color: #a9d9ff; }
 .lp-state__hint + .lp-state__hint { margin-top: 8px; line-height: 1.45; }
 .lp-state__hint:empty { display: none; }
 .lp-state__figure { font-weight: 700; color: var(--lp-text); font-variant-numeric: tabular-nums; }
+/* pill sized to sit inside a line of text or a stats row */
+.lp-state--inline { padding: 2px 8px; font-size: 0.72rem; }
 
 .lp-window-note { margin: 4px 0 0; font-size: 0.85rem; color: var(--lp-accent); font-variant-numeric: tabular-nums; }
 .lp-section__note { margin: 4px 0 0; font-size: 0.8rem; color: var(--lp-text-muted); }
@@ -510,6 +533,10 @@ a:hover { color: #a9d9ff; }
 .lp-readout .lp-state[hidden] { display: none; }
 .lp-zone { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 2px 0 6px; }
 .lp-zone__label { font-size: 0.88rem; color: var(--lp-text-muted); }
+/* follow-up rows inside a readout box, split off from its headline by a hairline */
+.lp-readout > .lp-zone { flex: 1 1 100%; margin: 0; }
+.lp-readout > .lp-state__hint + .lp-zone { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--lp-border); }
+.lp-readout > .lp-zone + .lp-zone { margin-top: 8px; }
 .lp-state--zone-tropical { color: #ffe1a3; background: rgba(255, 209, 102, 0.16); border-color: rgba(255, 209, 102, 0.55); }
 .lp-state--zone-temperate { color: #b8f5cf; background: rgba(90, 220, 140, 0.16); border-color: rgba(90, 220, 140, 0.55); }
 .lp-state--zone-polar { color: #cfe9ff; background: rgba(159, 232, 255, 0.16); border-color: rgba(159, 232, 255, 0.5); }
