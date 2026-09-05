@@ -46,6 +46,16 @@ const STAR_SCALE_RANGE = Object.freeze({ min: 1, max: 60, default: 11 });
 // range on a phone as well as on a desktop.
 const STAR_DRAG_TYPE_SPAN = 0.6; // fraction of the canvas height the whole temperature range takes
 const STAR_DRAG_TRAVEL_PX = Object.freeze({ min: 260, max: 900 }); // ... but never a shorter or longer gesture than this
+/**
+ * The planet close-up: where the camera sits relative to the planet, in planet radii, so the
+ * planet keeps the same apparent size at any orbit. It stands outside the orbit and a little to
+ * the side and above it, and aims between the two bodies so the planet sits `frame` of the way
+ * from the centre to the right edge with the star further left – measured against the frame's
+ * own half-angle, so a narrow phone screen gets the same picture as a wide one, and the planet
+ * gives way towards the edge when a distant star would otherwise fall outside `starFrame`.
+ */
+const PLANET_VIEW = Object.freeze({ out: 11, side: 4.5, up: 2.6, frame: 0.45, starFrame: 0.75, edge: 0.9, starClearance: 1.4, portrait: 0.5 });
+const CAMERA_MODES = Object.freeze(['fit', 'follow', 'free']);
 const FIT_TOLERANCE = 1.06; // how far the framing may drift before the fit mode re-frames
 const FIT_TOLERANCE_PLAYING = 1.3; // ... and while stellar evolution runs, so the camera does not creep along with it
 const SECONDS_PER_ORBIT_YEAR = 20; // visual time: at 1× speed a 1-year orbit takes 20 s
@@ -81,7 +91,9 @@ const VIEW_DEFAULTS = Object.freeze({
   showGrid: false,
   tempUnit: 'celsius', // 'both' | 'kelvin' | 'celsius' – for the star and the planet alike
   starScale: STAR_SCALE_RANGE.default, // how far the star's disc is drawn larger than life (display only)
-  autoFrame: true, // fit mode: keep the star, the planet and the zone in view by themselves
+  // 'fit' keeps the star, the planet and the zone framed by themselves, 'follow' rides along
+  // with the planet, 'free' leaves the camera to the visitor
+  cameraMode: 'fit',
 });
 
 const { clamp } = HZ;
@@ -93,6 +105,7 @@ export default function mount(container, meta) {
   const state = { ...DEFAULTS, ...viewPrefs.values, playing: false, angle: Math.PI * 0.15 };
   if (!TEMP_UNITS.includes(state.tempUnit)) state.tempUnit = VIEW_DEFAULTS.tempUnit;
   state.starScale = Number.isFinite(state.starScale) ? clamp(state.starScale, STAR_SCALE_RANGE.min, STAR_SCALE_RANGE.max) : VIEW_DEFAULTS.starScale;
+  if (!CAMERA_MODES.includes(state.cameraMode)) state.cameraMode = VIEW_DEFAULTS.cameraMode;
   const TEFF_DECADES = Math.log10(HZ.TEFF_RANGE_K.max / HZ.TEFF_RANGE_K.min); // ≈ 0.44
   const disposers = [];
 
@@ -462,6 +475,7 @@ export default function mount(container, meta) {
   function refresh() {
     model = derive();
     updateScene();
+    applyCamera();
     updateOverlay();
     updateReadouts();
     sim.requestRender();
@@ -469,25 +483,32 @@ export default function mount(container, meta) {
 
   // --- camera ----------------------------------------------------------------------------------------------------------
   let cameraTween = null;
-  function tweenCamera(toPosition, toTarget, duration = 0.9) {
+  /**
+   * Fly the camera somewhere. `destination` is either a fixed { position, target } or a function
+   * returning one, so a flight can end on something that is still moving – the planet.
+   */
+  function tweenCamera(destination, duration = 0.9) {
+    const end = () => (typeof destination === 'function' ? destination() : destination);
     if (sim.reducedMotion || duration <= 0) {
-      camera.position.copy(toPosition);
-      controls.target.copy(toTarget);
+      const { position, target } = end();
+      camera.position.copy(position);
+      controls.target.copy(target);
       cameraTween = null;
       controls.update();
       updateOverlay();
       sim.requestRender();
       return;
     }
-    cameraTween = { t: 0, duration, fromPos: camera.position.clone(), fromTarget: controls.target.clone(), toPos: toPosition.clone(), toTarget: toTarget.clone() };
+    cameraTween = { t: 0, duration, end, fromPos: camera.position.clone(), fromTarget: controls.target.clone() };
   }
   function stepTween(dt) {
     if (!cameraTween) return;
     const tw = cameraTween;
     tw.t = Math.min(1, tw.t + dt / tw.duration);
     const k = easeInOut(tw.t);
-    camera.position.lerpVectors(tw.fromPos, tw.toPos, k);
-    controls.target.lerpVectors(tw.fromTarget, tw.toTarget, k);
+    const { position, target } = tw.end();
+    camera.position.lerpVectors(tw.fromPos, position, k);
+    controls.target.lerpVectors(tw.fromTarget, target, k);
     if (tw.t >= 1) cameraTween = null;
   }
   /** Distance at which a ring of radius r (scene units) in the orbital plane fits the view. */
@@ -501,7 +522,7 @@ export default function mount(container, meta) {
     const dir = tmpV.copy(camera.position).sub(controls.target);
     if (dir.lengthSq() < 1e-6 || dir.y < 0.15 * dir.length()) dir.set(0, 0.72, 1);
     dir.normalize().multiplyScalar(fitDistance(r));
-    tweenCamera(dir, new THREE.Vector3(0, 0, 0), duration);
+    tweenCamera({ position: dir.clone(), target: new THREE.Vector3(0, 0, 0) }, duration);
   }
   /**
    * Radius (scene units) the fit mode has to cover: the planet's orbit, the star's own disc
@@ -517,13 +538,84 @@ export default function mount(container, meta) {
   }
   const fitView = (duration) => frameRadius(fitRadiusUnits(), duration);
   const frameOverview = (duration) => frameRadius(HZ.DISTANCE_RANGE_AU.max * AU_UNITS, duration);
+
+  /**
+   * Where the camera stands for the planet close-up: outside the orbit, a little to the side of
+   * the planet and above the plane, all measured in planet radii so the planet keeps its
+   * apparent size wherever it orbits. It aims between the planet and the star, which puts the
+   * planet large on one side of the frame and the star small in the distance on the other.
+   */
+  function planetView() {
+    const outward = tmpV.copy(planetPos).setY(0);
+    if (outward.lengthSq() < 1e-12) outward.set(1, 0, 0);
+    outward.normalize();
+    const across = new THREE.Vector3(-outward.z, 0, outward.x);
+    // A portrait frame sees far less to the sides, so stand closer to the planet–star line there.
+    // The height above the plane stays: it is what keeps the distant star clear of the planet's
+    // disc on a narrow screen, where there is room above and below but not beside.
+    const wide = clamp((camera.aspect - 0.55) / 1.05, PLANET_VIEW.portrait, 1);
+    const position = planetPos.clone()
+      .addScaledVector(outward, PLANET_VIEW.out * PLANET_RADIUS)
+      .addScaledVector(across, PLANET_VIEW.side * wide * PLANET_RADIUS);
+    position.y += PLANET_VIEW.up * PLANET_RADIUS;
+    // a swollen star could otherwise reach past the camera – stand clear of its drawn disc
+    const clearance = model.starRadius * PLANET_VIEW.starClearance;
+    if (position.length() < clearance) position.addScaledVector(outward, clearance - position.length());
+    const toPlanet = planetPos.clone().sub(position).normalize();
+    const toStar = position.clone().negate().normalize();
+    // Swing the view axis off the planet and towards the star, turning about the vertical so the
+    // two end up beside each other rather than diagonally: the planet sits this share of the way
+    // from the centre to the right edge, giving way towards the edge when a distant star would
+    // otherwise fall outside `starFrame`. Measuring against the frame's own half-angle keeps the
+    // composition the same on a narrow phone as on a wide screen.
+    const halfAngle = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
+    const flatPlanet = toPlanet.clone().setY(0).normalize();
+    const flatStar = toStar.clone().setY(0).normalize();
+    const separation = Math.acos(clamp(flatPlanet.dot(flatStar), -1, 1));
+    const off = clamp(Math.max(PLANET_VIEW.frame, separation / halfAngle - PLANET_VIEW.starFrame), 0, PLANET_VIEW.edge) * halfAngle;
+    const turn = Math.sign(flatPlanet.cross(flatStar).y || 1) * Math.min(off, separation);
+    const aim = toPlanet.clone().applyAxisAngle(THREE.Object3D.DEFAULT_UP, turn);
+    return { position, target: position.clone().addScaledVector(aim, position.distanceTo(planetPos)) };
+  }
+  /**
+   * Riding along with the planet. Left alone the camera stays on the close-up above; once the
+   * visitor has taken hold of the view it keeps their own angle and distance, carried around
+   * with the planet (the offsets are re-read from the live camera every frame, so orbiting and
+   * zooming keep working), and a planet dragged to another orbit takes the view with it.
+   */
+  let followAutopilot = true;
+  const followFrom = new THREE.Vector3();
+  let followAngle = 0;
+  function followPlanetCamera() {
+    if (state.cameraMode !== 'follow' || cameraTween) {
+      followFrom.copy(planetPos);
+      followAngle = state.angle;
+      return;
+    }
+    if (followAutopilot) {
+      const view = planetView();
+      camera.position.copy(view.position);
+      controls.target.copy(view.target);
+    } else {
+      const turn = state.angle - followAngle;
+      const carry = (v) => v.sub(followFrom).applyAxisAngle(THREE.Object3D.DEFAULT_UP, turn).add(planetPos);
+      carry(camera.position);
+      carry(controls.target);
+    }
+    followFrom.copy(planetPos);
+    followAngle = state.angle;
+  }
+  /** Point the camera at whatever the current mode asks for. Runs after the scene has moved. */
+  function applyCamera() {
+    followPlanetCamera();
+  }
   /**
    * The fit mode's re-frame, called when a gesture ends (pointer up / touch released) rather
    * than while it runs, so the view does not pump in and out under the visitor's finger.
    * A small tolerance keeps it from tweening over a fraction of a percent.
    */
   function fitViewIfAuto(tolerance = FIT_TOLERANCE) {
-    if (!state.autoFrame) return;
+    if (state.cameraMode !== 'fit') return;
     const ideal = fitDistance(fitRadiusUnits());
     const dist = camera.position.distanceTo(controls.target);
     if (dist > ideal * tolerance || dist < ideal / tolerance) fitView();
@@ -668,6 +760,7 @@ export default function mount(container, meta) {
     if (state.playing && !drag && !cameraTween) fitViewIfAuto(FIT_TOLERANCE_PLAYING);
     stepTween(dt); // camera framing is interface motion, not scene time
     updateScene();
+    applyCamera();
     updateOverlay();
     updateReadouts();
   }
@@ -675,8 +768,15 @@ export default function mount(container, meta) {
   const onControlsChange = () => {
     updateOverlay();
   };
+  const onControlsStart = () => {
+    followAutopilot = false; // the close-up keeps the visitor's own angle from here on
+  };
   controls.addEventListener('change', onControlsChange);
-  disposers.push(() => controls.removeEventListener('change', onControlsChange));
+  controls.addEventListener('start', onControlsStart);
+  disposers.push(() => {
+    controls.removeEventListener('change', onControlsChange);
+    controls.removeEventListener('start', onControlsStart);
+  });
   // a rotated phone or a resized window changes what fits on screen
   const onWindowResize = () => fitViewIfAuto(FIT_TOLERANCE_PLAYING);
   window.addEventListener('resize', onWindowResize);
@@ -753,12 +853,18 @@ export default function mount(container, meta) {
     if (persist) viewPrefs.set('starScale', state.starScale);
     refresh();
   }
-  /** Fit mode: while it is on, the camera re-frames itself whenever a gesture or a slider ends. */
-  function setAutoFrame(on) {
-    state.autoFrame = on;
-    viewPrefs.set('autoFrame', on);
-    syncFrameButton();
-    if (on) fitView(); // switching it on frames straight away, so the mode shows what it does
+  /**
+   * The camera modes. 'fit' re-frames the star, the planet and the zone whenever a gesture or a
+   * slider ends; 'follow' rides along with the planet; 'free' leaves the camera alone. Switching
+   * into a mode flies there, so pressing the button shows what it does.
+   */
+  function setCameraMode(mode, { fly = true, duration } = {}) {
+    state.cameraMode = CAMERA_MODES.includes(mode) ? mode : 'free';
+    viewPrefs.set('cameraMode', state.cameraMode);
+    followAutopilot = true; // a mode always starts on its own framing again
+    syncCameraButtons();
+    if (fly && state.cameraMode === 'fit') fitView(duration);
+    if (fly && state.cameraMode === 'follow') tweenCamera(planetView, duration ?? 1.2);
     sim.requestRender();
   }
   function setTempUnit(unit) {
@@ -968,27 +1074,35 @@ export default function mount(container, meta) {
     onChange: (v) => setSpeed(v, { silent: true }),
   });
   const speedNote = bindText(el('p', 'lp-section__note'), `${KEYS}.view.speedNote`);
-  const cameraRow = el('div', 'lp-presets lp-presets--2 lp-presets--compact', { role: 'group' });
-  // "Frame zone" is a mode, not a one-off: while it is pressed the camera keeps the star, the
-  // planet and the zone framed by itself; "Overview" hands the camera back to the visitor.
+  const cameraRow = el('div', 'lp-presets lp-presets--3 lp-presets--compact', { role: 'group' });
+  bindAttr(cameraRow, { 'aria-label': `${KEYS}.view.camera` });
+  // "Frame zone" and "Planet" are modes, not one-offs: the first keeps the star, the planet and
+  // the zone framed, the second rides along with the planet. "Overview" hands the camera back.
   const frameBtn = createButton({
     labelKey: `${KEYS}.view.frameZone`,
     ariaKey: `${KEYS}.view.frameZoneAria`,
     icon: '◎',
-    onClick: () => setAutoFrame(!state.autoFrame),
+    onClick: () => setCameraMode(state.cameraMode === 'fit' ? 'free' : 'fit'),
   });
-  function syncFrameButton() {
-    frameBtn.el.setAttribute('aria-pressed', String(state.autoFrame));
+  const followBtn = createButton({
+    labelKey: `${KEYS}.view.followPlanet`,
+    ariaKey: `${KEYS}.view.followPlanetAria`,
+    icon: '◐',
+    onClick: () => setCameraMode(state.cameraMode === 'follow' ? 'free' : 'follow'),
+  });
+  function syncCameraButtons() {
+    frameBtn.el.setAttribute('aria-pressed', String(state.cameraMode === 'fit'));
+    followBtn.el.setAttribute('aria-pressed', String(state.cameraMode === 'follow'));
   }
   const overviewBtn = createButton({
     labelKey: `${KEYS}.view.overview`,
     icon: '⤢',
     onClick: () => {
-      setAutoFrame(false); // an explicit wide view: the camera is the visitor's again
+      setCameraMode('free', { fly: false }); // an explicit wide view: the camera is the visitor's again
       frameOverview();
     },
   });
-  for (const btn of [frameBtn, overviewBtn]) {
+  for (const btn of [frameBtn, followBtn, overviewBtn]) {
     btn.el.classList.add('lp-presets__btn');
     cameraRow.append(btn.el);
   }
@@ -1126,15 +1240,17 @@ export default function mount(container, meta) {
   // --- go ------------------------------------------------------------------------------------------------------------------------------------------
   syncPresetButtons();
   syncPlayButton();
-  syncFrameButton();
+  syncCameraButtons();
   refresh();
   syncStarSliders();
   updateReadouts(true);
-  fitView(0);
+  // start in whatever camera mode the visitor left behind, already framed
+  if (state.cameraMode === 'follow') tweenCamera(planetView, 0);
+  else fitView(0);
   sim.start();
 
   // dev-only hook for automated checks; stripped from production builds
-  if (import.meta.env.DEV) window.__lpHabitableZone = { sim, state, get model() { return model; }, setLuminosity, setDistance, setAge, setPlaying, setSpeed, setTempUnit, setStarScale, setAutoFrame, setStar, setTemperature, setRadius, setMainSequence, frame, fitView, fitViewIfAuto, fitRadiusUnits, frameOverview, refresh, planetMaterial, starMaterial };
+  if (import.meta.env.DEV) window.__lpHabitableZone = { sim, state, get model() { return model; }, setLuminosity, setDistance, setAge, setPlaying, setSpeed, setTempUnit, setStarScale, setCameraMode, setStar, setTemperature, setRadius, setMainSequence, frame, fitView, fitViewIfAuto, fitRadiusUnits, frameOverview, planetView, refresh, planetMaterial, starMaterial };
 
   return () => {
     if (import.meta.env.DEV) delete window.__lpHabitableZone;

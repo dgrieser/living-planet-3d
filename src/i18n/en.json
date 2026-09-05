@@ -441,8 +441,11 @@
         "starSizeNote": "How much larger than life the star’s disc is drawn. At 1× the scale is true: the Sun would span half a degree in Earth’s sky, a dot at this zoom. This changes the picture only — the star’s real radius is a control of its own, and its apparent size from the planet is in the readouts.",
         "speed": "Overall speed",
         "speedNote": "Scales the whole animation: the planet’s rotation and orbit, the star’s surface and corona, and the pace of stellar evolution. 0× freezes the scene.",
+        "camera": "Camera",
         "frameZone": "Frame zone",
         "frameZoneAria": "Frame zone: keep the star, the planet and the habitable zone in view automatically",
+        "followPlanet": "Planet",
+        "followPlanetAria": "Planet close-up: ride along with the planet, the star in the distance behind it",
         "overview": "Overview (5 AU)"
       },
       "legend": {
