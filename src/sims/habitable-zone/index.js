@@ -70,6 +70,20 @@ const FIT_TOLERANCE = 1.06; // how far the framing may drift before the fit mode
 const FIT_TOLERANCE_PLAYING = 1.3; // ... and while stellar evolution runs, so the camera does not creep along with it
 const SECONDS_PER_ORBIT_YEAR = 20; // visual time: at 1× speed a 1-year orbit takes 20 s
 const MAX_ANGULAR_SPEED = Math.PI; // rad/s at 1× speed – close-in planets would otherwise flicker
+/**
+ * Dragging the planet. The pointer sets a target and the planet eases towards it over this time
+ * constant, which takes the twitch out of a gesture that spans two and a half decades of
+ * temperature: the planet still ends up exactly under the finger, it just no longer snaps there.
+ * Inside `DRAG_ANGLE_MIN_AU` of the star the pointer stops steering the orbit's angle – there a
+ * few pixels swing the direction through any angle at all, which used to throw the planet around
+ * the star at the inner limit.
+ */
+const DRAG_EASE_S = 0.13;
+const DRAG_ANGLE_MIN_AU = 0.3;
+// The ease lands on the target rather than approaching it forever: the distance is kept to three
+// decimals, so a remainder finer than that could never be worked off one proportional step at a time.
+const DRAG_SNAP_AU = 0.002;
+const DRAG_SNAP_RAD = 0.002;
 const EVOLUTION_GYR_PER_SECOND = 0.4; // at 1× speed: 10 Gyr in 25 s
 const SPEED_RANGE = Object.freeze({ min: 0, max: 5, step: 0.1, default: 1 }); // overall animation speed, 0 freezes the scene
 const HIT_LAYER = 1;
@@ -419,8 +433,13 @@ export default function mount(container, meta) {
     planetMaterial.uniforms.uLightIntensity.value = 1.7 * Math.pow(clamp(model.insolation, 0.02, 8), 0.25);
     const atm = atmosphereMaterial.uniforms.uColor.value;
     atm.setHex(STATE_COLORS.frozen).lerp(tmpColor.setHex(0x4f9dff), mix.thaw).lerp(tmpColor.setHex(0xff7a30), mix.scorch);
-    // a Venus-like cloud world has a thick, bright haze; a lava world only a thin, hot glow
-    atmosphereMaterial.uniforms.uStrength.value = (0.7 + 0.5 * mix.thaw) * (1 - mix.scorch) + mix.scorch * (1.3 - 0.7 * mix.heat);
+    // the lava world's own light reaches its air: the haze goes from Venus yellow to a deep ember red
+    atm.lerp(tmpColor.setHex(0xff3c08), mix.scorch * mix.heat * 0.85);
+    // a Venus-like cloud world has a thick, bright haze; a lava world a thinner one, lit from below and
+    // breathing with the magma underneath it
+    const ember = 0.28 * mix.heat * Math.sin(planetMaterial.uniforms.uTime.value * 1.1);
+    atmosphereMaterial.uniforms.uStrength.value =
+      (0.7 + 0.5 * mix.thaw) * (1 - mix.scorch) + mix.scorch * (1.15 - 0.4 * mix.heat) * (1 + ember);
 
     labels.zoneInner.setText(`${fmt(zone.inner, 2)} ${t('units.au')}`);
     labels.zoneOuter.setText(`${fmt(zone.outer, 2)} ${t('units.au')}`);
@@ -636,7 +655,8 @@ export default function mount(container, meta) {
   raycaster.layers.set(HIT_LAYER);
   const pointer = new THREE.Vector2();
   const orbitalPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  let drag = null; // null | { kind: 'planet' } | { kind: 'star', y, startTeffLog, startInflation, pxPerTypeDecade }
+  let drag = null; // null | { kind: 'planet', offsetAU, offsetAngle } | { kind: 'star', y, startTeffLog, startInflation, pxPerTypeDecade }
+  let dragTarget = null; // where the pointer wants the planet: { distanceAU, angle } – it eases there
   let hovering = null; // null | 'planet' | 'star'
   const canvas = renderer.domElement;
 
@@ -676,14 +696,66 @@ export default function mount(container, meta) {
       pxPerTypeDecade: pxPerDecade(rect.height, STAR_DRAG_TYPE_SPAN, TEFF_DECADES),
     };
   }
-  function dragPlanetTo(e) {
+  /**
+   * Where the pointer is in the orbital plane, as the orbit sees it: a distance and an angle.
+   * Returns null while the ray runs parallel to the plane.
+   */
+  function pointerOrbit(e) {
     setPointer(e);
-    if (!raycaster.ray.intersectPlane(orbitalPlane, tmpV)) return;
-    const dAU = clamp(tmpV.length() / AU_UNITS, HZ.DISTANCE_RANGE_AU.min, HZ.DISTANCE_RANGE_AU.max);
-    if (tmpV.lengthSq() > 1e-8) state.angle = Math.atan2(-tmpV.z, tmpV.x);
-    state.distanceAU = Math.round(dAU * 1000) / 1000;
+    if (!raycaster.ray.intersectPlane(orbitalPlane, tmpV)) return null;
+    const distanceAU = tmpV.length() / AU_UNITS;
+    return { distanceAU, angle: distanceAU > 1e-4 ? Math.atan2(-tmpV.z, tmpV.x) : state.angle };
+  }
+  /** Grab the planet where it is, so it does not jump to the pointer when it is picked up. */
+  function startPlanetDrag(e) {
+    dragTarget = null; // a fresh grab starts from where the planet is, not from an ease still in flight
+    const at = pointerOrbit(e);
+    return {
+      kind: 'planet',
+      // what the pointer has to be moved by to move the planet – the offset it was grabbed with
+      offsetAU: at ? state.distanceAU - at.distanceAU : 0,
+      offsetAngle: at && at.distanceAU > DRAG_ANGLE_MIN_AU ? state.angle - at.angle : 0,
+    };
+  }
+  /** Point the drag at the pointer; the planet eases the rest of the way in stepPlanetDrag(). */
+  function dragPlanetTo(e) {
+    const at = pointerOrbit(e);
+    if (!at) return;
+    dragTarget = dragTarget ?? { distanceAU: state.distanceAU, angle: state.angle };
+    const to = clamp(at.distanceAU + drag.offsetAU, HZ.DISTANCE_RANGE_AU.min, HZ.DISTANCE_RANGE_AU.max);
+    dragTarget.distanceAU = Math.round(to * 1000) / 1000;
+    // near the star the pointer says nothing about which way round the orbit it means – keep the angle
+    if (at.distanceAU > DRAG_ANGLE_MIN_AU) dragTarget.angle = at.angle + drag.offsetAngle;
+    // with motion reduced there are no frames to ease over, so land on the target and redraw here
+    if (sim.reducedMotion) {
+      stepPlanetDrag(1);
+      refresh();
+    } else {
+      sim.requestRender();
+    }
+  }
+  /**
+   * Move the planet a step towards the drag target. `dt` in seconds, or 1 to land on it at once.
+   * Returns true when the planet moved – which is also what holds its orbital motion back until the
+   * ease has finished, so a flick released mid-flight coasts to a stop instead of jumping.
+   */
+  function stepPlanetDrag(dt) {
+    if (!dragTarget) return false;
+    const dDistance = dragTarget.distanceAU - state.distanceAU;
+    // shortest way round, so a drag across the +x axis does not send the planet the long way
+    const dAngle = Math.atan2(Math.sin(dragTarget.angle - state.angle), Math.cos(dragTarget.angle - state.angle));
+    const k = dt === 1 || sim.reducedMotion ? 1 : 1 - Math.exp(-dt / DRAG_EASE_S);
+    const landed = k >= 1 || (Math.abs(dDistance) < DRAG_SNAP_AU && Math.abs(dAngle) < DRAG_SNAP_RAD);
+    if (landed) {
+      state.distanceAU = dragTarget.distanceAU;
+      state.angle = dragTarget.angle;
+      if (!drag) dragTarget = null; // released and settled – the orbit takes over again
+    } else {
+      state.distanceAU = Math.round((state.distanceAU + dDistance * k) * 1000) / 1000;
+      state.angle += dAngle * k;
+    }
     distanceSlider.setValue(state.distanceAU, { silent: true });
-    refresh();
+    return dDistance !== 0 || dAngle !== 0;
   }
   function dragStarTo(e) {
     // up = hotter, and the size and brightness come with the type
@@ -694,7 +766,7 @@ export default function mount(container, meta) {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     const kind = pick(e);
     if (!kind) return;
-    drag = kind === 'star' ? startStarDrag(e) : { kind };
+    drag = kind === 'star' ? startStarDrag(e) : startPlanetDrag(e);
     controls.enabled = false; // registered in the capture phase, so OrbitControls sees `enabled === false`
     canvas.classList.add('is-dragging');
     try {
@@ -703,8 +775,7 @@ export default function mount(container, meta) {
       /* synthetic or already-released pointer – the drag still works, it just cannot follow outside the canvas */
     }
     e.stopPropagation();
-    if (kind === 'planet') dragPlanetTo(e);
-    else updateOverlay();
+    updateOverlay();
     sim.requestRender();
   };
   const onPointerMove = (e) => {
@@ -723,6 +794,7 @@ export default function mount(container, meta) {
   };
   const endDrag = (e) => {
     if (!drag) return;
+    if (drag.kind === 'planet' && sim.reducedMotion) dragTarget = null; // nothing eases without frames
     drag = null;
     controls.enabled = true;
     canvas.classList.remove('is-dragging');
@@ -757,7 +829,10 @@ export default function mount(container, meta) {
       ageSlider.setValue(state.ageGyr, { silent: true });
       model = derive();
     }
-    if (drag?.kind !== 'planet') {
+    // the drag eases on real time – it is the visitor's hand, not scene time – and holds the orbit
+    // still until it has landed, so a flick released mid-flight coasts to a stop instead of jumping
+    if (stepPlanetDrag(dt)) model = derive();
+    else if (!drag) {
       const omega = Math.min(MAX_ANGULAR_SPEED, (2 * Math.PI) / (model.periodYears * SECONDS_PER_ORBIT_YEAR));
       state.angle = (state.angle + omega * sdt) % (Math.PI * 2);
     }
@@ -1667,13 +1742,19 @@ const PLANET_VERTEX = /* glsl */ `
 `;
 
 /**
- * Planet surface. Three looks blended by the state mix from ./physics.js:
+ * Planet surface. Three looks, blended by the state mix from ./physics.js:
  *  - temperate: the real Earth day map, city lights gated to the night side (as in the axial-tilt
  *    simulation); a procedural Earth with drifting clouds while the maps are unavailable
  *  - frozen: a snowball – sea ice with dark refrozen leads, snow-covered continents, blowing snow;
  *    bare tundra shows through at the equator just past the outer edge (uCold → 0)
  *  - scorched: a Venus-like banded cloud deck just past the inner edge (uHeat → 0) that burns off to
- *    baked, cracked rock with pulsing glowing fissures and, on the star-facing side, lava seas (uHeat → 1)
+ *    a cracked crust drifting on magma, with convecting lava seas and flaring vents (uHeat → 1)
+ *
+ * The looks do not cross-fade as whole pictures: `uThaw` and `uScorch` move a *climate belt* across
+ * the globe. Ice grows from the poles towards the equator, scorched ground spreads from the equator
+ * towards the poles, both behind a front made ragged by noise, and along the boiling front the
+ * oceans go up in steam. So a planet dragged out of the zone changes the way a climate changes –
+ * from one end of the globe – instead of dissolving into another planet.
  */
 const PLANET_FRAGMENT = /* glsl */ `
   uniform float uThaw;      // 0 = frozen, 1 = temperate
@@ -1705,10 +1786,18 @@ const PLANET_FRAGMENT = /* glsl */ `
   const vec3 TUNDRA = vec3(0.16, 0.12, 0.08);
   const vec3 ROCK_DARK = vec3(0.045, 0.012, 0.006);
   const vec3 ROCK_RED = vec3(0.16, 0.035, 0.012);
-  const vec3 LAVA = vec3(1.0, 0.22, 0.02);
   const vec3 LAVA_DARK = vec3(0.30, 0.04, 0.004);
+  const vec3 LAVA_CRUST = vec3(0.030, 0.010, 0.007);
   const vec3 HAZE_LIGHT = vec3(0.82, 0.62, 0.34);
   const vec3 HAZE_DARK = vec3(0.42, 0.29, 0.13);
+  const vec3 STEAM = vec3(0.92, 0.88, 0.84);
+  /** Incandescence: dark red → orange → yellow-white. Above 1 on purpose – the tone mapper takes it from there. */
+  vec3 glow(float x) {
+    x = clamp(x, 0.0, 1.0);
+    vec3 c = mix(vec3(0.30, 0.020, 0.004), vec3(1.10, 0.22, 0.015), smoothstep(0.0, 0.45, x));
+    c = mix(c, vec3(1.90, 0.80, 0.10), smoothstep(0.42, 0.80, x));
+    return mix(c, vec3(2.60, 1.85, 0.90), smoothstep(0.80, 1.0, x));
+  }
   void main() {
     vec3 p = normalize(vPos);
     vec3 N = normalize(vNormalW);
@@ -1717,6 +1806,18 @@ const PLANET_FRAGMENT = /* glsl */ `
     float ndl = dot(N, L);
     float lat = abs(p.y);
     float detail = fbm(p * 6.5 + vec3(7.0), 4);
+
+    // --- where each look sits on the globe ------------------------------------------------------
+    // Both transitions are a belt whose edge travels: the ice line runs from beyond the poles
+    // (nothing frozen) to past the equator (frozen over), the scorch line the other way. Noise
+    // roughens both fronts so they follow the terrain rather than a circle of latitude.
+    float coldFront = clamp(lat + (fbm(p * 3.4 + vec3(17.0, 2.0, 41.0), 4) - 0.5) * 0.30, 0.0, 1.25);
+    float hotFront = clamp(lat + (fbm(p * 3.1 + vec3(5.0, 23.0, 8.0), 4) - 0.5) * 0.30, 0.0, 1.25);
+    // ice reaches down to this latitude, scorched ground up to that one; -0.22 is "nothing", 1.42 "all of it"
+    float iceLine = mix(-0.22, 1.42, uThaw);
+    float scorchLine = mix(-0.22, 1.42, uScorch);
+    float mThaw = 1.0 - smoothstep(iceLine - 0.13, iceLine + 0.13, coldFront);  // 1 temperate, 0 frozen over
+    float mScorch = 1.0 - smoothstep(scorchLine - 0.13, scorchLine + 0.13, hotFront); // 1 scorched, 0 not yet
 
     // continents: from the Earth map when available (ocean = blue-dominant), procedural otherwise
     vec3 dayTex = texture2D(uDayMap, vUv).rgb;
@@ -1771,46 +1872,78 @@ const PLANET_FRAGMENT = /* glsl */ `
       frozen = mix(surface, vec3(0.9, 0.93, 0.97), wisps * 0.5);
     }
 
-    // --- scorched: cloud world → cracked rock → lava world ----------------------------------------------
+    // --- scorched: cloud world → cracked crust → lava world ---------------------------------------------
     vec3 scorched = vec3(0.0);
     vec3 emissive = vec3(0.0);
     if (uScorch > 0.001) {
+      float t = uTime;
+      // The crust is a raft of plates riding on the magma below, so the pattern has to *move*, not
+      // just brighten: a domain warp whose offset drifts pulls the plates apart and pushes them back
+      // together, and the lanes between them open, glow and close again.
+      vec3 q = p * 2.6;
+      vec3 warp = vec3(
+        fbm(q + vec3(0.0, t * 0.035, 0.0), 3),
+        fbm(q + vec3(5.2, -t * 0.028, 2.1), 3),
+        fbm(q + vec3(9.1, t * 0.031, 7.4), 3)) - 0.5;
+      float plates = fbm(q * 1.5 + warp * 2.4, 4);
+      float lane = pow(1.0 - abs(plates * 2.0 - 1.0), 8.0);          // the glowing lanes between plates
+      float hairline = pow(1.0 - abs(fbm(q * 5.5 + warp * 1.2, 3) * 2.0 - 1.0), 16.0);
+      float welling = 0.60 + 0.40 * sin(t * 1.1 + plates * 22.0);    // magma welling up under a lane
+      float crack = clamp((lane * welling + hairline * 0.5) * mix(0.40, 1.15, uHeat), 0.0, 1.4);
+
       vec3 rock = mix(ROCK_DARK, ROCK_RED, detail);
-      // fissures that slowly shift and pulse
-      float veins = fbm(p * 5.0 + vec3(13.0, 4.0, 2.0) + vec3(uTime * 0.012), 4);
-      float cracks = pow(1.0 - abs(veins * 2.0 - 1.0), 14.0);
-      float pulse = 0.72 + 0.28 * sin(uTime * 1.3 + veins * 25.0);
-      // molten seas: grow with the heat and pool on the star-facing side
-      float seaField = fbm(p * 2.2 + vec3(2.0, 8.0, 5.0) + vec3(0.0, uTime * 0.004, 0.0), 4);
-      float seaLevel = mix(0.78, 0.44, uHeat);
-      float sea = smoothstep(seaLevel, seaLevel + 0.08, seaField) * smoothstep(-0.25, 0.35, ndl) * smoothstep(0.12, 0.5, uHeat);
-      float ripple = fbm(p * 14.0 + vec3(uTime * 0.15, 0.0, uTime * 0.1), 3);
-      vec3 lava = mix(LAVA_DARK, LAVA, 0.45 + 0.55 * ripple);
-      vec3 surface = mix(rock, LAVA_DARK * 0.5, sea);
-      float glowCracks = cracks * mix(0.35, 1.0, uHeat) * pulse;
-      emissive = LAVA * glowCracks * (1.0 - sea) + lava * sea * (0.8 + 0.4 * ripple);
+      rock = mix(rock, LAVA_CRUST, uHeat * 0.75); // the crust bakes darker the hotter it gets
+
+      // Molten seas: they rise with the heat, and while there is still a cool side to pool away from
+      // they gather on the star-facing one; a lava world glows the whole way round.
+      float seaField = fbm(p * 2.0 + vec3(2.0, 8.0, 5.0) + vec3(0.0, t * 0.006, 0.0), 4);
+      float seaLevel = mix(0.74, 0.46, uHeat);
+      float dayBias = mix(smoothstep(-0.25, 0.35, ndl), 1.0, uHeat * 0.9);
+      float sea = smoothstep(seaLevel, seaLevel + 0.07, seaField) * dayBias * smoothstep(0.08, 0.42, uHeat);
+      // convection inside them: cooled rafts drifting apart, white-hot seams opening between them
+      float cells = fbm(p * 6.5 + warp * 1.1 + vec3(0.0, t * 0.05, 0.0), 3);
+      float rafts = smoothstep(0.38, 0.62, cells);
+      float seams = pow(1.0 - abs(cells * 2.0 - 1.0), 6.0);
+      float shimmer = fbm(p * 15.0 + vec3(t * 0.35, 0.0, t * 0.22), 2);
+      float seaHeat = mix(1.0, 0.16, rafts) * (0.62 + 0.40 * shimmer) + seams * 0.7;
+      // vents that flare every few seconds, the way a lava lake spatters
+      float vents = pow(smoothstep(0.66, 0.98, fbm(p * 3.2 + vec3(31.0, 5.0, 12.0), 3)), 2.0);
+      float burst = flareBurst(t * 0.7 + 4.0) * vents * uHeat;
+
+      // The whole thing has to stay a *surface*: only the seams and the vents reach white, everything
+      // else sits in the orange half of the ramp, or the planet turns into one blown-out lamp.
+      vec3 surface = mix(rock, LAVA_DARK * 0.4, sea);
+      emissive = glow(0.25 + 0.60 * crack) * crack * (1.0 - sea * 0.85) * 0.85
+        + glow(clamp(seaHeat * 0.55, 0.0, 1.0)) * sea * (0.5 + 0.35 * uHeat)
+        + glow(1.0) * burst * 0.9;
+
       // Venus-like cloud deck: banded, slowly circulating; burns off as the heat rises
       float cover = 1.0 - smoothstep(0.05, 0.45, uHeat);
-      vec3 hp = rotateY(p, uTime * 0.05);
-      float bands = fbm(vec3(hp.x, hp.y * 3.5, hp.z) * 2.2 + vec3(0.0, 0.0, uTime * 0.01), 4);
+      vec3 hp = rotateY(p, t * 0.05);
+      float bands = fbm(vec3(hp.x, hp.y * 3.5, hp.z) * 2.2 + vec3(0.0, 0.0, t * 0.01), 4);
       float swirl = fbm(hp * 5.0 + vec3(3.0), 3);
       vec3 haze = mix(HAZE_DARK, HAZE_LIGHT, smoothstep(0.25, 0.75, bands)) * (0.8 + 0.4 * swirl);
       scorched = mix(surface, haze, cover);
-      emissive *= (1.0 - cover * 0.95) * uScorch;
+      emissive *= (1.0 - cover * 0.95);
     }
 
-    vec3 albedo = mix(frozen, temperate, uThaw);
-    albedo = mix(albedo, scorched, uScorch);
+    vec3 albedo = mix(frozen, temperate, mThaw);
+    albedo = mix(albedo, scorched, mScorch);
+    // the front itself: where the scorched belt is passing over, the oceans are going up in steam
+    float front = smoothstep(0.06, 0.40, mScorch) * smoothstep(0.94, 0.60, mScorch) * uThaw;
+    float steam = smoothstep(0.40, 0.72, fbm(rotateY(p, uTime * 0.03) * 5.0 + vec3(0.0, uTime * 0.06, 3.0), 3));
+    albedo = mix(albedo, STEAM, front * steam * 0.8);
+    emissive *= mScorch;
 
     // lighting: star at the origin
     float diffuse = clamp((ndl + 0.12) / 1.12, 0.0, 1.0);
     diffuse = pow(diffuse, 0.9);
     vec3 nightAmbient = vec3(0.05, 0.07, 0.12) * 0.25;
-    vec3 col = albedo * (uLightColor * uLightIntensity * diffuse + nightAmbient) + emissive + lights * uThaw * (1.0 - uScorch);
+    vec3 col = albedo * (uLightColor * uLightIntensity * diffuse + nightAmbient) + emissive + lights * mThaw * (1.0 - mScorch);
     // specular glint: open water (temperate) and glossy ice (frozen)
     vec3 H = normalize(L + V);
-    float spec = pow(clamp(dot(N, H), 0.0, 1.0), 60.0) * step(0.0, ndl) * (1.0 - land) * (1.0 - uScorch);
-    col += uLightColor * spec * (0.35 * (1.0 - clouds) * uThaw + 0.3 * (1.0 - uThaw));
+    float spec = pow(clamp(dot(N, H), 0.0, 1.0), 60.0) * step(0.0, ndl) * (1.0 - land) * (1.0 - mScorch);
+    col += uLightColor * spec * (0.35 * (1.0 - clouds) * mThaw + 0.3 * (1.0 - mThaw));
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
