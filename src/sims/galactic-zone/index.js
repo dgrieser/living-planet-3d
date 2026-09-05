@@ -88,11 +88,12 @@ const DEFAULTS = Object.freeze({
   playing: true,
 });
 
-/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. Off to begin with: the
+ *  galaxy speaks for itself, and the overlays and labels are one tap away in the panel. */
 const VIEW_DEFAULTS = Object.freeze({
-  showRing: true,
-  showZones: true,
-  showArmLabels: true,
+  showRing: false,
+  showZones: false,
+  showArmLabels: false,
 });
 
 // dead centre on the galactic centre – the panel is made room for by shifting the

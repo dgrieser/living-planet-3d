@@ -71,20 +71,21 @@ const DEFAULTS = Object.freeze({
   dayOfYear: 171.5, // June solstice
   playing: true,
   daysPerSecond: 10,
-  latitudeDeg: 45,
+  latitudeDeg: 0,
 });
 
-/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. Only the axis and the pole
+ *  labels to begin with: Earth arrives bare, and every overlay is one tap away in the panel. */
 const VIEW_DEFAULTS = Object.freeze({
   showHeat: false, // insolation heat map – exclusive with showClimate
-  showClimate: true, // seasonal-mean temperature bands
-  showLivable: true, // livable-region view (darkened hostile bands + border rings)
-  showTerminator: true,
-  showEquator: true,
-  showCircles: true, // tropics + polar circles
+  showClimate: false, // seasonal-mean temperature bands
+  showLivable: false, // livable-region view (darkened hostile bands + border rings)
+  showTerminator: false,
+  showEquator: false,
+  showCircles: false, // tropics + polar circles
   showAxis: true,
-  showSubsolar: true,
-  showGrid: true,
+  showSubsolar: false,
+  showGrid: false,
   showLabels: true,
 });
 

@@ -54,14 +54,15 @@ const DEFAULTS = Object.freeze({
   speed: SPEED_RANGE.default, // overall animation speed multiplier
 });
 
-/** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. The scene starts on the
+ *  star and its planet alone; switching the zone back on brings the flat annulus with it. */
 const VIEW_DEFAULTS = Object.freeze({
-  showZone: true,
-  showZoneSurface: true, // flat annulus with its edge lines
+  showZone: false,
+  showZoneSurface: false, // flat annulus with its edge lines
   showZoneShell: false, // translucent 3D shell
   showTempLabels: true,
-  showGrid: true,
-  tempUnit: 'both', // 'both' | 'kelvin' | 'celsius' – for the star and the planet alike
+  showGrid: false,
+  tempUnit: 'celsius', // 'both' | 'kelvin' | 'celsius' – for the star and the planet alike
 });
 
 const { clamp } = HZ;
