@@ -130,16 +130,25 @@ export function classify(teqK, teffK = SOLAR_TEFF_K) {
 /** Temperature spans over which the frozen / scorched appearance ramps (see stateMix). */
 export const COLD_RAMP_K = 120;
 export const HEAT_RAMP_K = 500;
+/**
+ * How far past an edge the surface takes to change over completely. The change begins exactly at
+ * the edge – inside the zone the planet always looks like a planet inside the zone – and then runs
+ * one way, so crossing an edge starts a transition the visitor can watch rather than a switch:
+ * around the Sun the ice reaches the equator over 1.7 → 2.4 AU and the ground melts over
+ * 0.95 → 0.73 AU. The shader turns each factor into a moving climate belt (see PLANET_FRAGMENT).
+ */
+export const FREEZE_RAMP_K = 35;
+export const SCORCH_RAMP_K = 45;
 
 /**
- * Continuous blend factors for the surface shader (0…1 each), smoothed over ±width K
- * around the thresholds so the surface morphs instead of popping.
+ * Continuous blend factors for the surface shader (0…1 each). `thaw` and `scorch` say how far the
+ * transition past an edge has come, `cold` and `heat` how extreme the hostile state beyond it is.
  */
-export function stateMix(teqK, teffK = SOLAR_TEFF_K, width = 4) {
+export function stateMix(teqK, teffK = SOLAR_TEFF_K) {
   const { frozen, scorched } = edgeTemperaturesK(teffK);
   return {
-    thaw: smoothstep(frozen - width, frozen + width, teqK), // 0 frozen → 1 temperate
-    scorch: smoothstep(scorched - width, scorched + width, teqK), // 0 temperate → 1 scorched
+    thaw: smoothstep(frozen - FREEZE_RAMP_K, frozen, teqK), // 0 frozen over → 1 temperate
+    scorch: smoothstep(scorched, scorched + SCORCH_RAMP_K, teqK), // 0 temperate → 1 scorched over
     // how far beyond the edges the planet is – drives the look of the hostile surfaces (schematic):
     cold: smoothstep(frozen, frozen - COLD_RAMP_K, teqK), // 0 partly glaciated → 1 deep-frozen ice world
     heat: smoothstep(scorched, scorched + HEAT_RAMP_K, teqK), // 0 Venus-like cloud world → 1 lava world
