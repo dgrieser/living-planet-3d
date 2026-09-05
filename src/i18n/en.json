@@ -317,7 +317,7 @@
         "dateOutOfRange": "Dates are limited to 1800–2050 (validity range of the JPL orbital elements)."
       },
       "legend": {
-        "habitableZone": "Habitable zone (0.95–1.37 AU)",
+        "habitableZone": "Habitable zone (0.95–1.68 AU)",
         "earthOrbit": "Earth's orbit (e = 0.0167)",
         "eccentricOrbit": "Hypothetical orbit (e = 0.3)"
       },
@@ -344,8 +344,8 @@
         "range": "Distance over the year",
         "rangeValue": "147.1 – 152.1 million km",
         "note": "Earth's distance varies only ~5 million km over the year — a remarkably stable energy supply.",
-        "eccentricNote": "With e = 0.3 Earth would swing between 0.70 and 1.30 AU – leaving the habitable zone every year and receiving over three times more sunlight at perihelion than at aphelion.",
-        "zoneNote": "The conservative habitable zone (0.95–1.37 AU) is the region where liquid water can persist on the surface of an Earth-like planet. Earth orbits well inside it; Venus and Mars lie outside.",
+        "eccentricNote": "With e = 0.3 Earth would swing between 0.70 and 1.30 AU – crossing the zone’s hot inner edge at every perihelion and receiving over three times more sunlight there than at aphelion.",
+        "zoneNote": "The conservative habitable zone (0.95–1.68 AU, runaway greenhouse to maximum greenhouse) is the region where liquid water can persist on the surface of an Earth-like planet. Earth orbits close to its warm inner edge and Venus lies well inside it; Mars still falls within the outer edge, but is too small to have kept the thick atmosphere it would need out there.",
         "scaleNote": "Planet sizes are exaggerated about 1000× for visibility; orbits and positions are to scale (JPL approximate elements, 1800–2050)."
       },
       "credit": "Textures: Solar System Scope (CC BY 4.0) · Orbital elements: NASA/JPL"
@@ -370,10 +370,20 @@
         "presetGAria": "G star like our Sun (1 solar luminosity)",
         "presetFAria": "F star (3 solar luminosities)",
         "luminosity": "Luminosity",
+        "temperatureControl": "Star temperature (type)",
+        "radiusControl": "Star radius",
+        "backToMainSequence": "Back to the main sequence",
         "type": "Spectral type",
         "temperature": "Surface temperature",
         "mass": "Mass",
         "radius": "Radius",
+        "apparent": "Apparent size from the planet",
+        "classes": {
+          "subdwarf": "below the main sequence",
+          "dwarf": "dwarf (V)",
+          "subgiant": "subgiant (IV)",
+          "giant": "giant (III)"
+        },
         "types": {
           "M": "M – red dwarf",
           "K": "K – orange",
@@ -426,9 +436,13 @@
         "unitCelsiusAria": "Degrees Celsius only",
         "unitBothAria": "Kelvin and degrees Celsius",
         "grid": "Orbit grid",
+        "starSize": "Star size on screen",
+        "starSizeTrue": "true scale",
+        "starSizeNote": "How much larger than life the star’s disc is drawn. At 1× the scale is true: the Sun would span half a degree in Earth’s sky, a dot at this zoom. This changes the picture only — the star’s real radius is a control of its own, and its apparent size from the planet is in the readouts.",
         "speed": "Overall speed",
         "speedNote": "Scales the whole animation: the planet’s rotation and orbit, the star’s surface and corona, and the pace of stellar evolution. 0× freezes the scene.",
         "frameZone": "Frame zone",
+        "frameZoneAria": "Frame zone: keep the star, the planet and the habitable zone in view automatically",
         "overview": "Overview (5 AU)"
       },
       "legend": {
@@ -438,32 +452,33 @@
       },
       "info": {
         "title": "The Goldilocks zone",
-        "body": "Only in a narrow ring around a star can liquid water exist on a planet's surface. For our Sun that ring spans roughly 0.95 to 1.37 AU — and Earth sits comfortably inside it."
+        "body": "Only in a narrow ring around a star can liquid water exist on a planet's surface. For our Sun that ring runs from about 0.95 to 1.68 AU: Earth orbits close to its warm inner edge, and even Mars lies inside the cool outer one — Mars is simply too small to have kept the thick atmosphere it would need out there."
       },
       "physics": {
         "title": "Physics",
-        "zoneLabel": "Habitable zone (Kopparapu et al. 2013, conservative limits)",
-        "zoneFormula": "d_inner = √(L / 1.1) AU · d_outer = √(L / 0.53) AU",
-        "zoneNote": "L in solar luminosities. The inner edge is the runaway-greenhouse limit (1.1 S☉), the outer edge the maximum-greenhouse limit (0.53 S☉).",
+        "zoneLabel": "Habitable zone (Kopparapu et al. 2014, conservative limits)",
+        "zoneFormula": "d = √(L / S_eff) AU · S_eff = S☉ + a·T* + b·T*² + c·T*³ + d·T*⁴, T* = T_eff − 5780 K",
+        "zoneNote": "L in solar luminosities. The inner edge is the runaway greenhouse (the oceans evaporate), the outer edge the maximum greenhouse (beyond it not even a thick CO₂ atmosphere keeps the surface above freezing). Both limits depend on the star’s colour, because a planet absorbs red light more readily than the Sun’s: for this star ({teff} K) they are {sInner} and {sOuter} S☉ (1.11 and 0.36 for the Sun), which puts an M dwarf’s zone some 10–20 % farther out than a plain √L scaling would. The fit is given for 2600–7200 K and is held at those ends outside them.",
         "teqLabel": "Equilibrium temperature",
         "teqFormula": "T_eq = 278 K · L^¼ / √d",
-        "teqNote": "d in AU; radiative balance without greenhouse warming (Earth's surface is ≈ 33 K warmer than its equilibrium temperature).",
+        "teqNote": "d in AU; radiative balance for a fast-rotating planet that absorbs all the light it receives (albedo 0) and has no greenhouse effect — so this is not a surface temperature. Earth reflects about 30 % of the sunlight away, which lowers its equilibrium temperature to 255 K, and its greenhouse effect then lifts the surface to 288 K.",
         "stateLabel": "Surface state from T_eq",
-        "stateFormula": "frozen < 237 K ≤ habitable ≤ 285 K < scorched",
-        "stateNote": "The thresholds are the zone edges expressed as temperatures (T_eq depends only on the insolation L/d²). 237 K corresponds to about 0 °C at the surface with an Earth-like greenhouse effect.",
+        "stateFormula": "frozen < {frozen} K ≤ habitable ≤ {scorched} K < scorched",
+        "stateNote": "The thresholds are this star’s own zone edges expressed as temperatures (T_eq depends only on the insolation L/d²), so they move with the star: around a red dwarf they sit 10–20 K lower than around the Sun. A planet at the outer edge stays habitable only with a far thicker greenhouse than Earth’s.",
         "appearanceLabel": "Surface appearance (schematic)",
-        "appearanceFormula": "snowball ← 237 K · Earth · 285 K → cloud world → lava world (≈ 800 K)",
+        "appearanceFormula": "snowball ← {frozen} K · Earth · {scorched} K → cloud world → lava world (≈ {lava} K)",
         "appearanceNote": "Beyond the outer edge the oceans freeze over and the ice thickens with falling temperature. Just beyond the inner edge a Venus-like cloud deck takes over; several hundred kelvin further in the crust cracks and the star-facing side melts into lava seas. Earth-like planets show the real Earth maps with city lights on the night side.",
         "evolutionLabel": "Stellar evolution (Gough 1981)",
         "evolutionFormula": "L(t) = L☉ / (1 + 0.4 · (1 − t / 4.57 Gyr))",
         "evolutionNote": "≈ 0.7 L☉ at birth, 1 L☉ today, ≈ 1.9 L☉ after 10 Gyr – about +10 % per Gyr.",
-        "starLabel": "Main-sequence relations (for appearance)",
-        "starFormula": "T_eff ≈ 5778 K · L^0.13 · M ≈ L^(1/3.5) M☉ · R = √L · (5778 K / T_eff)² R☉",
+        "starLabel": "The star: temperature and radius",
+        "starFormula": "L / L☉ = (R / R☉)² · (T_eff / T☉)⁴ · main sequence: T_eff ≈ 5778 K · L^0.13, M ≈ L^(1/3.5) M☉",
+        "starNote": "Temperature and radius are the two controls, and the luminosity follows from them by the Stefan–Boltzmann law — exactly, not by a fit. That is what lets the star leave the main sequence: at one temperature a larger star is simply a brighter one, a subgiant and then a giant, which is the ordering behind the luminosity classes V, IV and III. This star has {inflation}× the radius of the main-sequence star of its temperature. Mass is the one thing temperature and radius do not fix, since a star swells up while keeping its mass: the simulation assumes the mass of the main-sequence star of the same temperature, which is right on the main sequence and only a stand-in off it — a real giant is heavier, so its orbital periods would come out shorter than shown.",
         "periodLabel": "Orbital period (Kepler's third law)",
         "periodFormula": "P = √(d³ / M) years",
-        "scaleNote": "Star and planet sizes are exaggerated for visibility; distances are to scale."
+        "scaleNote": "Distances are to scale (1 AU = 10 scene units); the two bodies are not. The star is drawn {starScale}× its true radius (1 R☉ = 0.00465 AU, about 1/215 of Earth’s orbit) and the planet {planetScale}× Earth’s — at true scale both would be invisible dots. The star’s exaggeration is the “Star size” control and changes nothing about the physics."
       },
-      "hint": "Drag the planet to move it · pull the star to resize it",
+      "hint": "Drag the planet to move it · drag the star sideways to change its type – colour and size follow together",
       "credit": "Earth textures: Solar System Scope (CC BY 4.0)"
     },
     "moonTides": {

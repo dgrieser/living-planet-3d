@@ -2,10 +2,12 @@
  * Simulation: The habitable zone ("habitable-zone").
  *
  * A main-sequence star (type/luminosity adjustable) with a single planet whose
- * distance can be set by slider or by dragging it in the orbital plane; the star
- * itself can be grown or shrunk by pulling its limb. The conservative habitable
- * zone (Kopparapu et al. 2013) is drawn as a translucent annulus and/or a 3D shell
- * and scales live with the luminosity. The planet's surface morphs between a
+ * distance can be set by slider or by dragging it in the orbital plane; the star is dragged
+ * sideways to change its type, its size following its temperature as it does along the main
+ * sequence. A "frame zone" mode keeps the star, the planet and the zone in view by itself,
+ * re-framing whenever a gesture ends (pointer up / touch released). The conservative habitable
+ * zone (Kopparapu et al. 2014, with their temperature-dependent flux limits) is drawn as a
+ * translucent annulus and/or a 3D shell and follows the star live. The planet's surface morphs between a
  * snowball, the real Earth (day map + city lights on the night side, as in the
  * axial-tilt simulation) and a Venus-like cloud world that melts into a lava world
  * according to its equilibrium temperature. An evolution mode ages a Sun-like star
@@ -27,13 +29,27 @@ import * as HZ from './physics.js';
 const KEYS = 'sims.habitableZone';
 const TEXTURE_BASE = `${import.meta.env.BASE_URL}textures/`;
 const AU_UNITS = 10; // scene units per astronomical unit
-const PLANET_RADIUS = 0.16; // scene units (strongly exaggerated for visibility)
+// Everything drawn in the scene is to scale except the two bodies, and their exaggeration is
+// stated rather than hidden: both are built from their true radii times a factor.
+const PLANET_EXAGGERATION = 375; // Earth is drawn 375× too large, or it would be a speck
+const PLANET_RADIUS = HZ.EARTH_RADIUS_AU * AU_UNITS * PLANET_EXAGGERATION; // ≈ 0.16 scene units
 const PLANET_TILT_RAD = THREE.MathUtils.degToRad(23.4); // Earth-like axial tilt, fixed in space while the planet orbits
 const PLANET_SPIN_RAD_PER_S = 0.35; // visual spin at 1× speed, one rotation every ≈ 18 s
-const STAR_UNIT_RADIUS = 0.5; // scene units for 1 R☉ (≈ 11× exaggerated)
-const STAR_MAX_RADIUS = 0.8; // keeps very luminous stars clear of a planet at 0.1 AU
+const STAR_TRUE_UNIT_RADIUS = HZ.SOLAR_RADIUS_AU * AU_UNITS; // 1 R☉ at true scale: 0.0465 scene units
 const CORONA_EXTENT = 5; // corona billboard half-size in star radii
-const STAR_PULL_MIN_PX_PER_DECADE = 70; // pull gain for a tiny star disc: 70 px of radial drag per decade of luminosity
+/** How far the star's disc is drawn larger than life. 1× is the truth (a barely visible dot at
+ *  this zoom), the default 11× keeps its surface legible without swallowing a close-in orbit. */
+const STAR_SCALE_RANGE = Object.freeze({ min: 1, max: 60, default: 11 });
+// Dragging the star: sideways picks its type (luminosity), up/down its display size. Both are
+// log-linear, and the gain is taken from the canvas so one comfortable gesture spans the whole
+// range on a phone as well as on a desktop.
+const STAR_DRAG_TYPE_SPAN = 1; // fraction of the canvas width the whole temperature range takes
+const STAR_DRAG_TRAVEL_PX = Object.freeze({ min: 260, max: 900 }); // ... but never a shorter or longer gesture than this
+// Below this apparent size the planet gets its ring marker, so it stays findable without being
+// drawn any larger than its own exaggeration allows.
+const MIN_PLANET_SCREEN_FRACTION = 0.008;
+const FIT_TOLERANCE = 1.06; // how far the framing may drift before the fit mode re-frames
+const FIT_TOLERANCE_PLAYING = 1.3; // ... and while stellar evolution runs, so the camera does not creep along with it
 const SECONDS_PER_ORBIT_YEAR = 20; // visual time: at 1× speed a 1-year orbit takes 20 s
 const MAX_ANGULAR_SPEED = Math.PI; // rad/s at 1× speed – close-in planets would otherwise flicker
 const EVOLUTION_GYR_PER_SECOND = 0.4; // at 1× speed: 10 Gyr in 25 s
@@ -47,14 +63,17 @@ const GRID_LABEL_AU = [0.5, 1, 2, 3, 4, 5];
 const TEMP_UNITS = Object.freeze(['both', 'kelvin', 'celsius']);
 
 const DEFAULTS = Object.freeze({
-  luminosity: 1,
+  // the star is set by what a visitor can point at: how hot it is and how big it is.
+  // Its luminosity follows from those two (Stefan–Boltzmann), not the other way round.
+  teffK: HZ.SOLAR_TEFF_K,
+  radiusSolar: 1,
   distanceAU: 1,
   ageGyr: HZ.SUN_AGE_GYR,
   evolution: false,
   speed: SPEED_RANGE.default, // overall animation speed multiplier
 });
 
-/** Display toggles – remembered per visitor, see ../../lib/prefs.js. The scene starts on the
+/** Display settings – remembered per visitor, see ../../lib/prefs.js. The scene starts on the
  *  star and its planet alone; switching the zone back on brings the flat annulus with it. */
 const VIEW_DEFAULTS = Object.freeze({
   showZone: false,
@@ -63,6 +82,8 @@ const VIEW_DEFAULTS = Object.freeze({
   showTempLabels: true,
   showGrid: false,
   tempUnit: 'celsius', // 'both' | 'kelvin' | 'celsius' – for the star and the planet alike
+  starScale: STAR_SCALE_RANGE.default, // how far the star's disc is drawn larger than life (display only)
+  autoFrame: true, // fit mode: keep the star, the planet and the zone in view by themselves
 });
 
 const { clamp } = HZ;
@@ -73,6 +94,8 @@ export default function mount(container, meta) {
   const viewPrefs = createViewPrefs(meta.id, VIEW_DEFAULTS);
   const state = { ...DEFAULTS, ...viewPrefs.values, playing: false, angle: Math.PI * 0.15 };
   if (!TEMP_UNITS.includes(state.tempUnit)) state.tempUnit = VIEW_DEFAULTS.tempUnit;
+  state.starScale = Number.isFinite(state.starScale) ? clamp(state.starScale, STAR_SCALE_RANGE.min, STAR_SCALE_RANGE.max) : VIEW_DEFAULTS.starScale;
+  const TEFF_DECADES = Math.log10(HZ.TEFF_RANGE_K.max / HZ.TEFF_RANGE_K.min); // ≈ 0.44
   const disposers = [];
 
   const viewport = el('div', 'lp-sim__viewport');
@@ -139,17 +162,27 @@ export default function mount(container, meta) {
   starMarker.renderOrder = 9;
   scene.add(starMarker);
 
-  // --- habitable zone (built for L = 1, scaled by √L) -------------------------------------------
+  // --- habitable zone -------------------------------------------------------------------------
+  // The two edges move independently: their ratio depends on the star's temperature, so the
+  // annulus cannot be one shape scaled by √L. The edge loops and shells are unit geometry scaled
+  // to each radius, and the fill is a unit disc whose shader drops everything inside the inner
+  // edge – exact at any ratio, with nothing to rebuild while the star is being dragged.
   const zoneGroup = new THREE.Group();
-  const unitZone = HZ.zoneEdgesAU(1);
   const annulus = new THREE.Group();
   annulus.rotation.x = -Math.PI / 2;
-  const zoneFillMaterial = new THREE.MeshBasicMaterial({ color: ZONE_COLOR, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false });
-  const zoneFill = new THREE.Mesh(new THREE.RingGeometry(unitZone.inner * AU_UNITS, unitZone.outer * AU_UNITS, 256), zoneFillMaterial);
+  const zoneFillMaterial = new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(ZONE_COLOR) }, uOpacity: { value: 0.22 }, uInnerRatio: { value: 0.5 } },
+    vertexShader: ANNULUS_VERTEX,
+    fragmentShader: ANNULUS_FRAGMENT,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const zoneFill = new THREE.Mesh(new THREE.CircleGeometry(1, 256), zoneFillMaterial);
   zoneFill.renderOrder = -2;
   const zoneEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x9ff5bd, transparent: true, opacity: 0.85, depthWrite: false });
-  const zoneEdgeInner = new THREE.LineLoop(circleGeometry(unitZone.inner * AU_UNITS), zoneEdgeMaterial);
-  const zoneEdgeOuter = new THREE.LineLoop(circleGeometry(unitZone.outer * AU_UNITS), zoneEdgeMaterial);
+  const zoneEdgeInner = new THREE.LineLoop(circleGeometry(1), zoneEdgeMaterial);
+  const zoneEdgeOuter = new THREE.LineLoop(circleGeometry(1), zoneEdgeMaterial);
   annulus.add(zoneFill, zoneEdgeInner, zoneEdgeOuter);
   const shellMaterial = new THREE.ShaderMaterial({
     uniforms: { uColor: { value: new THREE.Color(ZONE_COLOR) }, uOpacity: { value: 0.4 } },
@@ -159,8 +192,8 @@ export default function mount(container, meta) {
     depthWrite: false,
     side: THREE.DoubleSide,
   });
-  const shellInner = new THREE.Mesh(new THREE.SphereGeometry(unitZone.inner * AU_UNITS, 64, 40), shellMaterial);
-  const shellOuter = new THREE.Mesh(new THREE.SphereGeometry(unitZone.outer * AU_UNITS, 64, 40), shellMaterial);
+  const shellInner = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 40), shellMaterial);
+  const shellOuter = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 40), shellMaterial);
   shellInner.renderOrder = shellOuter.renderOrder = -1;
   const shellGroup = new THREE.Group();
   shellGroup.add(shellInner, shellOuter);
@@ -171,7 +204,9 @@ export default function mount(container, meta) {
   const todayMaterial = new THREE.LineDashedMaterial({ color: 0x9ff5bd, dashSize: 0.35, gapSize: 0.25, transparent: true, opacity: 0.5, depthWrite: false });
   const todayGroup = new THREE.Group();
   todayGroup.rotation.x = -Math.PI / 2;
-  for (const r of [unitZone.inner, unitZone.outer]) {
+  const sunToday = HZ.sunAtAge(HZ.SUN_AGE_GYR);
+  const todayZone = HZ.zoneEdgesAU(sunToday.luminosity, sunToday.teffK);
+  for (const r of [todayZone.inner, todayZone.outer]) {
     const loop = new THREE.LineLoop(circleGeometry(r * AU_UNITS), todayMaterial);
     loop.computeLineDistances();
     todayGroup.add(loop);
@@ -284,20 +319,26 @@ export default function mount(container, meta) {
   // --- derived model -------------------------------------------------------------------------------------------------
   let model = derive();
   function derive() {
-    const star = state.evolution ? HZ.sunAtAge(state.ageGyr) : HZ.mainSequenceStar(state.luminosity);
-    const zone = HZ.zoneEdgesAU(star.luminosity);
+    const star = state.evolution ? HZ.sunAtAge(state.ageGyr) : HZ.starFromTeffRadius(state.teffK, state.radiusSolar);
+    // both zone edges follow the star's temperature, not only its luminosity (Kopparapu et al. 2014)
+    const zone = HZ.zoneEdgesAU(star.luminosity, star.teffK);
     const teqK = HZ.equilibriumTemperatureK(star.luminosity, state.distanceAU);
     return {
       star,
       zone,
+      edgeTemps: HZ.edgeTemperaturesK(star.teffK),
       teqK,
-      status: HZ.classify(teqK),
-      mix: HZ.stateMix(teqK),
+      status: HZ.classify(teqK, star.teffK),
+      mix: HZ.stateMix(teqK, star.teffK),
       type: HZ.spectralType(star.teffK),
       insolation: HZ.insolation(star.luminosity, state.distanceAU),
       periodYears: HZ.orbitalPeriodYears(state.distanceAU, star.massSolar),
-      starRadius: Math.min(STAR_MAX_RADIUS, STAR_UNIT_RADIUS * star.radiusSolar),
-      isEarth: Math.abs(state.distanceAU - 1) < 0.005 && (state.evolution || Math.abs(state.luminosity - 1) < 1e-9),
+      // the star's true radius, times the exaggeration the visitor has chosen
+      starRadius: STAR_TRUE_UNIT_RADIUS * star.radiusSolar * state.starScale,
+      apparentDiameterDeg: HZ.angularDiameterDeg(star.radiusSolar, state.distanceAU),
+      luminosityClass: HZ.luminosityClass(star.radiusSolar, star.teffK),
+      inflation: HZ.inflationFactor(star.radiusSolar, star.teffK),
+      isEarth: Math.abs(state.distanceAU - 1) < 0.005 && Math.abs(star.luminosity - 1) < 1e-6,
     };
   }
 
@@ -332,8 +373,12 @@ export default function mount(container, meta) {
     starGlow.material.color.copy(starColor);
     starHalo.material.color.copy(starColor);
 
-    const zoneScale = Math.sqrt(star.luminosity);
-    zoneGroup.scale.setScalar(zoneScale);
+    zoneEdgeInner.scale.setScalar(zone.inner * AU_UNITS);
+    zoneEdgeOuter.scale.setScalar(zone.outer * AU_UNITS);
+    zoneFill.scale.setScalar(zone.outer * AU_UNITS);
+    zoneFillMaterial.uniforms.uInnerRatio.value = zone.inner / zone.outer;
+    shellInner.scale.setScalar(zone.inner * AU_UNITS);
+    shellOuter.scale.setScalar(zone.outer * AU_UNITS);
     zoneGroup.visible = state.showZone;
     annulus.visible = state.showZoneSurface;
     shellGroup.visible = state.showZoneShell;
@@ -370,10 +415,11 @@ export default function mount(container, meta) {
     tmpUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
     const planetDist = Math.max(camera.position.distanceTo(planetPos), 1e-6);
     const starDist = Math.max(camera.position.length(), 1e-6);
-    // keep the bodies legible at any zoom: never smaller than ~1 % of the viewing distance
-    const planetRadius = Math.max(PLANET_RADIUS, planetDist * 0.014);
-    planetGroup.scale.setScalar(planetRadius / PLANET_RADIUS);
-    const starRadius = Math.max(model.starRadius, starDist * 0.009);
+    // Both bodies keep the size their own exaggeration gives them. Nothing here grows because the
+    // camera pulled back or because the other body grew, so a bigger star reads as a bigger star
+    // and the planet stays the same speck it was – only the hit spheres below stay generous.
+    const planetRadius = PLANET_RADIUS;
+    const starRadius = model.starRadius;
     starMesh.scale.setScalar(starRadius);
     // the glow grows a little with the luminosity (≈ +1 star radius per decade)
     starGlow.scale.setScalar(starRadius * (5.5 + 1.5 * clamp(Math.log10(model.star.luminosity) + 2, 0, 3)));
@@ -381,10 +427,11 @@ export default function mount(container, meta) {
     corona.quaternion.copy(camera.quaternion);
     coronaMaterial.uniforms.uStarFrac.value = 1 / CORONA_EXTENT;
     planetHit.position.copy(planetPos);
-    planetHit.scale.setScalar(Math.max(planetRadius * 1.6, planetDist * 0.02));
+    planetHit.scale.setScalar(Math.max(planetRadius * 1.6, planetDist * 0.02)); // easy to grab even when it is a speck
     starHit.scale.setScalar(Math.max(starRadius * 1.2, starDist * 0.03)); // a little generous: the pull may start anywhere on the disc
     planetMarker.position.copy(planetPos);
-    planetMarker.visible = drag?.kind === 'planet' || hovering === 'planet';
+    // the ring also marks the planet once it is too small on screen to find by eye
+    planetMarker.visible = drag?.kind === 'planet' || hovering === 'planet' || planetRadius / planetDist < MIN_PLANET_SCREEN_FRACTION;
     // sizeAttenuation is off: a scale of 2·r/d spans the star's apparent diameter, the ring sits at 0.42 of the sprite
     const starMarkerScale = Math.max(0.05, (3.1 * starRadius) / starDist);
     starMarker.scale.setScalar(starMarkerScale);
@@ -396,10 +443,9 @@ export default function mount(container, meta) {
     labels.starTemp.sprite.visible = state.showTempLabels;
     labels.starTemp.sprite.position.copy(tmpUp).multiplyScalar(-(starRadius + starDist * 0.035));
 
-    const zoneScale = Math.sqrt(model.star.luminosity) * AU_UNITS;
     labels.zoneInner.sprite.visible = labels.zoneOuter.sprite.visible = state.showZone && (state.showZoneSurface || state.showZoneShell);
-    labels.zoneInner.sprite.position.copy(LABEL_DIRECTION).multiplyScalar(unitZone.inner * zoneScale).addScaledVector(tmpUp, -starDist * 0.012);
-    labels.zoneOuter.sprite.position.copy(LABEL_DIRECTION).multiplyScalar(unitZone.outer * zoneScale).addScaledVector(tmpUp, starDist * 0.012);
+    labels.zoneInner.sprite.position.copy(LABEL_DIRECTION).multiplyScalar(model.zone.inner * AU_UNITS).addScaledVector(tmpUp, -starDist * 0.012);
+    labels.zoneOuter.sprite.position.copy(LABEL_DIRECTION).multiplyScalar(model.zone.outer * AU_UNITS).addScaledVector(tmpUp, starDist * 0.012);
     const targetDist = camera.position.distanceTo(controls.target);
     labels.grid.forEach((l, i) => {
       const r = GRID_LABEL_AU[i] * AU_UNITS;
@@ -459,22 +505,38 @@ export default function mount(container, meta) {
     dir.normalize().multiplyScalar(fitDistance(r));
     tweenCamera(dir, new THREE.Vector3(0, 0, 0), duration);
   }
-  const frameZone = (duration) => frameRadius(model.zone.outer * AU_UNITS, duration);
+  /**
+   * Radius (scene units) the fit mode has to cover: the planet's orbit, the star's own disc
+   * and – while it is shown – the outer edge of the habitable zone. So a planet dragged out
+   * to 5 AU, a star grown to six times its size and a bright star's wide zone each pull the
+   * camera back, and everything moving in makes it zoom in again.
+   */
+  function fitRadiusUnits() {
+    const planet = state.distanceAU * AU_UNITS;
+    const zone = state.showZone ? model.zone.outer * AU_UNITS : 0;
+    const star = model.starRadius * (CORONA_EXTENT * 0.5); // the disc plus a little of its corona
+    return Math.max(planet, zone, star);
+  }
+  const fitView = (duration) => frameRadius(fitRadiusUnits(), duration);
   const frameOverview = (duration) => frameRadius(HZ.DISTANCE_RANGE_AU.max * AU_UNITS, duration);
-  /** Re-frame only when the zone became unreadably small or overflows the view. */
-  function frameZoneIfNeeded() {
-    const r = model.zone.outer * AU_UNITS;
+  /**
+   * The fit mode's re-frame, called when a gesture ends (pointer up / touch released) rather
+   * than while it runs, so the view does not pump in and out under the visitor's finger.
+   * A small tolerance keeps it from tweening over a fraction of a percent.
+   */
+  function fitViewIfAuto(tolerance = FIT_TOLERANCE) {
+    if (!state.autoFrame) return;
+    const ideal = fitDistance(fitRadiusUnits());
     const dist = camera.position.distanceTo(controls.target);
-    const ideal = fitDistance(r);
-    if (dist > ideal * 2.2 || dist < ideal * 0.45) frameZone();
+    if (dist > ideal * tolerance || dist < ideal / tolerance) fitView();
   }
 
-  // --- interaction: drag the planet, pull the star -----------------------------------------------------------------
+  // --- interaction: drag the planet, drag the star (type × size) ---------------------------------------------------
   const raycaster = new THREE.Raycaster();
   raycaster.layers.set(HIT_LAYER);
   const pointer = new THREE.Vector2();
   const orbitalPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  let drag = null; // null | { kind: 'planet' } | { kind: 'star', dirX, dirY, startPx, startLog, pxPerDecade }
+  let drag = null; // null | { kind: 'planet' } | { kind: 'star', x, startTeffLog, startInflation, pxPerTypeDecade }
   let hovering = null; // null | 'planet' | 'star'
   const canvas = renderer.domElement;
 
@@ -489,32 +551,26 @@ export default function mount(container, meta) {
     const hits = raycaster.intersectObjects([planetHit, starHit], false);
     return hits.length ? hits[0].object.userData.kind : null;
   }
-  /** Pointer offset (CSS px) from the star's centre on screen, and the star's apparent radius in px. */
-  function starScreenOffset(e) {
-    const rect = canvas.getBoundingClientRect();
-    tmpV.set(0, 0, 0).project(camera);
-    const cx = rect.left + ((tmpV.x + 1) / 2) * rect.width;
-    const cy = rect.top + ((1 - tmpV.y) / 2) * rect.height;
-    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const radiusPx = ((starMesh.scale.x / Math.max(camera.position.length(), 1e-6)) / tanV) * (rect.height / 2);
-    return { dx: e.clientX - cx, dy: e.clientY - cy, radiusPx };
+  /** Drag gain: `span` of a canvas edge `edgePx` wide covers `decades` of a log-scaled quantity. */
+  function pxPerDecade(edgePx, span, decades) {
+    return clamp(edgePx * span, STAR_DRAG_TRAVEL_PX.min, STAR_DRAG_TRAVEL_PX.max) / decades;
   }
   /**
-   * The pull works in screen space along the radial line through the first touch: moving outward grows
-   * the star (and brightens it along the main sequence, R ∝ L^0.24), moving inward – past the centre if
-   * need be – shrinks it. The gain follows the star's apparent size, so on a large disc the limb roughly
-   * tracks the pointer, while a tiny disc at overview zoom still gets a usable 70 px per decade.
+   * Dragging the star sideways picks the type of star – right towards hotter and bluer – and the
+   * size comes with it, as it does along the main sequence: the radius keeps its place relative
+   * to the main-sequence radius of the temperature under the pointer, so a dwarf stays a dwarf
+   * and a giant stays a giant while its colour changes. The gesture is log-linear in temperature,
+   * so the whole range fits in one comfortable sweep whatever the canvas. Vertical movement is
+   * ignored – the radius has its own slider. Dragging leaves evolution mode.
    */
-  function startStarPull(e) {
-    const { dx, dy, radiusPx } = starScreenOffset(e);
-    const len = Math.hypot(dx, dy);
+  function startStarDrag(e) {
+    const rect = canvas.getBoundingClientRect();
     return {
       kind: 'star',
-      dirX: len > 1 ? dx / len : 1,
-      dirY: len > 1 ? dy / len : 0,
-      startPx: len,
-      startLog: Math.log10(model.star.luminosity),
-      pxPerDecade: Math.max(STAR_PULL_MIN_PX_PER_DECADE, 0.8 * radiusPx),
+      x: e.clientX,
+      startTeffLog: Math.log10(model.star.teffK),
+      startInflation: model.inflation,
+      pxPerTypeDecade: pxPerDecade(rect.width, STAR_DRAG_TYPE_SPAN, TEFF_DECADES),
     };
   }
   function dragPlanetTo(e) {
@@ -526,16 +582,15 @@ export default function mount(container, meta) {
     distanceSlider.setValue(state.distanceAU, { silent: true });
     refresh();
   }
-  function pullStarTo(e) {
-    const { dx, dy } = starScreenOffset(e);
-    const signed = dx * drag.dirX + dy * drag.dirY; // radial displacement along the initial pull direction
-    setLuminosity(Math.pow(10, drag.startLog + (signed - drag.startPx) / drag.pxPerDecade));
+  function dragStarTo(e) {
+    const teffK = clamp(Math.pow(10, drag.startTeffLog + (e.clientX - drag.x) / drag.pxPerTypeDecade), HZ.TEFF_RANGE_K.min, HZ.TEFF_RANGE_K.max);
+    setStar(teffK, HZ.mainSequenceRadius(teffK) * drag.startInflation); // hotter type, larger star
   }
   const onPointerDown = (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     const kind = pick(e);
     if (!kind) return;
-    drag = kind === 'star' ? startStarPull(e) : { kind };
+    drag = kind === 'star' ? startStarDrag(e) : { kind };
     controls.enabled = false; // registered in the capture phase, so OrbitControls sees `enabled === false`
     canvas.classList.add('is-dragging');
     try {
@@ -551,7 +606,7 @@ export default function mount(container, meta) {
   const onPointerMove = (e) => {
     if (drag) {
       if (drag.kind === 'planet') dragPlanetTo(e);
-      else pullStarTo(e);
+      else dragStarTo(e);
       return;
     }
     const over = pick(e);
@@ -564,12 +619,11 @@ export default function mount(container, meta) {
   };
   const endDrag = (e) => {
     if (!drag) return;
-    const wasStar = drag.kind === 'star';
     drag = null;
     controls.enabled = true;
     canvas.classList.remove('is-dragging');
     if (e && canvas.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
-    if (wasStar) frameZoneIfNeeded();
+    fitViewIfAuto(); // pointer up / touch released – this is where the fit mode re-frames
     updateOverlay();
     sim.requestRender();
   };
@@ -607,6 +661,9 @@ export default function mount(container, meta) {
     starMaterial.uniforms.uTime.value += sdt;
     coronaMaterial.uniforms.uTime.value += sdt;
     planetMaterial.uniforms.uTime.value += sdt;
+    // while evolution runs there is no pointer to wait for, so the fit mode follows the growing
+    // zone – with a wide tolerance, so the camera settles instead of creeping along with it
+    if (state.playing && !drag && !cameraTween) fitViewIfAuto(FIT_TOLERANCE_PLAYING);
     stepTween(dt); // camera framing is interface motion, not scene time
     updateScene();
     updateOverlay();
@@ -618,26 +675,53 @@ export default function mount(container, meta) {
   };
   controls.addEventListener('change', onControlsChange);
   disposers.push(() => controls.removeEventListener('change', onControlsChange));
+  // a rotated phone or a resized window changes what fits on screen
+  const onWindowResize = () => fitViewIfAuto(FIT_TOLERANCE_PLAYING);
+  window.addEventListener('resize', onWindowResize);
+  disposers.push(() => window.removeEventListener('resize', onWindowResize));
 
   // --- state setters ---------------------------------------------------------------------------------------------------------------
-  function setLuminosity(L, { silent = false } = {}) {
-    state.luminosity = clamp(L, HZ.LUMINOSITY_RANGE.min, HZ.LUMINOSITY_RANGE.max);
-    if (state.evolution) {
-      state.evolution = false;
-      setPlaying(false);
-    }
-    if (!silent) luminositySlider.setValue(Math.log10(state.luminosity), { silent: true });
+  /** Leaving evolution mode: the star stays where the Sun's track had put it. */
+  function leaveEvolution() {
+    if (!state.evolution) return;
+    state.teffK = model.star.teffK;
+    state.radiusSolar = model.star.radiusSolar;
+    state.evolution = false;
+    setPlaying(false);
+  }
+  /**
+   * The star's two physical controls. Temperature is bounded by the range Kopparapu's flux
+   * limits are fitted over; the radius by what that temperature allows – never less than half
+   * the main-sequence radius, never so large that the zone leaves the scene (see radiusRangeFor).
+   */
+  function applyStar(teffK, radiusSolar) {
+    leaveEvolution();
+    state.teffK = clamp(teffK, HZ.TEFF_RANGE_K.min, HZ.TEFF_RANGE_K.max);
+    const range = HZ.radiusRangeFor(state.teffK);
+    state.radiusSolar = clamp(radiusSolar, range.min, range.max);
+  }
+  function setStar(teffK, radiusSolar) {
+    applyStar(teffK, radiusSolar);
+    refresh(); // the sliders quote the model (spectral type, luminosity class), so recompute it first
+    syncStarSliders();
     syncPresetButtons();
-    refresh();
+  }
+  const setTemperature = (teffK) => setStar(teffK, state.radiusSolar);
+  const setRadius = (radiusSolar) => setStar(state.teffK, radiusSolar);
+  /** Put the star back on the main sequence, keeping its temperature. */
+  const setMainSequence = () => setStar(state.teffK, HZ.mainSequenceRadius(state.teffK));
+  /** The main-sequence star of this luminosity – what the presets and the reset button set. */
+  function setLuminosity(L) {
+    const ms = HZ.mainSequenceStar(clamp(L, HZ.LUMINOSITY_RANGE.min, HZ.LUMINOSITY_RANGE.max));
+    setStar(ms.teffK, ms.radiusSolar);
   }
   function setAge(age) {
     state.ageGyr = clamp(age, 0, HZ.MAX_AGE_GYR);
     state.evolution = true;
     ageSlider.setValue(state.ageGyr, { silent: true });
-    model = derive();
-    luminositySlider.setValue(Math.log10(model.star.luminosity), { silent: true });
-    syncPresetButtons();
     refresh();
+    syncStarSliders(); // both follow the Sun's track while it runs
+    syncPresetButtons();
   }
   function setPlaying(v) {
     state.playing = v;
@@ -656,6 +740,24 @@ export default function mount(container, meta) {
     state.distanceAU = clamp(dAU, HZ.DISTANCE_RANGE_AU.min, HZ.DISTANCE_RANGE_AU.max);
     distanceSlider.setValue(state.distanceAU, { silent: true });
     refresh();
+  }
+  /** How far the disc is drawn larger than the star really is – display only, no physics depends on it. */
+  function applyStarScale(scale) {
+    state.starScale = clamp(scale, STAR_SCALE_RANGE.min, STAR_SCALE_RANGE.max);
+    starScaleSlider.setValue(Math.log10(state.starScale), { silent: true });
+  }
+  function setStarScale(scale, { persist = true } = {}) {
+    applyStarScale(scale);
+    if (persist) viewPrefs.set('starScale', state.starScale);
+    refresh();
+  }
+  /** Fit mode: while it is on, the camera re-frames itself whenever a gesture or a slider ends. */
+  function setAutoFrame(on) {
+    state.autoFrame = on;
+    viewPrefs.set('autoFrame', on);
+    syncFrameButton();
+    if (on) fitView(); // switching it on frames straight away, so the mode shows what it does
+    sim.requestRender();
   }
   function setTempUnit(unit) {
     if (!TEMP_UNITS.includes(unit)) return;
@@ -688,6 +790,7 @@ export default function mount(container, meta) {
       refresh();
     },
   });
+  distanceSlider.input.addEventListener('change', () => fitViewIfAuto());
 
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
 
@@ -699,7 +802,7 @@ export default function mount(container, meta) {
       ariaKey: `${KEYS}.star.preset${preset.id}Aria`,
       onClick: () => {
         setLuminosity(preset.luminosity);
-        frameZone();
+        fitViewIfAuto();
       },
     });
     btn.el.classList.add('lp-presets__btn');
@@ -712,20 +815,64 @@ export default function mount(container, meta) {
   });
   function syncPresetButtons() {
     for (const { preset, el: btn } of presetButtons) {
-      const active = !state.evolution && Math.abs(Math.log10(state.luminosity) - Math.log10(preset.luminosity)) < 0.005;
+      // a preset is a main-sequence star, so both controls have to match it
+      const ms = HZ.mainSequenceStar(preset.luminosity);
+      const active = !state.evolution
+        && Math.abs(Math.log10(state.teffK / ms.teffK)) < 0.002
+        && Math.abs(Math.log10(state.radiusSolar / ms.radiusSolar)) < 0.005;
       btn.setAttribute('aria-pressed', String(active));
     }
   }
-  const luminositySlider = createSlider({
-    labelKey: `${KEYS}.star.luminosity`,
-    min: Math.log10(HZ.LUMINOSITY_RANGE.min),
-    max: Math.log10(HZ.LUMINOSITY_RANGE.max),
-    step: 0.01,
-    value: Math.log10(state.luminosity),
-    format: (v) => formatLuminosity(Math.pow(10, v)),
-    onChange: (v) => setLuminosity(Math.pow(10, v), { silent: true }),
+  // The star's two physical controls, the same pair the drag gesture moves: how hot it is
+  // (its spectral type) and how large it is. Its luminosity follows from both and is a readout.
+  const teffSlider = createSlider({
+    labelKey: `${KEYS}.star.temperatureControl`,
+    min: Math.log10(HZ.TEFF_RANGE_K.min),
+    max: Math.log10(HZ.TEFF_RANGE_K.max),
+    step: 0.001,
+    value: Math.log10(state.teffK),
+    format: (v) => {
+      const teff = Math.pow(10, v);
+      return `${formatTemp(teff)} · ${HZ.spectralType(teff)}`;
+    },
+    onChange: (v) => setTemperature(Math.pow(10, v)),
   });
-  luminositySlider.input.addEventListener('change', frameZoneIfNeeded);
+  teffSlider.input.addEventListener('change', () => fitViewIfAuto());
+  const radiusSlider = createSlider({
+    labelKey: `${KEYS}.star.radiusControl`,
+    min: Math.log10(HZ.RADIUS_RANGE_SOLAR.min),
+    max: Math.log10(HZ.RADIUS_RANGE_SOLAR.max),
+    step: 0.002,
+    value: Math.log10(state.radiusSolar),
+    format: (v) => `${fmt(Math.pow(10, v), 2)} ${t('units.solarRadius')} · ${t(`${KEYS}.star.classes.${model.luminosityClass}`)}`,
+    onChange: (v) => setRadius(Math.pow(10, v)),
+  });
+  radiusSlider.input.addEventListener('change', () => fitViewIfAuto());
+  const mainSequenceBtn = createButton({
+    labelKey: `${KEYS}.star.backToMainSequence`,
+    icon: '↺',
+    compact: true,
+    onClick: () => {
+      setMainSequence();
+      fitViewIfAuto();
+    },
+  });
+  const radiusRow = createControlRow(radiusSlider, mainSequenceBtn);
+  /**
+   * Both star sliders, refreshed from the current model – so they also follow the star while
+   * evolution mode drives it. The radius a star may take depends on its temperature, so that
+   * slider's own bounds move with it: a hot star runs into the scene's luminosity ceiling long
+   * before a red one does.
+   */
+  function syncStarSliders() {
+    const { teffK, radiusSolar } = model.star;
+    const range = HZ.radiusRangeFor(teffK);
+    teffSlider.setValue(Math.log10(teffK), { silent: true });
+    radiusSlider.input.min = String(Math.log10(range.min));
+    radiusSlider.input.max = String(Math.log10(range.max));
+    radiusSlider.setValue(Math.log10(radiusSolar), { silent: true });
+    mainSequenceBtn.el.disabled = Math.abs(Math.log10(model.inflation)) < 0.01;
+  }
 
   const ageSlider = createSlider({
     labelKey: `${KEYS}.evolution.age`,
@@ -739,6 +886,7 @@ export default function mount(container, meta) {
       setAge(v);
     },
   });
+  ageSlider.input.addEventListener('change', () => fitViewIfAuto());
   const playBtn = createButton({ labelKey: `${KEYS}.evolution.play`, icon: '▶', variant: 'primary', compact: true, onClick: () => setPlaying(!state.playing) });
   function syncPlayButton() {
     playBtn.setIcon(state.playing ? '⏸' : '▶');
@@ -767,6 +915,7 @@ export default function mount(container, meta) {
     }
     syncZoneToggles();
     refresh();
+    fitViewIfAuto(); // the zone joins or leaves what has to fit on screen
   });
   const surfaceToggle = viewToggle('showZoneSurface', `${KEYS}.view.zoneSurface`);
   const shellToggle = viewToggle('showZoneShell', `${KEYS}.view.zoneShell`);
@@ -788,6 +937,25 @@ export default function mount(container, meta) {
     onChange: setTempUnit,
   });
   const gridToggle = viewToggle('showGrid', `${KEYS}.view.grid`);
+  // the star's size is the one number in the picture that is not to scale, so the control says by how much
+  const starScaleSlider = createSlider({
+    labelKey: `${KEYS}.view.starSize`,
+    min: Math.log10(STAR_SCALE_RANGE.min),
+    max: Math.log10(STAR_SCALE_RANGE.max),
+    step: 0.005,
+    value: Math.log10(state.starScale),
+    format: (v) => {
+      const scale = Math.pow(10, v);
+      const label = `${fmt(scale, scale < 10 ? 1 : 0)}${t('units.times')}`;
+      return scale < 1.02 ? `${label} · ${t(`${KEYS}.view.starSizeTrue`)}` : label;
+    },
+    onChange: (v) => setStarScale(Math.pow(10, v), { persist: false }),
+  });
+  starScaleSlider.input.addEventListener('change', () => {
+    viewPrefs.set('starScale', state.starScale);
+    fitViewIfAuto();
+  });
+  const starScaleNote = bindText(el('p', 'lp-section__note'), `${KEYS}.view.starSizeNote`);
   const speedSlider = createSlider({
     labelKey: `${KEYS}.view.speed`,
     min: SPEED_RANGE.min,
@@ -799,8 +967,25 @@ export default function mount(container, meta) {
   });
   const speedNote = bindText(el('p', 'lp-section__note'), `${KEYS}.view.speedNote`);
   const cameraRow = el('div', 'lp-presets lp-presets--2 lp-presets--compact', { role: 'group' });
-  const frameBtn = createButton({ labelKey: `${KEYS}.view.frameZone`, icon: '◎', onClick: () => frameZone() });
-  const overviewBtn = createButton({ labelKey: `${KEYS}.view.overview`, icon: '⤢', onClick: () => frameOverview() });
+  // "Frame zone" is a mode, not a one-off: while it is pressed the camera keeps the star, the
+  // planet and the zone framed by itself; "Overview" hands the camera back to the visitor.
+  const frameBtn = createButton({
+    labelKey: `${KEYS}.view.frameZone`,
+    ariaKey: `${KEYS}.view.frameZoneAria`,
+    icon: '◎',
+    onClick: () => setAutoFrame(!state.autoFrame),
+  });
+  function syncFrameButton() {
+    frameBtn.el.setAttribute('aria-pressed', String(state.autoFrame));
+  }
+  const overviewBtn = createButton({
+    labelKey: `${KEYS}.view.overview`,
+    icon: '⤢',
+    onClick: () => {
+      setAutoFrame(false); // an explicit wide view: the camera is the visitor's again
+      frameOverview();
+    },
+  });
   for (const btn of [frameBtn, overviewBtn]) {
     btn.el.classList.add('lp-presets__btn');
     cameraRow.append(btn.el);
@@ -812,13 +997,13 @@ export default function mount(container, meta) {
     onClick: () => {
       setPlaying(false);
       Object.assign(state, DEFAULTS);
-      luminositySlider.setValue(Math.log10(state.luminosity), { silent: true });
       distanceSlider.setValue(state.distanceAU, { silent: true });
       ageSlider.setValue(state.ageGyr, { silent: true });
       speedSlider.setValue(state.speed, { silent: true });
-      syncPresetButtons();
       refresh();
-      frameZone();
+      syncStarSliders();
+      syncPresetButtons();
+      fitView();
     },
   });
   const resetRow = el('div', 'lp-button-row lp-button-row--full');
@@ -828,7 +1013,8 @@ export default function mount(container, meta) {
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`),
-    cameraRow, zoneToggle, surfaceToggle, shellToggle, tempToggle, unitSwitch, gridToggle, speedSlider, speedNote, resetRow,
+    cameraRow, zoneToggle, surfaceToggle, shellToggle, tempToggle, unitSwitch, gridToggle,
+    starScaleSlider, starScaleNote, speedSlider, speedNote, resetRow,
   );
 
   // --- readouts: the planet's temperature, then the numbers behind it ------------------------------
@@ -846,17 +1032,33 @@ export default function mount(container, meta) {
   const starFacts = createFacts([
     ['type', `${KEYS}.star.type`],
     ['teff', `${KEYS}.star.temperature`],
-    ['mass', `${KEYS}.star.mass`],
     ['radius', `${KEYS}.star.radius`],
+    ['luminosity', `${KEYS}.star.luminosity`],
+    ['mass', `${KEYS}.star.mass`],
+    ['apparent', `${KEYS}.star.apparent`],
     ['zone', `${KEYS}.zone.edges`],
     ['width', `${KEYS}.zone.width`],
   ]);
   const legend = createLegend();
 
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
-  const physicsCard = createPhysicsCard();
+  // the thresholds and the exaggerations are not fixed numbers – they follow the star and the view
+  const physicsCard = createPhysicsCard(() => {
+    const limits = HZ.zoneFluxLimits(model.star.teffK);
+    return {
+      teff: fmt(model.star.teffK, 0),
+      sInner: fmt(limits.inner, 2),
+      sOuter: fmt(limits.outer, 2),
+      frozen: fmt(model.edgeTemps.frozen, 0),
+      scorched: fmt(model.edgeTemps.scorched, 0),
+      lava: fmt(model.edgeTemps.scorched + HZ.HEAT_RAMP_K, 0),
+      starScale: fmt(state.starScale, state.starScale < 10 ? 1 : 0),
+      inflation: fmt(model.inflation, model.inflation < 10 ? 1 : 0),
+      planetScale: formatNumber(PLANET_EXAGGERATION, { maximumFractionDigits: 0 }),
+    };
+  });
   panel.add(
-    distanceSlider, presetRow, luminositySlider, moreControls,
+    distanceSlider, presetRow, teffSlider, radiusRow, moreControls,
     readout, planetFacts, windowNote,
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.star`), starFacts,
     legend, infoCard, physicsCard,
@@ -877,13 +1079,19 @@ export default function mount(container, meta) {
   let lastReadoutKey = '';
   function updateReadouts(force = false) {
     const { star, zone, teqK, status } = model;
-    const key = `${star.luminosity.toFixed(5)}|${state.distanceAU.toFixed(3)}|${state.evolution}|${status}|${state.tempUnit}`;
+    // the star exaggeration is in the key because the physics card states it
+    const key = `${star.teffK.toFixed(2)}|${star.radiusSolar.toFixed(5)}|${state.distanceAU.toFixed(3)}|${state.evolution}|${status}|${state.tempUnit}|${state.starScale.toFixed(3)}`;
     if (!force && key === lastReadoutKey) return;
     lastReadoutKey = key;
-    starFacts.set('type', t(`${KEYS}.star.types.${model.type}`));
+    // the spectral type says how hot the star is, the luminosity class how far it has left the main sequence
+    starFacts.set('type', `${t(`${KEYS}.star.types.${model.type}`)} · ${t(`${KEYS}.star.classes.${model.luminosityClass}`)}`);
     starFacts.set('teff', formatTemp(star.teffK));
     starFacts.set('mass', `${fmt(star.massSolar, 2)} ${t('units.solarMass')}`);
     starFacts.set('radius', `${fmt(star.radiusSolar, 2)} ${t('units.solarRadius')}`);
+    starFacts.set('luminosity', formatLuminosity(star.luminosity)); // L = R²·(T/T☉)⁴, not an input
+    // the true angular size of the star in the planet's sky – the disc on screen is exaggerated, this is not
+    const apparent = model.apparentDiameterDeg;
+    starFacts.set('apparent', `${fmt(apparent, apparent < 0.1 ? 3 : 2)}${t('units.degrees')}`);
     const zoneDigits = zone.outer < 0.2 ? 3 : 2;
     starFacts.set('zone', `${fmt(zone.inner, zoneDigits)} – ${fmt(zone.outer, zoneDigits)} ${t('units.au')}`);
     starFacts.set('width', `${fmt(zone.outer - zone.inner, zoneDigits)} ${t('units.au')}`);
@@ -892,6 +1100,7 @@ export default function mount(container, meta) {
     statePill.className = `lp-state lp-state--${status}`;
     stateHint.textContent = t(`${KEYS}.planet.${status}Hint`);
     planetFacts.set('insolation', `${fmt(model.insolation, model.insolation < 0.1 ? 3 : 2)} ${t('units.solarFlux')}`);
+    physicsCard.update(); // its thresholds and flux limits belong to this star
     const days = model.periodYears * 365.25;
     planetFacts.set('period', days < 1000 ? t(`${KEYS}.planet.days`, { n: fmt(days, days < 10 ? 1 : 0, 0) }) : t(`${KEYS}.planet.years`, { n: fmt(model.periodYears, 2) }));
     const win = HZ.habitableWindowGyr(state.distanceAU);
@@ -915,13 +1124,15 @@ export default function mount(container, meta) {
   // --- go ------------------------------------------------------------------------------------------------------------------------------------------
   syncPresetButtons();
   syncPlayButton();
+  syncFrameButton();
   refresh();
+  syncStarSliders();
   updateReadouts(true);
-  frameZone(0);
+  fitView(0);
   sim.start();
 
   // dev-only hook for automated checks; stripped from production builds
-  if (import.meta.env.DEV) window.__lpHabitableZone = { sim, state, get model() { return model; }, setLuminosity, setDistance, setAge, setPlaying, setSpeed, setTempUnit, frame, frameZone, frameOverview, refresh, planetMaterial, starMaterial };
+  if (import.meta.env.DEV) window.__lpHabitableZone = { sim, state, get model() { return model; }, setLuminosity, setDistance, setAge, setPlaying, setSpeed, setTempUnit, setStarScale, setAutoFrame, setStar, setTemperature, setRadius, setMainSequence, frame, fitView, fitViewIfAuto, fitRadiusUnits, frameOverview, refresh, planetMaterial, starMaterial };
 
   return () => {
     if (import.meta.env.DEV) delete window.__lpHabitableZone;
@@ -1016,49 +1227,54 @@ function createLegend() {
 }
 
 /** Collapsible "Physics" card listing the formulas used. */
-function createPhysicsCard() {
+/**
+ * Physics card. Every line is translated *and* interpolated with `values()`, so the numbers that
+ * depend on the star (its flux limits and the temperatures they map to) or on the view (how far
+ * the bodies are exaggerated) stay honest instead of being frozen into the copy.
+ */
+function createPhysicsCard(values = () => ({})) {
   const details = el('details', 'lp-info lp-physics');
   const summary = el('summary', 'lp-info__summary');
   summary.append(bindText(el('span', 'lp-info__title'), `${KEYS}.physics.title`));
   const body = el('div', 'lp-info__body');
   details.append(summary, body);
+  const live = new Map(); // node → i18n key, re-interpolated by update()
   const entries = [
     ['zone', true],
     ['teq', true],
     ['state', true],
     ['appearance', true],
     ['evolution', true],
-    ['star', false],
+    ['star', true],
     ['period', false],
   ];
+  const liveText = (node, key) => {
+    live.set(node, key);
+    node.textContent = t(key, values());
+    return node;
+  };
   function render() {
     body.replaceChildren();
+    live.clear();
     for (const [id, hasNote] of entries) {
       const block = el('div', 'lp-formula');
       const label = el('p', 'lp-formula__label');
       label.textContent = t(`${KEYS}.physics.${id}Label`);
-      const code = el('code', 'lp-formula__code');
-      code.textContent = t(`${KEYS}.physics.${id}Formula`);
-      block.append(label, code);
-      if (hasNote) {
-        const note = el('p', 'lp-formula__note');
-        note.textContent = t(`${KEYS}.physics.${id}Note`);
-        block.append(note);
-      }
+      block.append(label, liveText(el('code', 'lp-formula__code'), `${KEYS}.physics.${id}Formula`));
+      if (hasNote) block.append(liveText(el('p', 'lp-formula__note'), `${KEYS}.physics.${id}Note`));
       // the plain-language consequence of the brightening, next to the relation it follows from
-      if (id === 'evolution') {
-        const consequence = el('p', 'lp-formula__note');
-        consequence.textContent = t(`${KEYS}.evolution.note`);
-        block.append(consequence);
-      }
+      if (id === 'evolution') block.append(liveText(el('p', 'lp-formula__note'), `${KEYS}.evolution.note`));
       body.append(block);
     }
-    const scale = el('p', 'lp-formula__note');
-    scale.textContent = t(`${KEYS}.physics.scaleNote`);
-    body.append(scale);
+    body.append(liveText(el('p', 'lp-formula__note'), `${KEYS}.physics.scaleNote`));
+  }
+  /** Refresh only the interpolated numbers – no DOM is rebuilt. */
+  function update() {
+    const params = values();
+    for (const [node, key] of live) node.textContent = t(key, params);
   }
   render();
-  return { el: details, render, dispose() {} };
+  return { el: details, render, update, dispose() {} };
 }
 
 // ============================================================================================================
@@ -1490,6 +1706,27 @@ const ATMOSPHERE_FRAGMENT = /* glsl */ `
     float rim = pow(1.0 - clamp(dot(normalize(-vNormalW), normalize(vViewDir)), 0.0, 1.0), 3.0);
     float lit = clamp(dot(normalize(-vNormalW), normalize(-vWorldPos)) * 0.5 + 0.6, 0.15, 1.0);
     gl_FragColor = vec4(uColor * rim * lit * uStrength, rim * 0.9);
+    #include <colorspace_fragment>
+  }
+`;
+
+/** The flat zone: a unit disc scaled to the outer edge, hollowed out at the inner/outer ratio. */
+const ANNULUS_VERTEX = /* glsl */ `
+  varying float vRadius;
+  void main() {
+    vRadius = length(position.xy);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const ANNULUS_FRAGMENT = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  uniform float uInnerRatio;
+  varying float vRadius;
+  void main() {
+    if (vRadius < uInnerRatio) discard;
+    gl_FragColor = vec4(uColor, uOpacity);
     #include <colorspace_fragment>
   }
 `;

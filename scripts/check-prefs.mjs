@@ -77,6 +77,19 @@ for (const [label, raw] of [
   equal('a later mount reads the stored view', createViewPrefs('seasons', DEFAULTS).values, { showAxis: false, showLabels: true, showHeat: false });
 }
 
+// --- numeric settings (e.g. an exaggeration factor) round-trip like the rest -----------------------
+{
+  const NUMERIC = Object.freeze({ showAxis: true, tempUnit: 'celsius', starSize: 1 });
+  const store = stubStorage();
+  const prefs = createViewPrefs('seasons', NUMERIC);
+  prefs.set('starSize', 2.5);
+  equal('set() persists a number', JSON.parse(store.get(KEY)).starSize, 2.5);
+  equal('a later mount reads the stored number', createViewPrefs('seasons', NUMERIC).values.starSize, 2.5);
+
+  stubStorage({ seed: { [KEY]: JSON.stringify({ starSize: '2.5' }) } });
+  equal('a number stored as a string is ignored', createViewPrefs('seasons', NUMERIC).values.starSize, 1);
+}
+
 // --- one entry per simulation --------------------------------------------------------------------
 {
   const store = stubStorage();
