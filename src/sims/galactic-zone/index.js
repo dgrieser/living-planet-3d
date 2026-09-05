@@ -10,8 +10,9 @@
  *    generated once in ./model.js; per frame only a few uniforms change.
  *  - Dressing that makes it read as a galaxy rather than a dot diagram, each a real
  *    constituent placed with the same geometry: a haze of unresolved starlight
- *    (instanced additive billboards), dust lanes as multiplicative extinction on the
- *    concave edge of the arms and in a thin disc, a warm nucleus glow, and ≈150
+ *    (instanced additive billboards), dust lanes on the concave edge of the arms and in a
+ *    thin disc – oblate clouds accumulated as optical depth in an offscreen buffer and
+ *    applied as one Beer–Lambert transmission pass – a warm nucleus glow, and ≈150
  *    globular clusters in a static spheroidal halo.
  *  - Three flat overlays at y = 0: the red "hostile core" inside the zone's inner
  *    edge, the translucent green habitable annulus and the blue-grey metal-poor
@@ -79,8 +80,22 @@ const COLORS = Object.freeze({
   dust: 0x9a7660,
   globular: 0xf2e2c4,
 });
-/** Dust transmission at full strength – reddening: red passes, blue is absorbed. */
-const DUST_TINT = new THREE.Color(0.55, 0.42, 0.32);
+/**
+ * Transmission through one full-strength dust cloud. The channel ratios follow the
+ * interstellar extinction law (A_B ≈ 1.3 A_V, A_R ≈ 0.75 A_V): red passes, blue is absorbed,
+ * so light behind dust is reddened, and a thick column goes dark brown rather than orange.
+ */
+const DUST_TINT = new THREE.Color(0.58, 0.48, 0.38);
+/**
+ * Soft cap on the dust column (in full-strength clouds) a line of sight can pick up. Edge-on,
+ * dozens of clouds line up and pure Beer–Lambert stacking would go pitch black with ragged
+ * edges; the cap lets the lane go dark but keeps the disc behind it faintly visible.
+ */
+const DUST_COLUMN_MAX = 5;
+/** Blur of the dust column buffer (in its texels) once the view is nearly edge-on. */
+const DUST_BLUR_TEXELS = 2;
+/** Effective vertical σ (kly) of the dust layer the stars are split around: cloud scatter plus the clouds' own height. */
+const DUST_LAYER_SIGMA = 0.45;
 
 const DEFAULTS = Object.freeze({
   sunRadiusKly: CONFIG.sun.radiusKly,
@@ -120,6 +135,11 @@ const ARM_LABEL_RADII = Object.freeze({ scutumCentaurus: 26, sagittarius: 31, pe
 
 const { clamp, TAU } = M;
 const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+/** GLSL-style smoothstep; `a > b` runs it downhill. */
+const smoothstep = (a, b, x) => {
+  const t = clamp((x - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
+};
 const fmt = (v, digits = 1, min = 0) => formatNumber(v, { maximumFractionDigits: digits, minimumFractionDigits: Math.min(min, digits) });
 
 export default function mount(container, meta) {
@@ -171,26 +191,41 @@ export default function mount(container, meta) {
     uPixelRatio: { value: renderer.getPixelRatio() },
     uSizeScale: { value: 1.8 },
     uOpacity: { value: 0.8 },
+    uDustSigma: { value: DUST_LAYER_SIGMA },
+    uDustRadius: { value: CONFIG.dust.discToKly },
+    uDustSplit: { value: 0 },
   };
-  const pointMaterial = new THREE.ShaderMaterial({
-    uniforms: pointUniforms,
-    vertexShader: GALAXY_VERTEX,
-    fragmentShader: GALAXY_FRAGMENT,
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const points = new THREE.Points(pointGeometry, pointMaterial);
-  points.frustumCulled = false;
-  points.renderOrder = 1;
-  galaxy.add(points);
+  /** Star material; `pass` is −1 for the light behind the dust, +1 for the light in front of it, 0 for all of it. */
+  const makePointMaterial = (pass) =>
+    new THREE.ShaderMaterial({
+      uniforms: { ...pointUniforms, uPass: { value: pass } }, // shares the uniform objects: one update serves all
+      vertexShader: GALAXY_VERTEX,
+      fragmentShader: GALAXY_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+  const pointMaterial = makePointMaterial(0);
+  // The dust pass is depth-less, so each star's light is split around it by the share of the
+  // dust column that really lies between the star and the camera (see GALAXY_VERTEX): that
+  // share goes down first and is dimmed, the rest is drawn over the dust untouched. Seen from
+  // inside the disc the nearby stars then shine in front of the rift instead of being buried
+  // under dust that is far beyond them. The split fades out as the camera rises above the
+  // plane (uDustSplit, see updateOverlay): from up there the lanes read as they do in a real
+  // face-on galaxy, dark bands in the smooth light, and the stars over them would only blur that.
+  const pointsBehind = new THREE.Points(pointGeometry, makePointMaterial(-1));
+  const pointsInFront = new THREE.Points(pointGeometry, makePointMaterial(1));
+  pointsBehind.frustumCulled = pointsInFront.frustumCulled = false;
+  pointsBehind.renderOrder = 1;
+  pointsInFront.renderOrder = 2.5; // after the dust (2), before the overlays (3)
+  galaxy.add(pointsBehind, pointsInFront);
 
   // --- haze: unresolved starlight (additive billboards, drawn under the stars) -----------------------
   const hazeData = M.generateHaze(CONFIG, hazeCount);
   const hazeUniforms = { uOpacity: { value: 0.07 }, uFade: { value: 1 } };
   const haze = createBillboardCloud({
     count: hazeData.count,
-    attributes: { aOffset: [hazeData.positions, 3], aColor: [hazeData.colors, 3], aSize: [hazeData.sizes, 1] },
+    attributes: { aOffset: [hazeData.positions, 3], aColor: [hazeData.colors, 3], aSize: [hazeData.sizes, 1], aFlat: [hazeData.flats, 1] },
     material: new THREE.ShaderMaterial({
       uniforms: hazeUniforms,
       vertexShader: HAZE_VERTEX,
@@ -204,30 +239,20 @@ export default function mount(container, meta) {
   haze.mesh.renderOrder = 0;
   galaxy.add(haze.mesh);
 
-  // --- dust lanes: extinction billboards (framebuffer × transmission) ------------------------------
+  // --- dust lanes: extinction (optical depth buffer + one transmission pass) ------------------------
   const dustData = M.generateDust(CONFIG, dustCount);
-  const dustUniforms = { uTint: { value: DUST_TINT }, uFade: { value: 1 }, uStrength: { value: 0.6 } };
-  const dust = createBillboardCloud({
+  const dustUniforms = { uFade: { value: 1 }, uStrength: { value: 0.6 } };
+  const dust = createDustExtinction({
+    renderer,
+    follow: galaxy,
     count: dustData.count,
-    attributes: { aOffset: [dustData.positions, 3], aStrength: [dustData.strengths, 1], aSize: [dustData.sizes, 1] },
-    material: new THREE.ShaderMaterial({
-      uniforms: dustUniforms,
-      vertexShader: DUST_VERTEX,
-      fragmentShader: DUST_FRAGMENT,
-      transparent: true,
-      depthWrite: false,
-      depthTest: false,
-      // result = framebuffer × fragment colour: the fragment is a transmission, 1 = clear
-      blending: THREE.CustomBlending,
-      blendEquation: THREE.AddEquation,
-      blendSrc: THREE.ZeroFactor,
-      blendDst: THREE.SrcColorFactor,
-      blendSrcAlpha: THREE.ZeroFactor,
-      blendDstAlpha: THREE.OneFactor,
-    }),
+    attributes: { aOffset: [dustData.positions, 3], aStrength: [dustData.strengths, 1], aSize: [dustData.sizes, 1], aFlat: [dustData.flats, 1] },
+    uniforms: dustUniforms,
+    tint: DUST_TINT,
+    columnMax: DUST_COLUMN_MAX,
   });
-  dust.mesh.renderOrder = 2;
-  galaxy.add(dust.mesh);
+  dust.mesh.renderOrder = 2; // after the stars and the haze, which it dims; before the overlays
+  scene.add(dust.mesh);
 
   // --- nucleus: the bright, warm centre (world-sized sprites, tone mapped with the points) ------------
   const glowTexture = createGlowTexture();
@@ -376,10 +401,12 @@ export default function mount(container, meta) {
     }
     overlays.uniforms.uFade.value = clamp((Math.abs(camera.position.y) - 1.5) / 14, 0.22, 1);
     // inside the disc the resolved stars carry the picture: the haze would stack up along grazing lines of
-    // sight and burn out, and the depth-less dust would darken foreground stars – both thin out there
+    // sight and burn out, so it thins out there; the dust thins less, since the split of the stars around it
+    // (uDustSplit, full inside the disc) already keeps the nearby stars in front of it
     const camHeight = Math.abs(camera.position.y);
     hazeUniforms.uFade.value = clamp((camHeight - 1.0) / 10, 0.12, 1);
-    dustUniforms.uFade.value = clamp((camHeight - 1.0) / 12, 0.2, 1);
+    dustUniforms.uFade.value = clamp((camHeight - 1.0) / 12, 0.4, 1);
+    pointUniforms.uDustSplit.value = 1 - smoothstep(2, 10, camHeight);
     const near = clamp(camDist * 0.01, 0.05, 4);
     if (Math.abs(camera.near - near) / near > 0.2) {
       camera.near = near;
@@ -1044,6 +1071,129 @@ function createBillboardCloud({ count, attributes, material }) {
   };
 }
 
+/**
+ * Interstellar dust as screen-space extinction. The clouds are instanced oblate billboards
+ * (see BILLBOARD_VERTEX_COMMON) rendered additively into an offscreen half-resolution
+ * buffer as optical depth, in the same camera and following `follow`'s transform; a
+ * full-screen quad in the main scene then multiplies the framebuffer by the transmission
+ * tint^column, with the column soft-capped at `columnMax` (tanh). One pass for the whole
+ * column means clouds stack like a thicker layer of the same dust, never past black, and the
+ * half-resolution buffer smooths the lane where dozens of clouds line up edge-on. The quad's
+ * onBeforeRender does the offscreen pass, so it also runs for on-demand frames.
+ */
+function createDustExtinction({ renderer, follow, count, attributes, uniforms, tint, columnMax }) {
+  // half floats where the platform renders to them; otherwise 8 bits with a fixed scale
+  const halfFloat = renderer.extensions.has('EXT_color_buffer_half_float') || renderer.extensions.has('EXT_color_buffer_float');
+  const columnScale = halfFloat ? 1 : 8;
+  const target = new THREE.WebGLRenderTarget(1, 1, {
+    type: halfFloat ? THREE.HalfFloatType : THREE.UnsignedByteType,
+    format: THREE.RGBAFormat,
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    depthBuffer: false,
+    stencilBuffer: false,
+    generateMipmaps: false,
+  });
+  const densityScene = new THREE.Scene();
+  const group = new THREE.Group();
+  group.matrixAutoUpdate = false;
+  densityScene.add(group);
+  const cloud = createBillboardCloud({
+    count,
+    attributes,
+    material: new THREE.ShaderMaterial({
+      uniforms: { ...uniforms, uColumnScale: { value: 1 / columnScale } },
+      vertexShader: DUST_VERTEX,
+      fragmentShader: DUST_DENSITY_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.CustomBlending,
+      blendEquation: THREE.AddEquation,
+      blendSrc: THREE.OneFactor,
+      blendDst: THREE.OneFactor,
+    }),
+  });
+  group.add(cloud.mesh);
+
+  const geometry = new THREE.BufferGeometry(); // one triangle covering the clip square
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uColumn: { value: target.texture },
+      uInvSize: { value: new THREE.Vector2(1, 1) },
+      uTexel: { value: new THREE.Vector2(1, 1) },
+      uBlur: { value: 0 },
+      uColumnScale: { value: columnScale },
+      uColumnMax: { value: columnMax },
+      // optical depth of one full-strength cloud per channel: transmission = exp(−column · uTau)
+      uTau: { value: new THREE.Vector3(-Math.log(tint.r), -Math.log(tint.g), -Math.log(tint.b)) },
+    },
+    vertexShader: DUST_COMPOSITE_VERTEX,
+    fragmentShader: DUST_COMPOSITE_FRAGMENT,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    // result = framebuffer × fragment colour: the fragment is a transmission, 1 = clear
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.ZeroFactor,
+    blendDst: THREE.SrcColorFactor,
+    blendSrcAlpha: THREE.ZeroFactor,
+    blendDstAlpha: THREE.OneFactor,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.frustumCulled = false;
+
+  const size = new THREE.Vector2();
+  const forward = new THREE.Vector3();
+  const clearColor = new THREE.Color();
+  mesh.onBeforeRender = (gl, _scene, camera) => {
+    gl.getDrawingBufferSize(size);
+    const w = Math.max(1, Math.round(size.x / 2));
+    const h = Math.max(1, Math.round(size.y / 2));
+    if (target.width !== w || target.height !== h) target.setSize(w, h);
+    material.uniforms.uInvSize.value.set(1 / size.x, 1 / size.y);
+    material.uniforms.uTexel.value.set(1 / w, 1 / h);
+    // from grazing angles dozens of clouds line up and the lane turns into a patchwork at cloud
+    // scale; a small blur of the column then reads as the smooth lane an edge-on galaxy shows
+    const sinElevation = Math.abs(camera.getWorldDirection(forward).y);
+    material.uniforms.uBlur.value = DUST_BLUR_TEXELS * smoothstep(0.45, 0.1, sinElevation);
+    group.matrix.copy(follow.matrixWorld);
+    group.matrixWorldNeedsUpdate = true;
+
+    const prevTarget = gl.getRenderTarget();
+    const prevXr = gl.xr.enabled;
+    const prevShadows = gl.shadowMap.autoUpdate;
+    const prevAutoClear = gl.autoClear;
+    const prevClearAlpha = gl.getClearAlpha();
+    gl.getClearColor(clearColor);
+    gl.xr.enabled = false;
+    gl.shadowMap.autoUpdate = false;
+    gl.autoClear = true;
+    gl.setClearColor(0x000000, 0);
+    gl.setRenderTarget(target);
+    gl.render(densityScene, camera);
+    gl.setRenderTarget(prevTarget);
+    gl.setClearColor(clearColor, prevClearAlpha);
+    gl.autoClear = prevAutoClear;
+    gl.xr.enabled = prevXr;
+    gl.shadowMap.autoUpdate = prevShadows;
+  };
+
+  return {
+    mesh,
+    cloud,
+    target,
+    dispose() {
+      cloud.dispose();
+      geometry.dispose();
+      material.dispose();
+      target.dispose();
+    },
+  };
+}
+
 // ============================================================================================================
 // DOM helpers
 // ============================================================================================================
@@ -1245,9 +1395,54 @@ const GALAXY_VERTEX = /* glsl */ `
   uniform float uPixelRatio;
   uniform float uSizeScale;
   uniform float uOpacity;
+  uniform float uPass;
+  uniform float uDustSigma;
+  uniform float uDustRadius;
+  uniform float uDustSplit;
   varying vec3 vColor;
   varying float vAlpha;
+  // Mean dust density along a straight path between two heights in a Gaussian layer of σ = uDustSigma
+  // (normal CDF by its logistic approximation) – the path's column per unit length.
+  float layerCdf(float y) {
+    return 1.0 / (1.0 + exp(-1.702 * y / uDustSigma));
+  }
+  float layerDensity(float y0, float y1) {
+    float dy = y1 - y0;
+    if (abs(dy) < 1e-3 * uDustSigma) return exp(-0.5 * y0 * y0 / (uDustSigma * uDustSigma));
+    return 2.5066283 * uDustSigma * abs(layerCdf(y1) - layerCdf(y0)) / abs(dy);
+  }
+  // Share of the dust column along the camera's ray that lies between the camera and the star:
+  // the column up to the star over the column up to where the ray leaves the dust disc. The
+  // pattern turns about y, so world heights and radii are the model's own.
+  float dustShare(vec3 cam, vec3 star) {
+    vec3 d = star - cam;
+    vec2 p = cam.xz;
+    vec2 v = d.xz;
+    float a = dot(v, v);
+    float b = dot(p, v);
+    float c = dot(p, p) - uDustRadius * uDustRadius;
+    float disc = b * b - a * c;
+    if (disc <= 0.0 || a < 1e-8) return 1.0; // the ray never enters the dust disc: nothing to split
+    float tExit = max((-b + sqrt(disc)) / a, 1.0);
+    float upToStar = layerDensity(cam.y, star.y);
+    float total = layerDensity(cam.y, cam.y + d.y * tExit) * tExit;
+    return total > 1e-6 ? clamp(upToStar / total, 0.0, 1.0) : 1.0;
+  }
   void main() {
+    // uPass −1 draws the light behind the dust (dimmed by it), +1 the light in front, 0 all of it;
+    // uDustSplit scales how much light may move in front at all
+    float weight = 1.0;
+    if (uPass != 0.0) {
+      float inFront = (1.0 - dustShare(cameraPosition, (modelMatrix * vec4(position, 1.0)).xyz)) * uDustSplit;
+      weight = uPass < 0.0 ? 1.0 - inFront : inFront;
+      if (weight < 0.02) {
+        gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+        gl_PointSize = 0.0;
+        vColor = vec3(0.0);
+        vAlpha = 0.0;
+        return;
+      }
+    }
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * mv;
     float d = max(-mv.z, 0.3);
@@ -1257,7 +1452,7 @@ const GALAXY_VERTEX = /* glsl */ `
     gl_PointSize = clamp(px, 1.0, 9.0) * uPixelRatio;
     vColor = aColor;
     // near fade: points passing within a few hundred light-years of the camera dissolve
-    vAlpha = uOpacity * twinkle * smoothstep(0.3, 2.5, d) * (px > 9.0 ? 9.0 / px : 1.0);
+    vAlpha = weight * uOpacity * twinkle * smoothstep(0.3, 2.5, d) * (px > 9.0 ? 9.0 / px : 1.0);
   }
 `;
 
@@ -1278,13 +1473,19 @@ const GALAXY_FRAGMENT = /* glsl */ `
 
 /**
  * Shared billboard vertex code: the quad is expanded in view space around the
- * instance offset (so it always faces the camera), sized in world units. Instances
- * closer than a few kly to the camera fade out and are moved outside the clip
- * volume, so the Sun's-location view never rasterises giant near blobs.
+ * instance offset (so it always faces the camera), sized in world units. Each blob
+ * is an oblate ellipsoid – aSize across the galactic plane, aSize·aFlat along the
+ * pole – so the quad is the silhouette of that ellipsoid: its first axis lies in the
+ * plane, the second takes the ellipsoid's extent in the remaining view-plane direction.
+ * From above that is a circle, edge-on a thin lens; a flat disc of clouds then stays a
+ * flat disc from every angle instead of piling up into a thick band of spheres.
+ * Instances closer than a few kly to the camera fade out and are moved outside the
+ * clip volume, so the Sun's-location view never rasterises giant near blobs.
  */
 const BILLBOARD_VERTEX_COMMON = /* glsl */ `
   attribute vec3 aOffset;
   attribute float aSize;
+  attribute float aFlat;
   varying vec2 vUv;
   varying float vNear;
   vec4 billboard() {
@@ -1293,7 +1494,17 @@ const BILLBOARD_VERTEX_COMMON = /* glsl */ `
     vNear = smoothstep(3.0, 8.0, d);
     vUv = position.xy;
     if (vNear <= 0.001) return vec4(0.0, 0.0, 2.0, 1.0);
-    return projectionMatrix * vec4(centre.xyz + vec3(position.xy * aSize, 0.0), 1.0);
+    vec3 pole = normalize((modelViewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+    vec3 dir = centre.xyz / d;
+    vec3 axis1 = cross(pole, dir);
+    float l = length(axis1);
+    // looking straight down the pole the in-plane direction is arbitrary: any view-plane axis will do
+    axis1 = l > 1e-4 ? axis1 / l : normalize(cross(vec3(0.0, 1.0, 0.0), dir));
+    vec3 axis2 = cross(axis1, dir); // axis1 × axis2 points back at the camera, so the quad is front-facing
+    float c = dot(axis2, pole);
+    float extent = sqrt(max(1.0 - c * c * (1.0 - aFlat * aFlat), 0.0));
+    vec3 p = centre.xyz + (position.x * axis1 + position.y * extent * axis2) * aSize;
+    return projectionMatrix * vec4(p, 1.0);
   }
 `;
 
@@ -1340,22 +1551,56 @@ const DUST_VERTEX = /* glsl */ `
   }
 `;
 
-/**
- * Dust is drawn with framebuffer × fragment blending, so the fragment is a
- * transmission: 1 leaves the light alone, uTint is full extinction (red passes,
- * blue is absorbed). No tone mapping – that would darken even a clear fragment.
- */
-const DUST_FRAGMENT = /* glsl */ `
-  uniform vec3 uTint;
+/** Dust density pass: each cloud adds its column (in full-strength clouds, scaled for 8-bit buffers). */
+const DUST_DENSITY_FRAGMENT = /* glsl */ `
   uniform float uFade;
   uniform float uStrength;
+  uniform float uColumnScale;
   varying float vStrength;
   varying vec2 vUv;
   varying float vNear;
   ${BILLBOARD_PROFILE}
   void main() {
     float k = profile(vUv) * vStrength * uStrength * uFade * vNear;
-    gl_FragColor = vec4(mix(vec3(1.0), uTint, k), 1.0);
+    gl_FragColor = vec4(vec3(k * uColumnScale), 1.0);
+  }
+`;
+
+const DUST_COMPOSITE_VERTEX = /* glsl */ `
+  void main() {
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`;
+
+/**
+ * Dust transmission pass, drawn with framebuffer × fragment blending: the fragment is a
+ * transmission, 1 leaves the light alone. The column read from the density buffer is
+ * soft-capped and turned into Beer–Lambert transmission per channel (red passes, blue is
+ * absorbed – the light behind dust is reddened). No tone mapping – that would darken even a
+ * clear fragment; the colour-space encoding is right, because encoded framebuffer × encoded
+ * transmission is the encoded product.
+ */
+const DUST_COMPOSITE_FRAGMENT = /* glsl */ `
+  uniform sampler2D uColumn;
+  uniform vec2 uInvSize;
+  uniform vec2 uTexel;
+  uniform float uBlur;
+  uniform float uColumnScale;
+  uniform float uColumnMax;
+  uniform vec3 uTau;
+  void main() {
+    vec2 uv = gl_FragCoord.xy * uInvSize;
+    vec2 step = uBlur * uTexel;
+    float column = 0.0;
+    for (int j = -1; j <= 1; j++) {
+      for (int i = -1; i <= 1; i++) {
+        column += texture2D(uColumn, uv + vec2(float(i), float(j)) * step).r;
+      }
+    }
+    column *= uColumnScale / 9.0;
+    float e = exp(-2.0 * column / uColumnMax); // tanh: linear for thin dust, saturating at uColumnMax
+    column = uColumnMax * (1.0 - e) / (1.0 + e);
+    gl_FragColor = vec4(exp(-column * uTau), 1.0);
     #include <colorspace_fragment>
   }
 `;

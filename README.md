@@ -126,7 +126,7 @@ disposers.push(viewShift.dispose);
 | `solar-orbit` | Earth's orbit & the habitable zone | All 8 planets from JPL Keplerian elements (1800–2050), habitable-zone annulus (0.95–1.68 AU, shared with the habitable-zone simulation), Earth highlight, hypothetical e = 0.3 orbit, true/visual scale, date picker, camera presets, bilingual planet info cards. |
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout in the panel (Kp, storm phase, boundary distances, aurora reach, geostationary exposure), and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
-| `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes drawn as multiplicative extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and a "Conditions in the solar system" box that explains in prose, against today's Earth as the reference, the odds of ozone-damaging supernovae and comet-shower passages, whether the Sun would cross spiral arms here, and what a solar system born here would have got in terms of a Jupiter and radiogenic heat, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
+| `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes as Beer–Lambert extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and a "Conditions in the solar system" box that explains in prose, against today's Earth as the reference, the odds of ozone-damaging supernovae and comet-shower passages, whether the Sun would cross spiral arms here, and what a solar system born here would have got in terms of a Jupiter and radiogenic heat, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
 | `habitable-zone` | The habitable zone | Adjustable star set by its two physical properties – effective temperature (2600–7200 K) and radius, with the luminosity following from `L = R²T⁴`, so it can be pulled off the main sequence into a subgiant or a giant – with M/K/G/F presets, a colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged up and down (mouse or touch) for its type, carrying temperature, size and brightness together along the main sequence, with a slider to inflate it off that sequence into a subgiant or giant; draggable planet (0.1–5 AU) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into cracked rock with pulsing fissures and star-facing lava seas; live Kopparapu zone (T_eff-dependent flux limits, so the zone is not a plain √L scaling) with a master toggle and flat-annulus / 3D-shell sub-toggles, a "frame zone" mode that keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
 
 ### axial-tilt notes
@@ -380,16 +380,26 @@ disposers.push(viewShift.dispose);
   on layer 1 drive the tooltips. Labels are canvas sprites; arm labels are children of the rotating group.
 - Dressing (all real constituents, placed with the same geometry): a **haze** of 4 000 additive billboards
   (`generateHaze()`: 30 % bulge, 40 % arm ridges at 1.6× the arm width, 30 % exponential disc) stands for
-  unresolved starlight; **dust lanes** are 6 000 billboards (`generateDust()`) drawn with custom blend factors
-  `Zero / SrcColor` so the fragment is a *transmission* – framebuffer × mix(1, reddening tint, k) – i.e. a
-  physical extinction that also dims the background; 60 % sit on the concave (inner) edge of the arms
-  (−0.6 arm widths) inside corotation and fade out over the next 5 kly, the rest form a diffuse disc
-  5–35 kly with σ_z = 0.3 kly. Both clouds are instanced camera-facing quads sized in kly (point sprites are
-  capped at 64 device pixels on some GPUs and pop at the viewport edge); instances within 3–8 kly of the
-  camera fade and are moved outside the clip volume, and both thin out when the camera dips into the disc:
-  the haze would otherwise stack up along grazing lines of sight, and the dust, which writes no depth, would
-  darken foreground stars. The dust shader deliberately skips tone mapping (ACES would darken even a
-  clear fragment). Two additive sprites give the **nucleus** its glow; 150 **globular clusters**
+  unresolved starlight; **dust lanes** are 6 000 clouds (`generateDust()`): 60 % sit on the concave (inner)
+  edge of the arms (−0.6 arm widths) inside corotation and fade out over the next 5 kly, the rest form a
+  diffuse disc 8–35 kly with σ_z = 0.3 kly. Both clouds are instanced camera-facing quads sized in kly
+  (point sprites are capped at 64 device pixels on some GPUs and pop at the viewport edge), and each quad is
+  the silhouette of an *oblate* ellipsoid – `flat` in the config is its extent along the galactic pole
+  relative to its size – so the disc stays a thin lens edge-on instead of a thick band of spheres, while the
+  bulge haze keeps its puffed-up shape. The dust is rendered as extinction in two steps: the clouds add their
+  optical depth into an offscreen half-resolution buffer, then one full-screen pass multiplies the frame
+  (`Zero / SrcColor` blending, the fragment is a *transmission*) by the Beer–Lambert transmission
+  tint^column, the tint following the interstellar extinction law (A_B ≈ 1.3 A_V, A_R ≈ 0.75 A_V), the column
+  soft-capped (tanh) so dozens of clouds lined up edge-on stack into a dark, not pitch-black, lane and blurred
+  a little from grazing angles. Because that pass writes no depth, the stars go down in two passes around it:
+  the vertex shader estimates the share of the ray's dust column that lies between camera and star (Gaussian
+  layer, ray clipped at the dust disc radius) and draws that share before the dust, the rest over it – seen
+  from inside the disc the nearby stars shine in front of the rift instead of being buried under dust far
+  beyond them. The split fades out as the camera rises above the plane, where the lanes read as dark bands
+  in the smooth light as in a real face-on galaxy. Instances within 3–8 kly of the camera fade and are moved
+  outside the clip volume, and haze and dust thin out when the camera dips into the disc (the haze would
+  otherwise stack up along grazing lines of sight). The dust passes skip tone mapping (ACES would darken even
+  a clear fragment). Two additive sprites give the **nucleus** its glow; 150 **globular clusters**
   (`generateGlobularClusters()`, ρ ∝ (r² + a²)^(−7/4), a = 6 kly, median ≈ 5 kpc like the Harris catalogue)
   sit in a static spheroidal halo outside the rotating group.
 - "Conditions in the solar system" (`neighbourhoodState()`, rendered as prose with every figure in bold) scales published present-day anchors

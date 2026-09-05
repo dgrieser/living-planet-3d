@@ -90,14 +90,29 @@ export const DEFAULT_CONFIG = Object.freeze({
   mix: Object.freeze({ bulge: 0.2, arms: 0.5, disc: 0.24, hii: 0.06 }),
   /** Azimuth of the Sun today (−90° puts it at the top of the overview). */
   sunAzimuth: -Math.PI / 2,
-  /** Unresolved starlight (soft haze billboards): fractions of the haze budget; arm ridges are wider than the star lanes. */
-  haze: Object.freeze({ bulge: 0.12, arms: 0.55, disc: 0.33, armWidthFactor: 1.6 }),
+  /**
+   * Unresolved starlight (soft haze billboards): fractions of the haze budget; arm ridges are
+   * wider than the star lanes. Each blob is an oblate ellipsoid – `flat` is its extent along the
+   * galactic pole relative to its size across the plane, so the disc stays thin when seen edge-on
+   * while the bulge keeps its puffed-up shape.
+   */
+  haze: Object.freeze({ bulge: 0.12, arms: 0.55, disc: 0.33, armWidthFactor: 1.6, flat: Object.freeze({ bulge: 0.8, arms: 0.4, disc: 0.28 }) }),
   /**
    * Interstellar dust: lanes on the concave (inner) edge of the arms inside corotation –
    * gas overtakes the pattern there and is compressed on the inner side – plus a thin
-   * diffuse disc (dust is far thinner than the stars, σ_z ≈ 100 pc).
+   * diffuse disc (dust is far thinner than the stars, σ_z ≈ 100 pc). `flat` squashes the
+   * clouds along the pole like the haze: a dust lane is a sheet, not a pile of spheres.
    */
-  dust: Object.freeze({ laneFraction: 0.6, laneOffsetWidths: 0.6, laneScatterWidths: 0.5, fadeBeyondCorotationKly: 5, discFromKly: 8, discToKly: 35, scaleHeightKly: 0.3 }),
+  dust: Object.freeze({
+    laneFraction: 0.6,
+    laneOffsetWidths: 0.6,
+    laneScatterWidths: 0.5,
+    fadeBeyondCorotationKly: 5,
+    discFromKly: 8,
+    discToKly: 35,
+    scaleHeightKly: 0.3,
+    flat: Object.freeze({ lane: 0.45, disc: 0.3 }),
+  }),
   /** Globular-cluster halo: ρ(r) ∝ (r² + a²)^(−7/4); a = 6 kly puts the median at ≈ 5 kpc like the Harris catalogue. */
   globulars: Object.freeze({ count: 150, coreKly: 6, minKly: 1, maxKly: 60 }),
 });
@@ -577,14 +592,16 @@ function sampleBulge(rnd, cfg, cosB, sinB) {
 /**
  * Unresolved starlight: a few thousand large, soft billboards that carry the
  * smooth glow a galaxy shows from outside – warm bulge, blue-white arm ridges and
- * a cream exponential disc. Sizes are in kly (world units).
- * @returns {{ positions: Float32Array, colors: Float32Array, sizes: Float32Array, count: number }}
+ * a cream exponential disc. Sizes are in kly (world units); `flats` is each blob's
+ * extent along the galactic pole relative to its size (1 = a sphere).
+ * @returns {{ positions: Float32Array, colors: Float32Array, sizes: Float32Array, flats: Float32Array, count: number }}
  */
 export function generateHaze(cfg = DEFAULT_CONFIG, count = 4000, seed = 7) {
   const rnd = createRandom(seed);
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
   const sizes = new Float32Array(count);
+  const flats = new Float32Array(count);
   const nBulge = Math.round(count * cfg.haze.bulge);
   const nArms = Math.round(count * cfg.haze.arms);
   const nDisc = count - nBulge - nArms;
@@ -594,7 +611,7 @@ export function generateHaze(cfg = DEFAULT_CONFIG, count = 4000, seed = 7) {
   const pickArm = armPicker(rnd, cfg, true);
   const radialFade = (r) => 0.55 + 0.45 * Math.exp(-r / 25);
   let i = 0;
-  const write = (x, y, z, rgb, brightness, size) => {
+  const write = (x, y, z, rgb, brightness, size, flat) => {
     positions[i * 3] = x;
     positions[i * 3 + 1] = y;
     positions[i * 3 + 2] = z;
@@ -602,12 +619,13 @@ export function generateHaze(cfg = DEFAULT_CONFIG, count = 4000, seed = 7) {
     colors[i * 3 + 1] = rgb[1] * brightness;
     colors[i * 3 + 2] = rgb[2] * brightness;
     sizes[i] = size;
+    flats[i] = flat;
     i++;
   };
   for (let n = 0; n < nBulge; n++) {
     const p = sampleBulge(rnd, cfg, cosB, sinB);
     const tCore = clamp(p.rr / cfg.bulge.maxKly, 0, 1);
-    write(p.x, p.y * 0.9, p.z, mix3(PALETTE.bulgeCore, PALETTE.bulgeEdge, tCore), 0.12 + 0.28 * (1 - tCore), 2.5 + 3 * rnd());
+    write(p.x, p.y * 0.9, p.z, mix3(PALETTE.bulgeCore, PALETTE.bulgeEdge, tCore), 0.12 + 0.28 * (1 - tCore), 2.5 + 3 * rnd(), cfg.haze.flat.bulge);
   }
   for (let n = 0; n < nArms; n++) {
     const arm = pickArm();
@@ -618,16 +636,16 @@ export function generateHaze(cfg = DEFAULT_CONFIG, count = 4000, seed = 7) {
     const y = rnd.gauss() * cfg.discScaleHeightKly * (1 + cfg.discFlarePerKly * r) * 0.8;
     const core = Math.exp(-(across * across) / (2 * width * width * 0.5));
     const col = arm === cfg.spur ? PALETTE.spur : mix3(PALETTE.armHot, HAZE_BLUE, 0.4 + 0.6 * core); // bluer than the stars: the ridge is young light
-    write(r * Math.cos(phi), y, r * Math.sin(phi), col, radialFade(r) * (0.45 + 0.55 * core) * (arm === cfg.spur ? 0.7 : 1), 1.4 + 1.8 * rnd());
+    write(r * Math.cos(phi), y, r * Math.sin(phi), col, radialFade(r) * (0.45 + 0.55 * core) * (arm === cfg.spur ? 0.7 : 1), 1.4 + 1.8 * rnd(), cfg.haze.flat.arms);
   }
   for (let n = 0; n < nDisc; n++) {
     const r = sampleDiscRadius(rnd, cfg, { min: 2, max: cfg.discRadiusKly });
     const phi = rnd() * TAU;
     const y = rnd.gauss() * cfg.discScaleHeightKly * (1 + cfg.discFlarePerKly * r) * 1.3;
     // large and faint: the smooth inter-arm light, fading with the exponential disc so the outskirts stay dark
-    write(r * Math.cos(phi), y, r * Math.sin(phi), HAZE_CREAM, 0.4 * Math.min(1, Math.exp(-(r - 12) / 16)), 3.5 + 3 * rnd());
+    write(r * Math.cos(phi), y, r * Math.sin(phi), HAZE_CREAM, 0.4 * Math.min(1, Math.exp(-(r - 12) / 16)), 3.5 + 3 * rnd(), cfg.haze.flat.disc);
   }
-  return { positions, colors, sizes, count: i };
+  return { positions, colors, sizes, flats, count: i };
 }
 
 export const DUST_KIND = Object.freeze({ lane: 0, disc: 1 });
@@ -635,8 +653,9 @@ export const DUST_KIND = Object.freeze({ lane: 0, disc: 1 });
 /**
  * Interstellar dust as extinction billboards: lanes hugging the concave (inner)
  * edge of the arms inside corotation, fading out over a few kly beyond it, plus a
- * thin diffuse disc. `strengths` is the peak extinction of each billboard (0…1).
- * @returns {{ positions: Float32Array, sizes: Float32Array, strengths: Float32Array,
+ * thin diffuse disc. `strengths` is the peak extinction of each billboard (0…1) and
+ * `flats` its extent along the pole relative to its size (a sheet-like cloud, not a sphere).
+ * @returns {{ positions: Float32Array, sizes: Float32Array, strengths: Float32Array, flats: Float32Array,
  *             radii: Float32Array, kinds: Uint8Array, count: number }}
  */
 export function generateDust(cfg = DEFAULT_CONFIG, count = 6000, seed = 11) {
@@ -644,6 +663,7 @@ export function generateDust(cfg = DEFAULT_CONFIG, count = 6000, seed = 11) {
   const positions = new Float32Array(count * 3);
   const sizes = new Float32Array(count);
   const strengths = new Float32Array(count);
+  const flats = new Float32Array(count);
   const radii = new Float32Array(count);
   const kinds = new Uint8Array(count);
   const d = cfg.dust;
@@ -658,6 +678,7 @@ export function generateDust(cfg = DEFAULT_CONFIG, count = 6000, seed = 11) {
     positions[i * 3 + 2] = z;
     sizes[i] = size;
     strengths[i] = strength;
+    flats[i] = kind === DUST_KIND.lane ? d.flat.lane : d.flat.disc;
     radii[i] = Math.hypot(x, z);
     kinds[i] = kind;
     i++;
@@ -682,7 +703,7 @@ export function generateDust(cfg = DEFAULT_CONFIG, count = 6000, seed = 11) {
     const y = rnd.gauss() * d.scaleHeightKly;
     write(r * Math.cos(phi), y, r * Math.sin(phi), 2 + 2.2 * rnd(), 0.12 + 0.2 * rnd(), DUST_KIND.disc);
   }
-  return { positions, sizes, strengths, radii, kinds, count: i };
+  return { positions, sizes, strengths, flats, radii, kinds, count: i };
 }
 
 /**

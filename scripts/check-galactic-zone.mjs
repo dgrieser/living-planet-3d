@@ -367,6 +367,10 @@ assert('dust is thin: ≥ 90 % within ±1 kly of the plane (σ_z = 0.3 kly)', ((
   return n / dust.count >= 0.9;
 })());
 assert('dust strengths are in 0…1', dust.strengths.every((v) => v > 0 && v <= 1));
+assert('haze and dust clouds are oblate: flattening in 0…1, dust flatter than the bulge haze', (() => {
+  const ok = (arr) => arr.length > 0 && arr.every((v) => v > 0 && v <= 1);
+  return ok(haze.flats) && ok(dust.flats) && Math.max(...dust.flats) < Math.max(...haze.flats);
+})());
 between('dust lanes are three fifths of the dust budget', dust.kinds.filter((k) => k === M.DUST_KIND.lane).length / dust.count, 0.58, 0.62);
 assert('dust lanes stay inside corotation + fade width and the diffuse disc within its radii', (() => {
   for (let i = 0; i < dust.count; i++) {
