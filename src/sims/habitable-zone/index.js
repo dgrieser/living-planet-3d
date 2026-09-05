@@ -2,9 +2,10 @@
  * Simulation: The habitable zone ("habitable-zone").
  *
  * A main-sequence star (type/luminosity adjustable) with a single planet whose
- * distance can be set by slider or by dragging it in the orbital plane; the star is dragged
- * sideways to change its type, its size following its temperature as it does along the main
- * sequence. A "frame zone" mode keeps the star, the planet and the zone in view by itself,
+ * distance can be set by slider or by dragging it in the orbital plane; the star is dragged up
+ * and down for its type, which carries its temperature, size and brightness together along the
+ * main sequence, while a slider can inflate it off that sequence into a subgiant or a giant.
+ * A "frame zone" mode keeps the star, the planet and the zone in view,
  * re-framing whenever a gesture ends (pointer up / touch released). The conservative habitable
  * zone (Kopparapu et al. 2014, with their temperature-dependent flux limits) is drawn as a
  * translucent annulus and/or a 3D shell and follows the star live. The planet's surface morphs between a
@@ -43,11 +44,8 @@ const STAR_SCALE_RANGE = Object.freeze({ min: 1, max: 60, default: 11 });
 // Dragging the star: sideways picks its type (luminosity), up/down its display size. Both are
 // log-linear, and the gain is taken from the canvas so one comfortable gesture spans the whole
 // range on a phone as well as on a desktop.
-const STAR_DRAG_TYPE_SPAN = 1; // fraction of the canvas width the whole temperature range takes
+const STAR_DRAG_TYPE_SPAN = 0.6; // fraction of the canvas height the whole temperature range takes
 const STAR_DRAG_TRAVEL_PX = Object.freeze({ min: 260, max: 900 }); // ... but never a shorter or longer gesture than this
-// Below this apparent size the planet gets its ring marker, so it stays findable without being
-// drawn any larger than its own exaggeration allows.
-const MIN_PLANET_SCREEN_FRACTION = 0.008;
 const FIT_TOLERANCE = 1.06; // how far the framing may drift before the fit mode re-frames
 const FIT_TOLERANCE_PLAYING = 1.3; // ... and while stellar evolution runs, so the camera does not creep along with it
 const SECONDS_PER_ORBIT_YEAR = 20; // visual time: at 1× speed a 1-year orbit takes 20 s
@@ -417,7 +415,8 @@ export default function mount(container, meta) {
     const starDist = Math.max(camera.position.length(), 1e-6);
     // Both bodies keep the size their own exaggeration gives them. Nothing here grows because the
     // camera pulled back or because the other body grew, so a bigger star reads as a bigger star
-    // and the planet stays the same speck it was – only the hit spheres below stay generous.
+    // and the planet stays the same speck it was – only the hit spheres below stay generous, and
+    // its name and temperature labels mark it when it is small.
     const planetRadius = PLANET_RADIUS;
     const starRadius = model.starRadius;
     starMesh.scale.setScalar(starRadius);
@@ -430,8 +429,7 @@ export default function mount(container, meta) {
     planetHit.scale.setScalar(Math.max(planetRadius * 1.6, planetDist * 0.02)); // easy to grab even when it is a speck
     starHit.scale.setScalar(Math.max(starRadius * 1.2, starDist * 0.03)); // a little generous: the pull may start anywhere on the disc
     planetMarker.position.copy(planetPos);
-    // the ring also marks the planet once it is too small on screen to find by eye
-    planetMarker.visible = drag?.kind === 'planet' || hovering === 'planet' || planetRadius / planetDist < MIN_PLANET_SCREEN_FRACTION;
+    planetMarker.visible = drag?.kind === 'planet' || hovering === 'planet';
     // sizeAttenuation is off: a scale of 2·r/d spans the star's apparent diameter, the ring sits at 0.42 of the sprite
     const starMarkerScale = Math.max(0.05, (3.1 * starRadius) / starDist);
     starMarker.scale.setScalar(starMarkerScale);
@@ -536,7 +534,7 @@ export default function mount(container, meta) {
   raycaster.layers.set(HIT_LAYER);
   const pointer = new THREE.Vector2();
   const orbitalPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  let drag = null; // null | { kind: 'planet' } | { kind: 'star', x, startTeffLog, startInflation, pxPerTypeDecade }
+  let drag = null; // null | { kind: 'planet' } | { kind: 'star', y, startTeffLog, startInflation, pxPerTypeDecade }
   let hovering = null; // null | 'planet' | 'star'
   const canvas = renderer.domElement;
 
@@ -556,21 +554,24 @@ export default function mount(container, meta) {
     return clamp(edgePx * span, STAR_DRAG_TRAVEL_PX.min, STAR_DRAG_TRAVEL_PX.max) / decades;
   }
   /**
-   * Dragging the star sideways picks the type of star – right towards hotter and bluer – and the
-   * size comes with it, as it does along the main sequence: the radius keeps its place relative
-   * to the main-sequence radius of the temperature under the pointer, so a dwarf stays a dwarf
-   * and a giant stays a giant while its colour changes. The gesture is log-linear in temperature,
-   * so the whole range fits in one comfortable sweep whatever the canvas. Vertical movement is
-   * ignored – the radius has its own slider. Dragging leaves evolution mode.
+   * The star is dragged up and down, and that one axis moves the whole star: up towards hotter,
+   * larger and brighter, down towards cooler, smaller and fainter, the way the types follow one
+   * another along the main sequence. Sideways movement is ignored, so the gesture cannot be
+   * pulled off course. What it keeps fixed is the star's place relative to the main sequence –
+   * the radius stays at the same ratio to the main-sequence radius of the temperature under the
+   * pointer – so a dwarf stays a dwarf and a giant stays a giant while its type changes; taking
+   * a star off the main sequence in the first place is the radius slider's job. The axis is
+   * log-linear in temperature and spans the whole range in one comfortable sweep whatever the
+   * canvas. Dragging leaves evolution mode.
    */
   function startStarDrag(e) {
     const rect = canvas.getBoundingClientRect();
     return {
       kind: 'star',
-      x: e.clientX,
+      y: e.clientY,
       startTeffLog: Math.log10(model.star.teffK),
       startInflation: model.inflation,
-      pxPerTypeDecade: pxPerDecade(rect.width, STAR_DRAG_TYPE_SPAN, TEFF_DECADES),
+      pxPerTypeDecade: pxPerDecade(rect.height, STAR_DRAG_TYPE_SPAN, TEFF_DECADES),
     };
   }
   function dragPlanetTo(e) {
@@ -583,8 +584,9 @@ export default function mount(container, meta) {
     refresh();
   }
   function dragStarTo(e) {
-    const teffK = clamp(Math.pow(10, drag.startTeffLog + (e.clientX - drag.x) / drag.pxPerTypeDecade), HZ.TEFF_RANGE_K.min, HZ.TEFF_RANGE_K.max);
-    setStar(teffK, HZ.mainSequenceRadius(teffK) * drag.startInflation); // hotter type, larger star
+    // up = hotter, and the size and brightness come with the type
+    const teffK = clamp(Math.pow(10, drag.startTeffLog - (e.clientY - drag.y) / drag.pxPerTypeDecade), HZ.TEFF_RANGE_K.min, HZ.TEFF_RANGE_K.max);
+    setStar(teffK, HZ.mainSequenceRadius(teffK) * drag.startInflation);
   }
   const onPointerDown = (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
