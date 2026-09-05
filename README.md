@@ -78,7 +78,7 @@ finds their way around the next:
 
 1. **The headline controls**, visible as soon as the panel opens – the slider, switch
    or preset row the simulation is actually about (habitable-zone keeps three: the
-   planet's distance, the star type and its luminosity). Where a slider has an obvious
+   planet's distance, the star's temperature and its radius). Where a slider has an obvious
    companion action, it sits inline on its right as a small icon-sized button
    (`createControlRow()` plus `compact: true`): play/pause for a timeline, "back to
    today", "remove the Moon". A full-width action gets `slim: true` so it stays one
@@ -127,7 +127,7 @@ disposers.push(viewShift.dispose);
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout in the panel (Kp, storm phase, boundary distances, aurora reach, geostationary exposure), and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
 | `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes drawn as multiplicative extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and a "Conditions in the solar system" box that explains in prose, against today's Earth as the reference, the odds of ozone-damaging supernovae and comet-shower passages, whether the Sun would cross spiral arms here, and what a solar system born here would have got in terms of a Jupiter and radiogenic heat, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
-| `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged with one two-axis gesture (mouse or touch – sideways for the type, up/down for how large the disc is drawn, 0.3–6×); draggable planet (0.1–5 AU) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into cracked rock with pulsing fissures and star-facing lava seas; live Kopparapu zone (T_eff-dependent flux limits, so the zone is not a plain √L scaling) with a master toggle and flat-annulus / 3D-shell sub-toggles, a "frame zone" mode that keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
+| `habitable-zone` | The habitable zone | Adjustable star set by its two physical properties – effective temperature (2600–7200 K) and radius, with the luminosity following from `L = R²T⁴`, so it can be pulled off the main sequence into a subgiant or a giant – with M/K/G/F presets, a colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged with one two-axis gesture (mouse or touch – sideways for the temperature, up/down for the radius); draggable planet (0.1–5 AU) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into cracked rock with pulsing fissures and star-facing lava seas; live Kopparapu zone (T_eff-dependent flux limits, so the zone is not a plain √L scaling) with a master toggle and flat-annulus / 3D-shell sub-toggles, a "frame zone" mode that keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
 
 ### axial-tilt notes
 
@@ -212,9 +212,26 @@ disposers.push(viewShift.dispose);
   and zone always agree whatever the star.
 - Stellar evolution uses Gough (1981): `L(t) = L☉ / (1 + 0.4 (1 − t/4.57 Gyr))` – Earth reaches the inner
   edge at ≈ 5.6 Gyr (≈ 1 Gyr from now).
-- Star appearance from main-sequence relations `T_eff ≈ 5778 K · L^0.13`, `M ≈ L^(1/3.5)`, `R = √L (5778/T_eff)²`;
-  colours follow a spectral-class ramp (red M dwarfs → blue-white A stars). Distances are to scale
-  (1 AU = 10 units).
+- The star is described by the two quantities the visitor sets, its effective temperature and its
+  radius; its luminosity follows from the Stefan–Boltzmann law, `L/L☉ = (R/R☉)² (T_eff/T☉)⁴`, exactly
+  rather than by a fit. That is what lets it leave the main sequence: at one temperature a larger star
+  is a brighter one, and the radius relative to the main-sequence radius of the same temperature gives
+  the luminosity class shown in the readouts (< 0.7 below the main sequence, ≤ 1.4 dwarf V, ≤ 4 subgiant
+  IV, above that giant III — a schematic reading of an ordering that is really taken from a spectrum).
+  The main-sequence relations `T_eff ≈ 5778 K · L^0.13`, `M ≈ L^(1/3.5)`, `R = √L (5778/T_eff)²` remain
+  the reference for the presets, for that class and for the mass; colours follow a spectral-class ramp
+  (red M dwarfs → blue-white A stars). Distances are to scale (1 AU = 10 units).
+- **Mass is an assumption off the main sequence**, and is flagged as one: temperature and radius do not
+  determine it (a star swells at constant mass), so the simulation uses the mass of the main-sequence
+  star of the same temperature. It enters only Kepler's third law, and a real giant is heavier, so its
+  orbital periods would come out shorter than shown.
+- What the two controls may reach: the temperature range is exactly the 2600–7200 K over which
+  Kopparapu's flux-limit fit is valid, so the zone is never extrapolated; the radius runs from half the
+  main-sequence radius (nothing real sits between the main sequence and the white dwarfs) up to whatever
+  keeps `L ≤ 10 L☉` — beyond that the zone would lie outside the farthest orbit the planet can be dragged
+  to. The ceiling depends on the temperature, so the radius slider's own bounds move with it: a red star
+  reaches ≈ 10 R☉ (a giant), a 7200 K one only ≈ 2 R☉. A "back to the main sequence" button next to the
+  slider restores the radius for the current temperature.
 - Both bodies are built from their true radii times a stated exaggeration, rather than from a made-up
   size: `1 R☉ = 0.00465 AU` and `1 R⊕ = 4.26·10⁻⁵ AU`, the planet fixed at 375× and the star at the
   "Star size" setting — 1× is true to scale (a dot), the default 11× reproduces the previous drawing, up
@@ -225,12 +242,12 @@ disposers.push(viewShift.dispose);
   towards true scale really does shrink it.
 - The planet can be dragged in the orbital plane; the pointerdown handler is registered in the capture
   phase and disables OrbitControls for the duration of the drag.
-- The star is dragged with one two-axis gesture, measured from wherever it was first touched: sideways
-  picks the type of star (right = hotter, brighter, larger along the main sequence, `R ∝ L^0.24`), up/down
-  sets how large its disc is drawn. Both axes are log-linear, with the gain taken from the canvas so one
-  comfortable gesture spans the whole range on a phone as well as on a desktop: the canvas width covers
-  the four decades of luminosity, 60 % of its height the 0.3–6× of size, each clamped to 80–300 px per
-  decade. Dragging leaves evolution mode, like the luminosity slider does.
+- The star is dragged with one two-axis gesture, measured from wherever it was first touched, and both
+  axes are physical: sideways is the effective temperature (right = hotter and bluer), up/down the
+  radius. Both are log-linear, with the gain taken from the canvas so one comfortable gesture spans the
+  whole range on a phone as well as on a desktop — the canvas width covers the temperature range and
+  60 % of its height the radius range, each clamped to a 260–900 px travel. The gesture mirrors the two
+  sliders exactly, and dragging leaves evolution mode as they do.
 - "Frame zone" is a mode, not a one-off (`autoFrame`, a remembered preference, on by default): while it is
   pressed the camera keeps the planet's orbit, the star's disc (plus a little corona) and – when it is
   shown – the outer zone edge in view, at `fitDistance()` for that radius and along whatever viewing

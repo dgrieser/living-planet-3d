@@ -101,6 +101,55 @@ check('Mars distance entered the zone (Gyr)', marsWindow.from, 2.17, 0.05);
 const outerWindow = HZ.habitableWindowGyr(2.2);
 assert('2.2 AU only becomes habitable in the far future', outerWindow !== null && outerWindow.from > HZ.SUN_AGE_GYR + 4);
 
+// --- the star model: temperature and radius in, everything else out ---------------------------
+// Stefan–Boltzmann is exact, so these are identities, not fits.
+check('Sun: L from 1 R☉ at 5778 K', HZ.luminosityFromRadiusTeff(1, HZ.SOLAR_TEFF_K), 1, 1e-12);
+check('Doubling the radius quadruples the luminosity', HZ.luminosityFromRadiusTeff(2, HZ.SOLAR_TEFF_K), 4, 1e-12);
+check('Doubling the temperature raises L by 16', HZ.luminosityFromRadiusTeff(1, 2 * HZ.SOLAR_TEFF_K), 16, 1e-9);
+for (const [r, t] of [[0.3, 3200], [1, 5778], [6, 4000], [2.04, 7200]]) {
+  check(`radius ↔ luminosity round trip (${r} R☉, ${t} K)`, HZ.radiusFromLuminosityTeff(HZ.luminosityFromRadiusTeff(r, t), t), r, 1e-12);
+}
+// on the main sequence the two descriptions have to agree
+for (const L of [0.01, 0.3, 1, 3, 10]) {
+  const ms = HZ.mainSequenceStar(L);
+  const star = HZ.starFromTeffRadius(ms.teffK, ms.radiusSolar);
+  check(`L=${L}: temperature+radius reproduce the main-sequence luminosity`, star.luminosity, L, 1e-9);
+  check(`L=${L}: mass from temperature matches M = L^(1/3.5)`, star.massSolar, ms.massSolar, 1e-9);
+  check(`L=${L}: main-sequence radius from temperature`, HZ.mainSequenceRadius(ms.teffK), ms.radiusSolar, 1e-9);
+  check(`L=${L}: main-sequence luminosity from temperature`, HZ.mainSequenceLuminosity(ms.teffK), L, 1e-9);
+}
+
+// --- luminosity classes: the same star inflated at a fixed temperature -------------------------
+const sunTeff = HZ.SOLAR_TEFF_K;
+assert('The Sun is a dwarf (V)', HZ.luminosityClass(1, sunTeff) === 'dwarf');
+assert('2 R☉ at the Sun’s temperature is a subgiant (IV)', HZ.luminosityClass(2, sunTeff) === 'subgiant');
+assert('10 R☉ at 4000 K is a giant (III)', HZ.luminosityClass(10, 4000) === 'giant');
+assert('Half the main-sequence radius is below the main sequence', HZ.luminosityClass(0.4, sunTeff) === 'subdwarf');
+check('Inflation factor of the Sun', HZ.inflationFactor(1, sunTeff), 1, 1e-12);
+check('Inflation factor of a 6 R☉ star at 4000 K', HZ.inflationFactor(6, 4000), 6 / HZ.mainSequenceRadius(4000), 1e-12);
+// a giant's habitable zone lies far outside that of the dwarf of the same colour
+const dwarf4000 = HZ.starFromTeffRadius(4000, HZ.mainSequenceRadius(4000));
+const giant4000 = HZ.starFromTeffRadius(4000, 6);
+check('K dwarf (4000 K): outer edge (AU)', HZ.zoneEdgesAU(dwarf4000.luminosity, 4000).outer, 0.46, 0.02);
+check('K giant (4000 K, 6 R☉): outer edge (AU)', HZ.zoneEdgesAU(giant4000.luminosity, 4000).outer, 5.6, 0.05);
+assert('Same colour, same flux limits, zone moves with the radius only',
+  Math.abs(HZ.zoneEdgesAU(giant4000.luminosity, 4000).outer / HZ.zoneEdgesAU(dwarf4000.luminosity, 4000).outer - 6 / HZ.mainSequenceRadius(4000)) < 1e-9);
+
+// --- what the controls may reach --------------------------------------------------------------
+assert('The temperature range never extrapolates the flux-limit fit',
+  HZ.TEFF_RANGE_K.min === HZ.HZ_TEFF_RANGE.min && HZ.TEFF_RANGE_K.max === HZ.HZ_TEFF_RANGE.max);
+for (const teff of [2600, 3175, 4000, 5778, 6500, 7200]) {
+  const r = HZ.radiusRangeFor(teff);
+  const lo = HZ.luminosityFromRadiusTeff(r.min, teff);
+  const hi = HZ.luminosityFromRadiusTeff(r.max, teff);
+  assert(`T=${teff} K: the radius range stays inside 0.001–10 L☉ (${lo.toFixed(4)}–${hi.toFixed(2)})`,
+    lo >= HZ.LUMINOSITY_RANGE.min - 1e-9 && hi <= HZ.LUMINOSITY_RANGE.max + 1e-9);
+  assert(`T=${teff} K: the main-sequence radius is reachable`, r.min <= HZ.mainSequenceRadius(teff) && r.max >= HZ.mainSequenceRadius(teff));
+  assert(`T=${teff} K: no smaller than half the main-sequence radius`, r.min >= HZ.mainSequenceRadius(teff) * HZ.INFLATION_MIN - 1e-12);
+}
+assert('A red giant is reachable at cool temperatures', HZ.radiusRangeFor(3200).max > 8 && HZ.luminosityClass(HZ.radiusRangeFor(3200).max, 3200) === 'giant');
+assert('A hot star cannot be inflated past the scene', HZ.radiusRangeFor(7200).max < 2.1);
+
 // --- star presets / main-sequence relations ---------------------------------------------------
 const star = Object.fromEntries(HZ.STAR_PRESETS.map((p) => [p.id, HZ.mainSequenceStar(p.luminosity)]));
 within('M preset T_eff (K)', star.M.teffK, 2800, 3500);

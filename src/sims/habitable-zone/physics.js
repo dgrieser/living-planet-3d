@@ -151,10 +151,30 @@ export const orbitalPeriodYears = (dAU, massSolar) => Math.sqrt((dAU * dAU * dAU
 
 // --- stars -------------------------------------------------------------------------------
 /**
- * Main-sequence star described by its luminosity, using rough empirical relations:
+ * A star is described by the two quantities the visitor sets: its effective temperature and
+ * its radius. Everything else follows from them, starting with the Stefan–Boltzmann law
+ *
+ *   L = 4πR²σT⁴,  i.e.  L/L☉ = (R/R☉)² · (T_eff/T☉)⁴,
+ *
+ * which is exact, not a fit. That is what lets the star leave the main sequence: at a fixed
+ * temperature a larger star is simply a more luminous one – a subgiant, then a giant – which
+ * is how real stars of one spectral class come in luminosity classes.
+ */
+export function luminosityFromRadiusTeff(radiusSolar, teffK) {
+  return radiusSolar * radiusSolar * Math.pow(teffK / SOLAR_TEFF_K, 4);
+}
+/** The inverse: the radius a star of this luminosity and temperature must have. */
+export function radiusFromLuminosityTeff(L, teffK) {
+  return Math.sqrt(L) * Math.pow(SOLAR_TEFF_K / teffK, 2);
+}
+
+/**
+ * Main-sequence relations, used for the presets, for the mass and as the reference the
+ * luminosity class is measured against:
  *   T_eff ≈ 5778 K · L^0.13,  M ≈ L^(1/3.5) M☉,  R = √L · (5778 K / T_eff)² R☉.
  */
 export const TEFF_LUMINOSITY_EXPONENT = 0.13;
+export const MASS_LUMINOSITY_EXPONENT = 3.5;
 /** R ∝ √L · T_eff⁻² and T_eff ∝ L^0.13 give R ∝ L^0.24 along the main sequence. */
 export const RADIUS_LUMINOSITY_EXPONENT = 0.5 - 2 * TEFF_LUMINOSITY_EXPONENT;
 export function mainSequenceStar(L) {
@@ -162,10 +182,85 @@ export function mainSequenceStar(L) {
   return {
     luminosity: L,
     teffK,
-    massSolar: Math.pow(L, 1 / 3.5),
-    radiusSolar: Math.sqrt(L) * Math.pow(SOLAR_TEFF_K / teffK, 2),
+    massSolar: Math.pow(L, 1 / MASS_LUMINOSITY_EXPONENT),
+    radiusSolar: radiusFromLuminosityTeff(L, teffK),
   };
 }
+/** Luminosity and radius of the main-sequence star of this temperature (inverse of the above). */
+export function mainSequenceLuminosity(teffK) {
+  return Math.pow(teffK / SOLAR_TEFF_K, 1 / TEFF_LUMINOSITY_EXPONENT);
+}
+export function mainSequenceRadius(teffK) {
+  return radiusFromLuminosityTeff(mainSequenceLuminosity(teffK), teffK);
+}
+
+/**
+ * Mass assumed for a star of this temperature: that of the main-sequence star of the same
+ * temperature. Temperature and radius do not determine a mass – an inflated star is an evolved
+ * one, and evolution keeps the mass while the radius grows – so off the main sequence this is
+ * an assumption, not a result. It only enters the orbital period (Kepler's third law), and a
+ * real giant is the heavier star, so its periods would come out somewhat shorter than shown.
+ */
+export function massForTeff(teffK) {
+  return Math.pow(mainSequenceLuminosity(teffK), 1 / MASS_LUMINOSITY_EXPONENT);
+}
+
+/** The star the visitor has set: temperature and radius in, everything else out. */
+export function starFromTeffRadius(teffK, radiusSolar) {
+  return {
+    luminosity: luminosityFromRadiusTeff(radiusSolar, teffK),
+    teffK,
+    radiusSolar,
+    massSolar: massForTeff(teffK),
+  };
+}
+
+/** How far the star is inflated over the main-sequence star of the same temperature. */
+export function inflationFactor(radiusSolar, teffK) {
+  return radiusSolar / mainSequenceRadius(teffK);
+}
+/**
+ * Schematic luminosity class from that ratio. Real classes are read off a spectrum, but the
+ * ordering is the same one: at a given temperature a star is a dwarf on the main sequence
+ * (V), a subgiant a few times larger (IV), and a giant an order of magnitude larger (III).
+ */
+export const LUMINOSITY_CLASS_LIMITS = Object.freeze({ dwarf: 0.7, subgiant: 1.4, giant: 4 });
+export function luminosityClass(radiusSolar, teffK) {
+  const f = inflationFactor(radiusSolar, teffK);
+  if (f < LUMINOSITY_CLASS_LIMITS.dwarf) return 'subdwarf';
+  if (f <= LUMINOSITY_CLASS_LIMITS.subgiant) return 'dwarf';
+  if (f <= LUMINOSITY_CLASS_LIMITS.giant) return 'subgiant';
+  return 'giant';
+}
+
+/**
+ * What the two controls may be set to. The temperature range is exactly where Kopparapu's
+ * flux-limit fit is valid, so the zone is never extrapolated. The radius is bounded below by
+ * half the main-sequence radius (nothing real sits between the main sequence and the white
+ * dwarfs) and above by the scene: past 10 L☉ the habitable zone would lie beyond the farthest
+ * orbit the planet can be dragged to.
+ */
+export const TEFF_RANGE_K = HZ_TEFF_RANGE;
+export const INFLATION_MIN = 0.5;
+export function radiusRangeFor(teffK) {
+  const t2 = Math.pow(clamp(teffK, TEFF_RANGE_K.min, TEFF_RANGE_K.max) / SOLAR_TEFF_K, 2);
+  const ms = mainSequenceRadius(clamp(teffK, TEFF_RANGE_K.min, TEFF_RANGE_K.max));
+  return {
+    min: Math.max(ms * INFLATION_MIN, Math.sqrt(LUMINOSITY_RANGE.min) / t2),
+    max: Math.min(ms * 40, Math.sqrt(LUMINOSITY_RANGE.max) / t2),
+  };
+}
+/** The widest radius the control ever offers, across the whole temperature range. */
+export const RADIUS_RANGE_SOLAR = (() => {
+  let min = Infinity;
+  let max = 0;
+  for (let teff = TEFF_RANGE_K.min; teff <= TEFF_RANGE_K.max; teff += 10) {
+    const r = radiusRangeFor(teff);
+    min = Math.min(min, r.min);
+    max = Math.max(max, r.max);
+  }
+  return Object.freeze({ min, max });
+})();
 
 /**
  * Luminosity of a Sun-like star at age t (Gyr) on the main sequence
