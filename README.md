@@ -50,7 +50,7 @@ src/
                      built on physics.js), index.js
   sims/solar-orbit/  kepler.js (JPL approximate elements, pure JS), planets.js (physical data), index.js
   sims/habitable-zone/ physics.js (zone edges, T_eq, stellar evolution, star relations, radius↔luminosity
-                     inverse for the star pull, surface-state ramps – pure JS), index.js
+                     inverse for the star drag, surface-state ramps – pure JS), index.js
   sims/moon-tides/   physics.js (tidal acceleration, equilibrium bulge, spring/neap, Kepler periods, tilt models – pure JS), index.js
   sims/magnetosphere/ physics.js (ram pressure, magnetopause standoff, Shue boundary, dipole lines,
                      field-line deformation, streamlines, Kp-style index, aurora oval – pure JS), index.js
@@ -126,7 +126,7 @@ disposers.push(viewShift.dispose);
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout in the panel (Kp, storm phase, boundary distances, aurora reach, geostationary exposure), and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
 | `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes drawn as multiplicative extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood, what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and a "Conditions in the solar system" box that explains in prose, against today's Earth as the reference, the odds of ozone-damaging supernovae and comet-shower passages, whether the Sun would cross spiral arms here, and what a solar system born here would have got in terms of a Jupiter and radiogenic heat, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
-| `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, resizable by pulling its limb (mouse or touch); draggable planet (0.1–5 AU) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into cracked rock with pulsing fissures and star-facing lava seas; live Kopparapu zone with a master toggle and flat-annulus / 3D-shell sub-toggles, Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
+| `habitable-zone` | The habitable zone | Adjustable star (M/K/G/F presets, luminosity 0.001–10 L☉) with colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged with one two-axis gesture (mouse or touch – sideways for the type, up/down for how large the disc is drawn, 0.3–6×); draggable planet (0.1–5 AU) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into cracked rock with pulsing fissures and star-facing lava seas; live Kopparapu zone with a master toggle and flat-annulus / 3D-shell sub-toggles, a "frame zone" mode that keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
 
 ### axial-tilt notes
 
@@ -204,20 +204,34 @@ disposers.push(viewShift.dispose);
 - Star appearance from main-sequence relations `T_eff ≈ 5778 K · L^0.13`, `M ≈ L^(1/3.5)`, `R = √L (5778/T_eff)²`;
   colours follow a spectral-class ramp (red M dwarfs → blue-white A stars). Star and planet are drawn
   with a minimum on-screen size; distances are to scale (1 AU = 10 units).
+- The star's drawn radius is `min(0.8, 0.5 · R/R☉) · size`, where `size` (0.3–6×, "Star size") is a
+  remembered *display* preference on top of the main-sequence radius – it leaves the physical radius, the
+  zone and every temperature untouched, and it scales the minimum on-screen size with it so shrinking
+  the disc still shows.
 - The planet can be dragged in the orbital plane; the pointerdown handler is registered in the capture
   phase and disables OrbitControls for the duration of the drag.
-- The star can be pulled: the gesture works in screen space along the radial line through the first
-  touch – outward grows the star, inward (past the centre if need be) shrinks it. The gain is log-linear,
-  `max(70 px, 0.8 · apparent radius)` per decade of luminosity, so on a large disc the limb roughly tracks
-  the pointer (main-sequence radius `R ∝ L^0.24`) while the tiny disc at overview zoom stays controllable.
-  Pulling in evolution mode leaves that mode, like the luminosity slider does.
+- The star is dragged with one two-axis gesture, measured from wherever it was first touched: sideways
+  picks the type of star (right = hotter, brighter, larger along the main sequence, `R ∝ L^0.24`), up/down
+  sets how large its disc is drawn. Both axes are log-linear, with the gain taken from the canvas so one
+  comfortable gesture spans the whole range on a phone as well as on a desktop: the canvas width covers
+  the four decades of luminosity, 60 % of its height the 0.3–6× of size, each clamped to 80–300 px per
+  decade. Dragging leaves evolution mode, like the luminosity slider does.
+- "Frame zone" is a mode, not a one-off (`autoFrame`, a remembered preference, on by default): while it is
+  pressed the camera keeps the planet's orbit, the star's disc (plus a little corona) and – when it is
+  shown – the outer zone edge in view, at `fitDistance()` for that radius and along whatever viewing
+  direction the visitor has. It re-frames when a gesture *ends* – pointer up, touch released, a slider's
+  `change` event, a preset or the zone toggle – never while one runs, so the view cannot pump in and out
+  under a finger; a 6 % tolerance suppresses pointless tweens. Stellar evolution has no pointer to wait
+  for, so playback re-frames itself with a wider 30 % tolerance, as does a window resize. "Overview"
+  switches the mode off and hands the camera back.
 - Surface visuals are driven by `stateMix()`: `thaw`/`scorch` blend across the edges (±4 K), `cold` ramps
   over 120 K below the outer edge (partly glaciated → deep-frozen) and `heat` over 500 K above the inner
   edge (Venus-like cloud deck → cracked rock with glowing fissures → lava seas on the star-facing side).
   Earth-like planets use the axial-tilt Earth maps (Solar System Scope, CC BY 4.0) with the city lights
   gated to the night side; the procedural surface remains as a fallback while the maps load.
 - View toggles: the habitable-zone toggle owns two sub-toggles (flat annulus, 3D shell) so either
-  representation can be shown alone; the temperature unit (K / °C / both) is a remembered string preference.
+  representation can be shown alone; the temperature unit (K / °C / both) is a remembered string preference,
+  the star size a remembered number and the fit mode a remembered boolean.
 - One “overall speed” slider (0–5×, default 1×) scales scene time: every animated element is stepped with
   `dt · speed` – the planet’s spin (0.35 rad/s ≈ one turn per 18 s), its orbital motion (a 1-year orbit in
   20 s, capped at π rad/s), stellar evolution while playing (0.4 Gyr/s) and the `uTime` uniforms of the
@@ -368,7 +382,10 @@ remembered: every visit starts from the teaching defaults.
   `DEFAULTS` (simulation) and `VIEW_DEFAULTS` (display). `createViewPrefs(meta.id,
   VIEW_DEFAULTS)` from `lib/prefs.js` hydrates the display half, and the toggles are
   built with `createStateToggle({ labelKey, state, name, prefs, onChange })` so state,
-  storage and checkbox stay in sync.
+  storage and checkbox stay in sync. A display setting does not have to be a boolean: a
+  string carries a multi-way choice (a temperature unit), a number a continuous one
+  (habitable-zone's star size). A stored value is only adopted when its type still
+  matches, and the simulation clamps it to its own range on top of that.
 - Storage is `localStorage`, one JSON entry per simulation under `lp-view:<sim-id>`.
   Unknown, retyped or corrupt entries fall back to the defaults, and a blocked
   `localStorage` (privacy mode) degrades to in-memory only. `npm run check:prefs`

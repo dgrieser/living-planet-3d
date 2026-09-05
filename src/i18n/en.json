@@ -426,9 +426,12 @@
         "unitCelsiusAria": "Degrees Celsius only",
         "unitBothAria": "Kelvin and degrees Celsius",
         "grid": "Orbit grid",
+      "starSize": "Star size",
+      "starSizeNote": "Display only: how far the star’s disc is drawn larger than life. Dragging the star up or down does the same. Its physical radius, the habitable zone and every temperature stay untouched.",
         "speed": "Overall speed",
         "speedNote": "Scales the whole animation: the planet’s rotation and orbit, the star’s surface and corona, and the pace of stellar evolution. 0× freezes the scene.",
         "frameZone": "Frame zone",
+      "frameZoneAria": "Frame zone: keep the star, the planet and the habitable zone in view automatically",
         "overview": "Overview (5 AU)"
       },
       "legend": {
@@ -461,9 +464,9 @@
         "starFormula": "T_eff ≈ 5778 K · L^0.13 · M ≈ L^(1/3.5) M☉ · R = √L · (5778 K / T_eff)² R☉",
         "periodLabel": "Orbital period (Kepler's third law)",
         "periodFormula": "P = √(d³ / M) years",
-        "scaleNote": "Star and planet sizes are exaggerated for visibility; distances are to scale."
+        "scaleNote": "Star and planet sizes are exaggerated for visibility – the star’s exaggeration is adjustable (“Star size”, 0.3–6×) and changes nothing about the physics; distances are to scale."
       },
-      "hint": "Drag the planet to move it · pull the star to resize it",
+      "hint": "Drag the planet to move it · drag the star sideways for its type, up and down for its size",
       "credit": "Earth textures: Solar System Scope (CC BY 4.0)"
     },
     "moonTides": {

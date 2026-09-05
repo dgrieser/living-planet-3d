@@ -2,8 +2,10 @@
  * Simulation: The habitable zone ("habitable-zone").
  *
  * A main-sequence star (type/luminosity adjustable) with a single planet whose
- * distance can be set by slider or by dragging it in the orbital plane; the star
- * itself can be grown or shrunk by pulling its limb. The conservative habitable
+ * distance can be set by slider or by dragging it in the orbital plane; the star itself
+ * is dragged in two axes – sideways for its type, up and down for how large its disc is
+ * drawn. A "frame zone" mode keeps the star, the planet and the zone in view by itself,
+ * re-framing whenever a gesture ends (pointer up / touch released). The conservative habitable
  * zone (Kopparapu et al. 2013) is drawn as a translucent annulus and/or a 3D shell
  * and scales live with the luminosity. The planet's surface morphs between a
  * snowball, the real Earth (day map + city lights on the night side, as in the
@@ -30,10 +32,21 @@ const AU_UNITS = 10; // scene units per astronomical unit
 const PLANET_RADIUS = 0.16; // scene units (strongly exaggerated for visibility)
 const PLANET_TILT_RAD = THREE.MathUtils.degToRad(23.4); // Earth-like axial tilt, fixed in space while the planet orbits
 const PLANET_SPIN_RAD_PER_S = 0.35; // visual spin at 1× speed, one rotation every ≈ 18 s
-const STAR_UNIT_RADIUS = 0.5; // scene units for 1 R☉ (≈ 11× exaggerated)
-const STAR_MAX_RADIUS = 0.8; // keeps very luminous stars clear of a planet at 0.1 AU
+const STAR_UNIT_RADIUS = 0.5; // scene units for 1 R☉ (≈ 11× exaggerated) at a star size of 1×
+const STAR_MAX_RADIUS = 0.8; // caps the main-sequence radius at 1×, keeping luminous stars clear of a planet at 0.1 AU
 const CORONA_EXTENT = 5; // corona billboard half-size in star radii
-const STAR_PULL_MIN_PX_PER_DECADE = 70; // pull gain for a tiny star disc: 70 px of radial drag per decade of luminosity
+const STAR_SIZE_RANGE = Object.freeze({ min: 0.3, max: 6, default: 1 }); // display size of the star, on top of its main-sequence radius
+// Dragging the star: sideways picks its type (luminosity), up/down its display size. Both are
+// log-linear, and the gain is taken from the canvas so one comfortable gesture spans the whole
+// range on a phone as well as on a desktop.
+const STAR_DRAG_TYPE_SPAN = 1; // fraction of the canvas width that covers the luminosity range
+const STAR_DRAG_SIZE_SPAN = 0.6; // fraction of the canvas height that covers the size range
+const STAR_DRAG_PX_PER_DECADE = Object.freeze({ min: 80, max: 300 });
+const LUMINOSITY_DECADES = Math.log10(HZ.LUMINOSITY_RANGE.max / HZ.LUMINOSITY_RANGE.min); // 4 decades, 0.001 – 10 L☉
+const STAR_SIZE_DECADES = Math.log10(STAR_SIZE_RANGE.max / STAR_SIZE_RANGE.min); // ≈ 1.3 decades, 0.3 – 6×
+const MIN_STAR_SCREEN_FRACTION = 0.009; // the star never shrinks below this fraction of its viewing distance (times its size setting)
+const FIT_TOLERANCE = 1.06; // how far the framing may drift before the fit mode re-frames
+const FIT_TOLERANCE_PLAYING = 1.3; // ... and while stellar evolution runs, so the camera does not creep along with it
 const SECONDS_PER_ORBIT_YEAR = 20; // visual time: at 1× speed a 1-year orbit takes 20 s
 const MAX_ANGULAR_SPEED = Math.PI; // rad/s at 1× speed – close-in planets would otherwise flicker
 const EVOLUTION_GYR_PER_SECOND = 0.4; // at 1× speed: 10 Gyr in 25 s
@@ -54,7 +67,7 @@ const DEFAULTS = Object.freeze({
   speed: SPEED_RANGE.default, // overall animation speed multiplier
 });
 
-/** Display toggles – remembered per visitor, see ../../lib/prefs.js. The scene starts on the
+/** Display settings – remembered per visitor, see ../../lib/prefs.js. The scene starts on the
  *  star and its planet alone; switching the zone back on brings the flat annulus with it. */
 const VIEW_DEFAULTS = Object.freeze({
   showZone: false,
@@ -63,6 +76,8 @@ const VIEW_DEFAULTS = Object.freeze({
   showTempLabels: true,
   showGrid: false,
   tempUnit: 'celsius', // 'both' | 'kelvin' | 'celsius' – for the star and the planet alike
+  starSize: STAR_SIZE_RANGE.default, // how far the star's disc is exaggerated (display only)
+  autoFrame: true, // fit mode: keep the star, the planet and the zone in view by themselves
 });
 
 const { clamp } = HZ;
@@ -73,6 +88,7 @@ export default function mount(container, meta) {
   const viewPrefs = createViewPrefs(meta.id, VIEW_DEFAULTS);
   const state = { ...DEFAULTS, ...viewPrefs.values, playing: false, angle: Math.PI * 0.15 };
   if (!TEMP_UNITS.includes(state.tempUnit)) state.tempUnit = VIEW_DEFAULTS.tempUnit;
+  state.starSize = Number.isFinite(state.starSize) ? clamp(state.starSize, STAR_SIZE_RANGE.min, STAR_SIZE_RANGE.max) : VIEW_DEFAULTS.starSize;
   const disposers = [];
 
   const viewport = el('div', 'lp-sim__viewport');
@@ -296,7 +312,8 @@ export default function mount(container, meta) {
       type: HZ.spectralType(star.teffK),
       insolation: HZ.insolation(star.luminosity, state.distanceAU),
       periodYears: HZ.orbitalPeriodYears(state.distanceAU, star.massSolar),
-      starRadius: Math.min(STAR_MAX_RADIUS, STAR_UNIT_RADIUS * star.radiusSolar),
+      // the main-sequence radius (capped so a bright star stays clear of a close planet), times the visitor's size setting
+      starRadius: Math.min(STAR_MAX_RADIUS, STAR_UNIT_RADIUS * star.radiusSolar) * state.starSize,
       isEarth: Math.abs(state.distanceAU - 1) < 0.005 && (state.evolution || Math.abs(state.luminosity - 1) < 1e-9),
     };
   }
@@ -373,7 +390,7 @@ export default function mount(container, meta) {
     // keep the bodies legible at any zoom: never smaller than ~1 % of the viewing distance
     const planetRadius = Math.max(PLANET_RADIUS, planetDist * 0.014);
     planetGroup.scale.setScalar(planetRadius / PLANET_RADIUS);
-    const starRadius = Math.max(model.starRadius, starDist * 0.009);
+    const starRadius = Math.max(model.starRadius, starDist * MIN_STAR_SCREEN_FRACTION * state.starSize);
     starMesh.scale.setScalar(starRadius);
     // the glow grows a little with the luminosity (≈ +1 star radius per decade)
     starGlow.scale.setScalar(starRadius * (5.5 + 1.5 * clamp(Math.log10(model.star.luminosity) + 2, 0, 3)));
@@ -459,22 +476,38 @@ export default function mount(container, meta) {
     dir.normalize().multiplyScalar(fitDistance(r));
     tweenCamera(dir, new THREE.Vector3(0, 0, 0), duration);
   }
-  const frameZone = (duration) => frameRadius(model.zone.outer * AU_UNITS, duration);
+  /**
+   * Radius (scene units) the fit mode has to cover: the planet's orbit, the star's own disc
+   * and – while it is shown – the outer edge of the habitable zone. So a planet dragged out
+   * to 5 AU, a star grown to six times its size and a bright star's wide zone each pull the
+   * camera back, and everything moving in makes it zoom in again.
+   */
+  function fitRadiusUnits() {
+    const planet = state.distanceAU * AU_UNITS;
+    const zone = state.showZone ? model.zone.outer * AU_UNITS : 0;
+    const star = model.starRadius * (CORONA_EXTENT * 0.5); // the disc plus a little of its corona
+    return Math.max(planet, zone, star);
+  }
+  const fitView = (duration) => frameRadius(fitRadiusUnits(), duration);
   const frameOverview = (duration) => frameRadius(HZ.DISTANCE_RANGE_AU.max * AU_UNITS, duration);
-  /** Re-frame only when the zone became unreadably small or overflows the view. */
-  function frameZoneIfNeeded() {
-    const r = model.zone.outer * AU_UNITS;
+  /**
+   * The fit mode's re-frame, called when a gesture ends (pointer up / touch released) rather
+   * than while it runs, so the view does not pump in and out under the visitor's finger.
+   * A small tolerance keeps it from tweening over a fraction of a percent.
+   */
+  function fitViewIfAuto(tolerance = FIT_TOLERANCE) {
+    if (!state.autoFrame) return;
+    const ideal = fitDistance(fitRadiusUnits());
     const dist = camera.position.distanceTo(controls.target);
-    const ideal = fitDistance(r);
-    if (dist > ideal * 2.2 || dist < ideal * 0.45) frameZone();
+    if (dist > ideal * tolerance || dist < ideal / tolerance) fitView();
   }
 
-  // --- interaction: drag the planet, pull the star -----------------------------------------------------------------
+  // --- interaction: drag the planet, drag the star (type × size) ---------------------------------------------------
   const raycaster = new THREE.Raycaster();
   raycaster.layers.set(HIT_LAYER);
   const pointer = new THREE.Vector2();
   const orbitalPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  let drag = null; // null | { kind: 'planet' } | { kind: 'star', dirX, dirY, startPx, startLog, pxPerDecade }
+  let drag = null; // null | { kind: 'planet' } | { kind: 'star', x, y, startLog, startSizeLog, pxPerTypeDecade, pxPerSizeDecade }
   let hovering = null; // null | 'planet' | 'star'
   const canvas = renderer.domElement;
 
@@ -489,32 +522,28 @@ export default function mount(container, meta) {
     const hits = raycaster.intersectObjects([planetHit, starHit], false);
     return hits.length ? hits[0].object.userData.kind : null;
   }
-  /** Pointer offset (CSS px) from the star's centre on screen, and the star's apparent radius in px. */
-  function starScreenOffset(e) {
-    const rect = canvas.getBoundingClientRect();
-    tmpV.set(0, 0, 0).project(camera);
-    const cx = rect.left + ((tmpV.x + 1) / 2) * rect.width;
-    const cy = rect.top + ((1 - tmpV.y) / 2) * rect.height;
-    const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const radiusPx = ((starMesh.scale.x / Math.max(camera.position.length(), 1e-6)) / tanV) * (rect.height / 2);
-    return { dx: e.clientX - cx, dy: e.clientY - cy, radiusPx };
+  /** Drag gain: `span` of a canvas edge `edgePx` wide covers `decades` of a log-scaled quantity. */
+  function pxPerDecade(edgePx, span, decades) {
+    return clamp((edgePx * span) / decades, STAR_DRAG_PX_PER_DECADE.min, STAR_DRAG_PX_PER_DECADE.max);
   }
   /**
-   * The pull works in screen space along the radial line through the first touch: moving outward grows
-   * the star (and brightens it along the main sequence, R ∝ L^0.24), moving inward – past the centre if
-   * need be – shrinks it. The gain follows the star's apparent size, so on a large disc the limb roughly
-   * tracks the pointer, while a tiny disc at overview zoom still gets a usable 70 px per decade.
+   * Grabbing the star opens one two-axis gesture, measured from wherever it was first touched:
+   * sideways picks the type of star – right along the main sequence towards hotter, brighter,
+   * larger stars, left towards cooler, fainter ones – and up/down sets how large its disc is
+   * drawn. Both axes are log-linear, so the same distance always means the same factor, and one
+   * comfortable gesture spans the whole range: the luminosity across the canvas width, the size
+   * across 60 % of its height. Dragging leaves evolution mode, like the luminosity slider does.
    */
-  function startStarPull(e) {
-    const { dx, dy, radiusPx } = starScreenOffset(e);
-    const len = Math.hypot(dx, dy);
+  function startStarDrag(e) {
+    const rect = canvas.getBoundingClientRect();
     return {
       kind: 'star',
-      dirX: len > 1 ? dx / len : 1,
-      dirY: len > 1 ? dy / len : 0,
-      startPx: len,
+      x: e.clientX,
+      y: e.clientY,
       startLog: Math.log10(model.star.luminosity),
-      pxPerDecade: Math.max(STAR_PULL_MIN_PX_PER_DECADE, 0.8 * radiusPx),
+      startSizeLog: Math.log10(state.starSize),
+      pxPerTypeDecade: pxPerDecade(rect.width, STAR_DRAG_TYPE_SPAN, LUMINOSITY_DECADES),
+      pxPerSizeDecade: pxPerDecade(rect.height, STAR_DRAG_SIZE_SPAN, STAR_SIZE_DECADES),
     };
   }
   function dragPlanetTo(e) {
@@ -526,16 +555,15 @@ export default function mount(container, meta) {
     distanceSlider.setValue(state.distanceAU, { silent: true });
     refresh();
   }
-  function pullStarTo(e) {
-    const { dx, dy } = starScreenOffset(e);
-    const signed = dx * drag.dirX + dy * drag.dirY; // radial displacement along the initial pull direction
-    setLuminosity(Math.pow(10, drag.startLog + (signed - drag.startPx) / drag.pxPerDecade));
+  function dragStarTo(e) {
+    applyStarSize(Math.pow(10, drag.startSizeLog - (e.clientY - drag.y) / drag.pxPerSizeDecade)); // up = larger
+    setLuminosity(Math.pow(10, drag.startLog + (e.clientX - drag.x) / drag.pxPerTypeDecade)); // refreshes both axes at once
   }
   const onPointerDown = (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     const kind = pick(e);
     if (!kind) return;
-    drag = kind === 'star' ? startStarPull(e) : { kind };
+    drag = kind === 'star' ? startStarDrag(e) : { kind };
     controls.enabled = false; // registered in the capture phase, so OrbitControls sees `enabled === false`
     canvas.classList.add('is-dragging');
     try {
@@ -551,7 +579,7 @@ export default function mount(container, meta) {
   const onPointerMove = (e) => {
     if (drag) {
       if (drag.kind === 'planet') dragPlanetTo(e);
-      else pullStarTo(e);
+      else dragStarTo(e);
       return;
     }
     const over = pick(e);
@@ -569,7 +597,8 @@ export default function mount(container, meta) {
     controls.enabled = true;
     canvas.classList.remove('is-dragging');
     if (e && canvas.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
-    if (wasStar) frameZoneIfNeeded();
+    if (wasStar) viewPrefs.set('starSize', state.starSize); // remember the size once, not on every move
+    fitViewIfAuto(); // pointer up / touch released – this is where the fit mode re-frames
     updateOverlay();
     sim.requestRender();
   };
@@ -607,6 +636,9 @@ export default function mount(container, meta) {
     starMaterial.uniforms.uTime.value += sdt;
     coronaMaterial.uniforms.uTime.value += sdt;
     planetMaterial.uniforms.uTime.value += sdt;
+    // while evolution runs there is no pointer to wait for, so the fit mode follows the growing
+    // zone – with a wide tolerance, so the camera settles instead of creeping along with it
+    if (state.playing && !drag && !cameraTween) fitViewIfAuto(FIT_TOLERANCE_PLAYING);
     stepTween(dt); // camera framing is interface motion, not scene time
     updateScene();
     updateOverlay();
@@ -618,6 +650,10 @@ export default function mount(container, meta) {
   };
   controls.addEventListener('change', onControlsChange);
   disposers.push(() => controls.removeEventListener('change', onControlsChange));
+  // a rotated phone or a resized window changes what fits on screen
+  const onWindowResize = () => fitViewIfAuto(FIT_TOLERANCE_PLAYING);
+  window.addEventListener('resize', onWindowResize);
+  disposers.push(() => window.removeEventListener('resize', onWindowResize));
 
   // --- state setters ---------------------------------------------------------------------------------------------------------------
   function setLuminosity(L, { silent = false } = {}) {
@@ -657,6 +693,24 @@ export default function mount(container, meta) {
     distanceSlider.setValue(state.distanceAU, { silent: true });
     refresh();
   }
+  /** The star's size is display-only – no physics depends on it, so it only re-scales the disc. */
+  function applyStarSize(size) {
+    state.starSize = clamp(size, STAR_SIZE_RANGE.min, STAR_SIZE_RANGE.max);
+    starSizeSlider.setValue(Math.log10(state.starSize), { silent: true });
+  }
+  function setStarSize(size, { persist = true } = {}) {
+    applyStarSize(size);
+    if (persist) viewPrefs.set('starSize', state.starSize);
+    refresh();
+  }
+  /** Fit mode: while it is on, the camera re-frames itself whenever a gesture or a slider ends. */
+  function setAutoFrame(on) {
+    state.autoFrame = on;
+    viewPrefs.set('autoFrame', on);
+    syncFrameButton();
+    if (on) fitView(); // switching it on frames straight away, so the mode shows what it does
+    sim.requestRender();
+  }
   function setTempUnit(unit) {
     if (!TEMP_UNITS.includes(unit)) return;
     state.tempUnit = unit;
@@ -688,6 +742,7 @@ export default function mount(container, meta) {
       refresh();
     },
   });
+  distanceSlider.input.addEventListener('change', () => fitViewIfAuto());
 
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
 
@@ -699,7 +754,7 @@ export default function mount(container, meta) {
       ariaKey: `${KEYS}.star.preset${preset.id}Aria`,
       onClick: () => {
         setLuminosity(preset.luminosity);
-        frameZone();
+        fitViewIfAuto();
       },
     });
     btn.el.classList.add('lp-presets__btn');
@@ -725,7 +780,7 @@ export default function mount(container, meta) {
     format: (v) => formatLuminosity(Math.pow(10, v)),
     onChange: (v) => setLuminosity(Math.pow(10, v), { silent: true }),
   });
-  luminositySlider.input.addEventListener('change', frameZoneIfNeeded);
+  luminositySlider.input.addEventListener('change', () => fitViewIfAuto());
 
   const ageSlider = createSlider({
     labelKey: `${KEYS}.evolution.age`,
@@ -739,6 +794,7 @@ export default function mount(container, meta) {
       setAge(v);
     },
   });
+  ageSlider.input.addEventListener('change', () => fitViewIfAuto());
   const playBtn = createButton({ labelKey: `${KEYS}.evolution.play`, icon: '▶', variant: 'primary', compact: true, onClick: () => setPlaying(!state.playing) });
   function syncPlayButton() {
     playBtn.setIcon(state.playing ? '⏸' : '▶');
@@ -767,6 +823,7 @@ export default function mount(container, meta) {
     }
     syncZoneToggles();
     refresh();
+    fitViewIfAuto(); // the zone joins or leaves what has to fit on screen
   });
   const surfaceToggle = viewToggle('showZoneSurface', `${KEYS}.view.zoneSurface`);
   const shellToggle = viewToggle('showZoneShell', `${KEYS}.view.zoneShell`);
@@ -788,6 +845,20 @@ export default function mount(container, meta) {
     onChange: setTempUnit,
   });
   const gridToggle = viewToggle('showGrid', `${KEYS}.view.grid`);
+  const starSizeSlider = createSlider({
+    labelKey: `${KEYS}.view.starSize`,
+    min: Math.log10(STAR_SIZE_RANGE.min),
+    max: Math.log10(STAR_SIZE_RANGE.max),
+    step: 0.01,
+    value: Math.log10(state.starSize),
+    format: (v) => `${fmt(Math.pow(10, v), 2)}${t('units.times')}`,
+    onChange: (v) => setStarSize(Math.pow(10, v), { persist: false }),
+  });
+  starSizeSlider.input.addEventListener('change', () => {
+    viewPrefs.set('starSize', state.starSize);
+    fitViewIfAuto();
+  });
+  const starSizeNote = bindText(el('p', 'lp-section__note'), `${KEYS}.view.starSizeNote`);
   const speedSlider = createSlider({
     labelKey: `${KEYS}.view.speed`,
     min: SPEED_RANGE.min,
@@ -799,8 +870,25 @@ export default function mount(container, meta) {
   });
   const speedNote = bindText(el('p', 'lp-section__note'), `${KEYS}.view.speedNote`);
   const cameraRow = el('div', 'lp-presets lp-presets--2 lp-presets--compact', { role: 'group' });
-  const frameBtn = createButton({ labelKey: `${KEYS}.view.frameZone`, icon: '◎', onClick: () => frameZone() });
-  const overviewBtn = createButton({ labelKey: `${KEYS}.view.overview`, icon: '⤢', onClick: () => frameOverview() });
+  // "Frame zone" is a mode, not a one-off: while it is pressed the camera keeps the star, the
+  // planet and the zone framed by itself; "Overview" hands the camera back to the visitor.
+  const frameBtn = createButton({
+    labelKey: `${KEYS}.view.frameZone`,
+    ariaKey: `${KEYS}.view.frameZoneAria`,
+    icon: '◎',
+    onClick: () => setAutoFrame(!state.autoFrame),
+  });
+  function syncFrameButton() {
+    frameBtn.el.setAttribute('aria-pressed', String(state.autoFrame));
+  }
+  const overviewBtn = createButton({
+    labelKey: `${KEYS}.view.overview`,
+    icon: '⤢',
+    onClick: () => {
+      setAutoFrame(false); // an explicit wide view: the camera is the visitor's again
+      frameOverview();
+    },
+  });
   for (const btn of [frameBtn, overviewBtn]) {
     btn.el.classList.add('lp-presets__btn');
     cameraRow.append(btn.el);
@@ -818,7 +906,7 @@ export default function mount(container, meta) {
       speedSlider.setValue(state.speed, { silent: true });
       syncPresetButtons();
       refresh();
-      frameZone();
+      fitView();
     },
   });
   const resetRow = el('div', 'lp-button-row lp-button-row--full');
@@ -828,7 +916,8 @@ export default function mount(container, meta) {
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`),
-    cameraRow, zoneToggle, surfaceToggle, shellToggle, tempToggle, unitSwitch, gridToggle, speedSlider, speedNote, resetRow,
+    cameraRow, zoneToggle, surfaceToggle, shellToggle, tempToggle, unitSwitch, gridToggle,
+    starSizeSlider, starSizeNote, speedSlider, speedNote, resetRow,
   );
 
   // --- readouts: the planet's temperature, then the numbers behind it ------------------------------
@@ -915,13 +1004,14 @@ export default function mount(container, meta) {
   // --- go ------------------------------------------------------------------------------------------------------------------------------------------
   syncPresetButtons();
   syncPlayButton();
+  syncFrameButton();
   refresh();
   updateReadouts(true);
-  frameZone(0);
+  fitView(0);
   sim.start();
 
   // dev-only hook for automated checks; stripped from production builds
-  if (import.meta.env.DEV) window.__lpHabitableZone = { sim, state, get model() { return model; }, setLuminosity, setDistance, setAge, setPlaying, setSpeed, setTempUnit, frame, frameZone, frameOverview, refresh, planetMaterial, starMaterial };
+  if (import.meta.env.DEV) window.__lpHabitableZone = { sim, state, get model() { return model; }, setLuminosity, setDistance, setAge, setPlaying, setSpeed, setTempUnit, setStarSize, setAutoFrame, frame, fitView, fitViewIfAuto, fitRadiusUnits, frameOverview, refresh, planetMaterial, starMaterial };
 
   return () => {
     if (import.meta.env.DEV) delete window.__lpHabitableZone;

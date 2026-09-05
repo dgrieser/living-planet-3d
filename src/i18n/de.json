@@ -426,9 +426,12 @@
         "unitCelsiusAria": "Nur Grad Celsius",
         "unitBothAria": "Kelvin und Grad Celsius",
         "grid": "Bahnraster",
+      "starSize": "Sterngröße",
+      "starSizeNote": "Nur Darstellung: wie stark die Sternscheibe vergrößert gezeichnet wird. Den Stern nach oben oder unten zu ziehen bewirkt dasselbe. Physikalischer Radius, bewohnbare Zone und alle Temperaturen bleiben unberührt.",
         "speed": "Gesamtgeschwindigkeit",
         "speedNote": "Skaliert die gesamte Animation: Rotation und Umlauf des Planeten, Oberfläche und Korona des Sterns sowie das Tempo der Sternentwicklung. Bei 0× steht die Szene still.",
         "frameZone": "Zone einpassen",
+      "frameZoneAria": "Zone einpassen: Stern, Planet und bewohnbare Zone automatisch im Blick behalten",
         "overview": "Übersicht (5 AE)"
       },
       "legend": {
@@ -461,9 +464,9 @@
         "starFormula": "T_eff ≈ 5778 K · L^0,13 · M ≈ L^(1/3,5) M☉ · R = √L · (5778 K / T_eff)² R☉",
         "periodLabel": "Umlaufzeit (3. Kepler-Gesetz)",
         "periodFormula": "P = √(d³ / M) Jahre",
-        "scaleNote": "Stern- und Planetengrößen sind zur besseren Sichtbarkeit vergrößert; Abstände sind maßstabsgetreu."
+        "scaleNote": "Stern- und Planetengrößen sind zur besseren Sichtbarkeit vergrößert – die Vergrößerung des Sterns ist einstellbar („Sterngröße“, 0,3–6×) und ändert nichts an der Physik; Abstände sind maßstabsgetreu."
       },
-      "hint": "Planeten ziehen, um ihn zu verschieben · Stern ziehen, um ihn zu vergrößern",
+      "hint": "Planeten ziehen, um ihn zu verschieben · Stern seitlich ziehen für den Typ, hoch und runter für die Größe",
       "credit": "Erdtexturen: Solar System Scope (CC BY 4.0)"
     },
     "moonTides": {

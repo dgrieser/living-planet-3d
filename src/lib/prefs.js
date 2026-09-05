@@ -18,9 +18,10 @@ export const STORAGE_PREFIX = 'lp-view:';
 
 /**
  * @param {string} simId  registry id of the simulation (see sims/index.js)
- * @param {Record<string, boolean|string>} defaults  the sim's VIEW_DEFAULTS (booleans, or a string for a
- *   multi-way choice such as a unit – a stored value is only adopted when its type matches)
- * @returns {{ values: Record<string, boolean|string>, set: (name: string, value: boolean|string) => void }}
+ * @param {Record<string, boolean|string|number>} defaults  the sim's VIEW_DEFAULTS (booleans, a string for a
+ *   multi-way choice such as a unit, or a number for a continuous display setting such as an exaggeration
+ *   factor – a stored value is only adopted when its type matches, and the sim still clamps it to its range)
+ * @returns {{ values: Record<string, boolean|string|number>, set: (name: string, value: boolean|string|number) => void }}
  */
 export function createViewPrefs(simId, defaults) {
   const storageKey = `${STORAGE_PREFIX}${simId}`;
