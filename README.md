@@ -283,16 +283,33 @@ disposers.push(viewShift.dispose);
   30× more than their star (solar-orbit uses ×1000 and ×30), which is why a red dwarf and the planet come
   out at a similar size on screen.
 - The planet can be dragged in the orbital plane; the pointerdown handler is registered in the capture
-  phase and disables OrbitControls for the duration of the drag. It is **grabbed by its offset** — picking it
-  up a few pixels off centre does not snap it to the pointer — and it **eases** towards the pointer over a
-  130 ms time constant on real time, which takes the twitch out of a gesture that spans two and a half
-  decades of temperature; a flick released mid-flight coasts to a stop, and the orbital motion waits until it
-  has landed. Inside 0.3 AU of the star the pointer no longer steers the orbit's *angle*: there a few pixels
-  swing the direction through any angle at all, which is what used to throw the planet around the star at the
-  0.1 AU limit — with the camera riding along in "planet" mode, the whole view whipped with it. The ease lands
-  on its target rather than approaching it forever (the distance is kept to three decimals, so a remainder
-  finer than that could never be worked off proportionally). With motion reduced there are no frames to ease
-  over, so the drag tracks the pointer exactly and redraws on the spot.
+  phase and disables OrbitControls for the duration of the drag. The pointer names a place in the plane and
+  the planet **eases** there over a 130 ms time constant on real time, which takes the twitch out of a gesture
+  that spans two and a half decades of temperature; a flick released mid-flight coasts to a stop, and the
+  orbital motion waits until it has landed. The gesture then has to survive the geometry it is read through,
+  and each of these is a way it did not:
+  - **Grabbed by an offset, capped.** Picking the planet up a few pixels off centre does not snap it to the
+    pointer; the offset is a vector in the plane, capped at 0.35 AU so a shallow view — where the plane under
+    the pointer can be a long way from the planet — cannot hand out an offset that keeps the planet from ever
+    reaching the limits.
+  - **A guard over the star, on the target rather than the pointer.** Within 0.3 AU of the star the place the
+    drag names has no meaningful direction: a few pixels swing it through any angle at all. There the planet
+    parks at the inner limit and keeps the angle it has. Guarding the *pointer* instead let the distance carry
+    on rebounding while the angle stayed frozen, so a finger carried on across the star walked the planet back
+    out the way it came before snapping it round — the far worse fault of the two.
+  - **The horizon.** A ray that runs nearly along the plane meets it far outside the orbit, and past the
+    horizon never at all, which simply stopped the drag responding. Such a ray is now read as "as far out as
+    the range goes, that way".
+  - **A bounded speed.** In the planet close-up the camera sits 2° above the plane, so the ground under the
+    pointer runs away towards the horizon: the catch-up is capped at 3.5 AU/s and 5 rad/s, which turns that
+    into a glide the visitor can steer out of rather than the planet being flung across the system.
+  - **Picking.** Both hit spheres are generous, and an orbit near the inner limit puts the planet *inside* the
+    star's, where the ray meets the star first — grabbing the planet dragged the star instead, and the planet
+    did not move at all. The planet is the small target and now wins wherever the two overlap, unless it has
+    gone behind the star's drawn disc.
+
+  The ease lands on its target rather than approaching it forever, and with motion reduced there are no frames
+  to ease over, so the drag tracks the pointer exactly and redraws on the spot.
 - The star is dragged **up and down**, and that one axis moves the whole star: up towards hotter, larger
   and brighter, down towards cooler, smaller and fainter, the way the types follow one another along the
   main sequence. Sideways movement is ignored, so the gesture cannot be pulled off course. What it holds
