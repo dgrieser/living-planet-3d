@@ -478,7 +478,7 @@
         "periodFormula": "P = √(d³ / M) years",
         "scaleNote": "Distances are to scale (1 AU = 10 scene units); the two bodies are not. The star is drawn {starScale}× its true radius (1 R☉ = 0.00465 AU, about 1/215 of Earth’s orbit) and the planet {planetScale}× Earth’s — at true scale both would be invisible dots. The star’s exaggeration is the “Star size” control and changes nothing about the physics."
       },
-      "hint": "Drag the planet to move it · drag the star sideways to change its type – colour and size follow together",
+      "hint": "Drag the planet to move it · drag the star up and down for its type – colour, size and brightness follow together",
       "credit": "Earth textures: Solar System Scope (CC BY 4.0)"
     },
     "moonTides": {

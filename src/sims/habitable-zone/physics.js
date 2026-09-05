@@ -241,13 +241,14 @@ export function luminosityClass(radiusSolar, teffK) {
  * orbit the planet can be dragged to.
  */
 export const TEFF_RANGE_K = HZ_TEFF_RANGE;
-export const INFLATION_MIN = 0.5;
+/** How far from the main sequence the star may be taken: half its radius, up to forty times it. */
+export const INFLATION_RANGE = Object.freeze({ min: 0.5, max: 40 });
 export function radiusRangeFor(teffK) {
   const t2 = Math.pow(clamp(teffK, TEFF_RANGE_K.min, TEFF_RANGE_K.max) / SOLAR_TEFF_K, 2);
   const ms = mainSequenceRadius(clamp(teffK, TEFF_RANGE_K.min, TEFF_RANGE_K.max));
   return {
-    min: Math.max(ms * INFLATION_MIN, Math.sqrt(LUMINOSITY_RANGE.min) / t2),
-    max: Math.min(ms * 40, Math.sqrt(LUMINOSITY_RANGE.max) / t2),
+    min: Math.max(ms * INFLATION_RANGE.min, Math.sqrt(LUMINOSITY_RANGE.min) / t2),
+    max: Math.min(ms * INFLATION_RANGE.max, Math.sqrt(LUMINOSITY_RANGE.max) / t2),
   };
 }
 /** The widest radius the control ever offers, across the whole temperature range. */

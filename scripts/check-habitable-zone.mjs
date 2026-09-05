@@ -145,7 +145,7 @@ for (const teff of [2600, 3175, 4000, 5778, 6500, 7200]) {
   assert(`T=${teff} K: the radius range stays inside 0.001–10 L☉ (${lo.toFixed(4)}–${hi.toFixed(2)})`,
     lo >= HZ.LUMINOSITY_RANGE.min - 1e-9 && hi <= HZ.LUMINOSITY_RANGE.max + 1e-9);
   assert(`T=${teff} K: the main-sequence radius is reachable`, r.min <= HZ.mainSequenceRadius(teff) && r.max >= HZ.mainSequenceRadius(teff));
-  assert(`T=${teff} K: no smaller than half the main-sequence radius`, r.min >= HZ.mainSequenceRadius(teff) * HZ.INFLATION_MIN - 1e-12);
+  assert(`T=${teff} K: no smaller than half the main-sequence radius`, r.min >= HZ.mainSequenceRadius(teff) * HZ.INFLATION_RANGE.min - 1e-12);
 }
 assert('A red giant is reachable at cool temperatures', HZ.radiusRangeFor(3200).max > 8 && HZ.luminosityClass(HZ.radiusRangeFor(3200).max, 3200) === 'giant');
 assert('A hot star cannot be inflated past the scene', HZ.radiusRangeFor(7200).max < 2.1);
