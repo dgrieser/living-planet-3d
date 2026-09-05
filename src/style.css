@@ -80,7 +80,22 @@ a:hover { color: #a9d9ff; }
 .lp-brand__logo { width: 26px; height: 26px; flex: none; }
 .lp-brand__sub { font-weight: 400; color: var(--lp-text-muted); font-size: 0.85rem; }
 .lp-header__nav { display: flex; align-items: center; gap: 10px; }
-.lp-header__back { font-size: 0.9rem; }
+
+/* round icon-only header buttons: back to the overview, work-in-progress toggle */
+.lp-icon-btn {
+  appearance: none; cursor: pointer;
+  width: 32px; height: 32px; padding: 0; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--lp-border); border-radius: 999px;
+  background: var(--lp-bg-elevated);
+  color: var(--lp-text-muted); font: inherit; font-size: 0.9rem; line-height: 1;
+  text-decoration: none;
+  transition: color 160ms ease, border-color 160ms ease;
+}
+.lp-icon-btn[hidden] { display: none; } /* the flex display would otherwise override it */
+.lp-icon-btn:hover { color: var(--lp-text); border-color: rgba(124, 196, 255, 0.5); }
+.lp-icon-btn[aria-pressed="true"] { background: var(--lp-accent); border-color: var(--lp-accent); color: var(--lp-accent-contrast); }
+.lp-header__back .lp-icon { width: 17px; height: 17px; }
 
 /* language toggle */
 .lp-lang {
@@ -103,16 +118,7 @@ a:hover { color: #a9d9ff; }
 .lp-lang__sep { color: var(--lp-text-muted); font-size: 0.8rem; padding: 0 2px; }
 
 /* work-in-progress toggle: lists the unfinished simulations on the overview */
-.lp-wip-toggle {
-  appearance: none; cursor: pointer;
-  width: 28px; height: 28px; padding: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid var(--lp-border); border-radius: 999px;
-  background: var(--lp-bg-elevated);
-  color: var(--lp-text-muted); font: inherit; font-size: 0.9rem; line-height: 1;
-}
-.lp-wip-toggle:hover { color: var(--lp-text); border-color: rgba(124, 196, 255, 0.5); }
-.lp-wip-toggle[aria-pressed="true"] { background: var(--lp-accent); border-color: var(--lp-accent); color: var(--lp-accent-contrast); }
+.lp-wip-toggle { font-size: 0.95rem; }
 
 /* ---------- home ---------- */
 .lp-home {
@@ -207,7 +213,31 @@ a:hover { color: #a9d9ff; }
 /* the grab handle of the bottom sheet – see the responsive block */
 .lp-panel__grip { display: none; }
 .lp-panel.is-collapsed .lp-panel__header { border-bottom-color: transparent; }
-.lp-panel__title { margin: 0; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lp-text-muted); }
+.lp-panel__title {
+  margin: 0; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--lp-text-muted);
+  transition: opacity 220ms ease;
+}
+/* names the camera view that was just switched to, over the title, then fades out again */
+.lp-panel__announce {
+  position: absolute; left: 16px; right: 92px; top: 0; bottom: 0;
+  display: flex; align-items: center;
+  font-size: 0.9rem; font-weight: 600; letter-spacing: 0.02em; color: var(--lp-accent);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; pointer-events: none;
+  transition: opacity 220ms ease;
+}
+.lp-panel__header.is-announcing .lp-panel__announce { opacity: 1; }
+.lp-panel__header.is-announcing .lp-panel__title { opacity: 0; }
+.lp-panel__actions { display: flex; align-items: center; gap: 8px; flex: none; }
+/* steps through the simulation's camera views – reachable whether the panel is open or collapsed */
+.lp-panel__camera {
+  appearance: none; border: 1px solid var(--lp-border); background: transparent;
+  width: 32px; height: 32px; border-radius: 50%; cursor: pointer; color: var(--lp-text-muted);
+  display: grid; place-items: center; padding: 0;
+}
+.lp-panel__camera:hover { border-color: var(--lp-accent); color: var(--lp-text); }
+.lp-panel__camera.is-active { color: var(--lp-accent); border-color: rgba(124, 196, 255, 0.5); }
+.lp-panel__camera-icon { width: 17px; height: 17px; }
 .lp-panel__toggle {
   appearance: none; border: 1px solid var(--lp-border); background: transparent;
   width: 32px; height: 32px; border-radius: 50%; cursor: pointer; color: var(--lp-text);
@@ -359,7 +389,7 @@ a:hover { color: #a9d9ff; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 720px) {
-  .lp-brand__sub, .lp-header__back-text { display: none; }
+  .lp-brand__sub { display: none; }
   /* bottom sheet: anchored to the bottom edge, its header doubles as a drag handle */
   .lp-panel {
     top: auto; right: 8px; left: 8px; bottom: 8px;
@@ -373,6 +403,7 @@ a:hover { color: #a9d9ff; }
     cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
   }
   .lp-panel.is-dragging .lp-panel__header { cursor: grabbing; }
+  .lp-panel__announce { top: 6px; }
   .lp-panel__grip {
     display: block; position: absolute; top: 7px; left: 50%;
     width: 40px; height: 4px; margin-left: -20px; border-radius: 2px;
@@ -632,6 +663,11 @@ a:hover { color: #a9d9ff; }
 .lp-tooltip--outer .lp-tooltip__title { color: #cfe0ff; }
 .lp-tooltip--sun { border-left-color: #ffd166; }
 .lp-tooltip--sun .lp-tooltip__title { color: #ffe1a3; }
+.lp-tooltip--centre { border-left-color: #ffd9a0; }
+.lp-tooltip--centre .lp-tooltip__title { color: #ffe9c8; }
+/* only on the hit targets that are also a camera view: "click to fly there" */
+.lp-tooltip__hint { display: block; margin-top: 4px; font-size: 0.75rem; color: var(--lp-accent); }
+.lp-tooltip__hint[hidden] { display: none; }
 
 .lp-readout--zone { transition: border-color 200ms ease, background 200ms ease; }
 .lp-readout--zone.is-inner { border-color: rgba(255, 107, 74, 0.55); background: rgba(255, 107, 74, 0.08); }

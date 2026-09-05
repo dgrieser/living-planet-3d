@@ -31,6 +31,13 @@ const DEFAULTS = Object.freeze({
   speedSlider: 58, // ≈ 30 days/s
 });
 
+/** The camera views, in the order the panel's header button steps through them. */
+const CAMERA_VIEWS = Object.freeze([
+  { id: 'overview', labelKey: `${KEYS}.controls.overview`, icon: '◎' },
+  { id: 'followEarth', labelKey: `${KEYS}.controls.followEarth`, icon: '🌍' },
+  { id: 'outerSystem', labelKey: `${KEYS}.controls.outerSystem`, icon: '⟳' },
+]);
+
 /** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
 const VIEW_DEFAULTS = Object.freeze({
   showZone: true,
@@ -380,6 +387,7 @@ export default function mount(container, meta) {
     controls.target.lerpVectors(tw.fromTarget, tw.toTarget, k);
     if (tw.t >= 1) cameraTween = null;
   }
+  let cameraMode = 'overview';
   const presets = {
     overview() {
       state.follow = false;
@@ -399,6 +407,12 @@ export default function mount(container, meta) {
       tweenCamera(pos, earthPos, { followEarth: true });
     },
   };
+  /** Fly to a camera view and keep the panel – its preset row and its header button – in step. */
+  function setCamera(id, { announce = false } = {}) {
+    cameraMode = id;
+    presets[id]?.();
+    syncCameraButtons({ announce });
+  }
 
   // --- time ------------------------------------------------------------------------------------------------------------
   let daysPerSecond = sliderToDaysPerSecond(state.speedSlider);
@@ -470,7 +484,10 @@ export default function mount(container, meta) {
   // while the panel is open on a wide screen the picture slides left, so what the
   // simulation shows stays centred in the free part of the canvas
   const viewShift = createPanelShift({ sim, viewport });
-  const panel = createPanel({ onToggle: () => viewShift.sync() });
+  const panel = createPanel({
+    onToggle: () => viewShift.sync(),
+    camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
+  });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the time speed up front, date, view and camera folded away ------------------------
@@ -490,12 +507,15 @@ export default function mount(container, meta) {
   });
   const cameraRow = el('div', 'lp-presets lp-presets--3 lp-presets--compact', { role: 'group' });
   bindAttr(cameraRow, { 'aria-label': `${KEYS}.sections.camera` });
-  const overviewBtn = createButton({ labelKey: `${KEYS}.controls.overview`, icon: '◎', onClick: presets.overview });
-  const followBtn = createButton({ labelKey: `${KEYS}.controls.followEarth`, icon: '🌍', onClick: presets.followEarth });
-  const outerBtn = createButton({ labelKey: `${KEYS}.controls.outerSystem`, icon: '⟳', onClick: presets.outerSystem });
-  for (const btn of [overviewBtn, followBtn, outerBtn]) {
+  const cameraButtons = CAMERA_VIEWS.map(({ id, labelKey, icon }) => {
+    const btn = createButton({ labelKey, icon, onClick: () => setCamera(id) });
     btn.el.classList.add('lp-presets__btn');
     cameraRow.append(btn.el);
+    return { id, el: btn.el };
+  });
+  function syncCameraButtons({ announce = false } = {}) {
+    for (const { id, el: btn } of cameraButtons) btn.setAttribute('aria-pressed', String(cameraMode === id));
+    panel.setCameraView(cameraMode, { announce });
   }
   const viewToggle = (name, labelKey, onChange) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
   const zoneToggle = viewToggle('showZone', `${KEYS}.controls.habitableZone`, () => applyView());
@@ -514,7 +534,7 @@ export default function mount(container, meta) {
       setJD(clamp(dateToJD(new Date()), VALID_RANGE.minJD, VALID_RANGE.maxJD), { fromInput: true });
       applyView();
       renderInfo();
-      presets.overview();
+      setCamera('overview');
     },
   });
   const resetRow = el('div', 'lp-button-row lp-button-row--full');
@@ -616,10 +636,11 @@ export default function mount(container, meta) {
   rebuildOrbits(state.jd);
   applyView();
   dateControl.sync(true);
+  syncCameraButtons();
   sim.start();
 
   // dev-only hook for automated checks (positions, render timing); stripped from production builds
-  if (import.meta.env.DEV) window.__lpSolarOrbit = { sim, state, bodies, positions, setJD, presets, selectBody, frame };
+  if (import.meta.env.DEV) window.__lpSolarOrbit = { sim, state, bodies, positions, setJD, presets, setCamera, selectBody, frame };
 
   return () => {
     if (import.meta.env.DEV) delete window.__lpSolarOrbit;

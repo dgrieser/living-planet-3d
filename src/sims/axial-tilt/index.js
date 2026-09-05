@@ -65,6 +65,18 @@ const COLORS = Object.freeze({
   pinNeedle: 0xcfd4dc,
 });
 
+/**
+ * The camera views the panel's header button steps through, in that order. The pinned
+ * place is a view too, but it is not part of the cycle: it only exists while a place is
+ * pinned, and clicking Earth is how it is reached.
+ */
+const CAMERA_VIEWS = Object.freeze([
+  { id: 'earth', labelKey: `${KEYS}.view.cameraEarth`, icon: '🌍' },
+  { id: 'overview', labelKey: `${KEYS}.view.cameraOverview`, icon: '◎' },
+  { id: 'top', labelKey: `${KEYS}.view.cameraTop`, icon: '⤓' },
+]);
+const PIN_VIEW = Object.freeze({ id: 'pin', labelKey: `${KEYS}.view.cameraPin`, icon: '📍' });
+
 const DEFAULTS = Object.freeze({
   tiltDeg: S.EARTH_TILT_DEG,
   periodH: S.EARTH_ROTATION_H,
@@ -599,6 +611,11 @@ export default function mount(container, meta) {
     pinReturnMode = mode;
     controls.enableRotate = true;
   }
+  /** Fly to a camera view and keep the panel – its preset row and its header button – in step. */
+  function setCamera(id, { announce = false } = {}) {
+    cameraPresets[id]?.();
+    syncCameraButtons({ announce });
+  }
 
   // --- pinned place ------------------------------------------------------------------------------------------------------
   // pin = { dirLocal: unit vector in spinGroup space, lonRad }; its latitude is state.latitudeDeg, so every
@@ -839,7 +856,10 @@ export default function mount(container, meta) {
   // while the panel is open on a wide screen the picture slides left, so what the
   // simulation shows stays centred in the free part of the canvas
   const viewShift = createPanelShift({ sim, viewport });
-  const panel = createPanel({ onToggle: () => viewShift.sync() });
+  const panel = createPanel({
+    onToggle: () => viewShift.sync(),
+    camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
+  });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the tilt up front, the rest folded away ---------------------------------------------
@@ -978,22 +998,18 @@ export default function mount(container, meta) {
   climateLegend.el.hidden = !state.showClimate;
   const cameraRow = el('div', 'lp-presets lp-presets--2 lp-presets--compact', { role: 'group' });
   bindAttr(cameraRow, { 'aria-label': `${KEYS}.controls.camera` });
-  const cameraButtons = [
-    ['earth', '🌍'],
-    ['overview', '◎'],
-    ['top', '⤓'],
-    ['pin', '📍'],
-  ].map(([id, icon]) => {
-    const btn = createButton({ labelKey: `${KEYS}.view.camera${id[0].toUpperCase()}${id.slice(1)}`, icon, onClick: () => { cameraPresets[id](); syncCameraButtons(); } });
+  const cameraButtons = [...CAMERA_VIEWS, PIN_VIEW].map(({ id, labelKey, icon }) => {
+    const btn = createButton({ labelKey, icon, onClick: () => setCamera(id) });
     btn.el.classList.add('lp-presets__btn');
     cameraRow.append(btn.el);
     return { id, el: btn.el };
   });
-  function syncCameraButtons() {
+  function syncCameraButtons({ announce = false } = {}) {
     for (const { id, el: btn } of cameraButtons) {
       btn.setAttribute('aria-pressed', String(state.cameraMode === id));
       if (id === 'pin') btn.disabled = !pin;
     }
+    panel.setCameraView(state.cameraMode, { announce });
   }
 
   const resetBtn = createButton({

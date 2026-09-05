@@ -130,8 +130,21 @@ const SUN_VIEW = Object.freeze({
   drift: { side: 0.35, up: 0.15, periodS: 44 },
 });
 
+/**
+ * The camera views, in the order the panel's header button steps through them and the
+ * order their buttons sit in the panel. Clicking the Sun or the galactic centre in the
+ * scene picks the matching one.
+ */
+const CAMERA_VIEWS = Object.freeze([
+  { id: 'overview', labelKey: `${KEYS}.controls.cameraOverview`, icon: '🌌' },
+  { id: 'sun', labelKey: `${KEYS}.controls.cameraSun`, icon: '☉' },
+]);
+
 /** Arm labels sit at these radii (kly) along the centre lines. */
 const ARM_LABEL_RADII = Object.freeze({ scutumCentaurus: 26, sagittarius: 31, perseus: 41, norma: 36, orion: 30.5 });
+
+const TOUCH_TOOLTIP_MS = 3000; // how long a tapped tooltip stays up
+const CLICK_SLOP = 6; // px – a press that travels further than this was an orbit drag, not a click
 
 const { clamp, TAU } = M;
 const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
@@ -306,6 +319,12 @@ export default function mount(container, meta) {
   sunGroup.add(sunGlow, sunCore, sunHit);
   scene.add(sunGroup);
 
+  // the galactic centre is a hit target of its own: hovering names it, clicking flies back out
+  const centreHit = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), new THREE.MeshBasicMaterial());
+  centreHit.layers.set(HIT_LAYER);
+  centreHit.userData.kind = 'centre';
+  scene.add(centreHit);
+
   // the Sun's orbit – a unit circle in the plane, scaled to the current radius
   const orbitRing = new THREE.LineLoop(
     circleGeometry(1, 256),
@@ -395,6 +414,9 @@ export default function mount(container, meta) {
     const sunDist = camera.position.distanceTo(sunPos);
     labels.sun.sprite.position.copy(sunPos).addScaledVector(tmpUp, sunDist * 0.045);
     sunHit.scale.setScalar(clamp(sunDist * 0.012, 0.05, 3));
+    // as wide as the drawn nucleus core, so what is clicked is what is seen; from far out it grows
+    // a little with the distance, or the bulge would be a target of a few pixels in the overview
+    centreHit.scale.setScalar(clamp(camera.position.length() * 0.02, 2.4, 6));
     for (const l of [...Object.values(labels), ...Object.values(armLabels)]) {
       l.sprite.getWorldPosition(labelWorld);
       l.setScale(clamp(camDist / Math.max(camera.position.distanceTo(labelWorld), 1e-3), 0.5, 1));
@@ -500,11 +522,12 @@ export default function mount(container, meta) {
     sunLookTarget(controls.target);
     camera.position.copy(controls.target).add(offset);
   }
-  function setCamera(mode) {
+  /** `announce: true` names the view in the panel header – for a switch made out in the scene. */
+  function setCamera(mode, { announce = false } = {}) {
     cameraMode = mode;
     followAzimuth = model ? model.sun.azimuth : CONFIG.sunAzimuth;
     sunAutopilot = true; // a preset always starts on autopilot again
-    syncCameraButtons();
+    syncCameraButtons({ announce });
     tweenCamera(mode);
   }
 
@@ -580,7 +603,10 @@ export default function mount(container, meta) {
   // while the panel is open on a wide screen the picture slides left to keep the galaxy
   // centred in the free part of the canvas – the camera stays on the galactic centre
   const viewShift = createPanelShift({ sim, viewport });
-  const panel = createPanel({ onToggle: () => viewShift.sync() });
+  const panel = createPanel({
+    onToggle: () => viewShift.sync(),
+    camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
+  });
 
   // --- controls: the distance slider up front, the rest folded away -------------------------------
   const radiusSlider = createSlider({
@@ -612,14 +638,15 @@ export default function mount(container, meta) {
   // no visible heading: the group's aria-label names it and the icons carry the meaning
   const cameraRow = el('div', 'lp-presets lp-presets--2 lp-presets--compact', { role: 'group' });
   bindAttr(cameraRow, { 'aria-label': `${KEYS}.controls.camera` });
-  const cameraButtons = ['overview', 'sun'].map((id) => {
-    const btn = createButton({ labelKey: `${KEYS}.controls.camera${id[0].toUpperCase()}${id.slice(1)}`, icon: id === 'sun' ? '☉' : '🌌', onClick: () => setCamera(id) });
+  const cameraButtons = CAMERA_VIEWS.map(({ id, labelKey, icon }) => {
+    const btn = createButton({ labelKey, icon, onClick: () => setCamera(id) });
     btn.el.classList.add('lp-presets__btn');
     cameraRow.append(btn.el);
     return { id, el: btn.el };
   });
-  function syncCameraButtons() {
+  function syncCameraButtons({ announce = false } = {}) {
     for (const { id, el: btn } of cameraButtons) btn.setAttribute('aria-pressed', String(cameraMode === id));
+    panel.setCameraView(cameraMode, { announce });
   }
 
   const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
@@ -682,26 +709,39 @@ export default function mount(container, meta) {
   const tooltip = el('div', 'lp-tooltip', { role: 'tooltip', hidden: true });
   const tooltipTitle = el('strong', 'lp-tooltip__title');
   const tooltipBody = el('span', 'lp-tooltip__body');
-  tooltip.append(tooltipTitle, tooltipBody);
+  // only on the two targets that are also camera views – see CAMERA_FOR_KIND below
+  const tooltipFly = bindText(el('span', 'lp-tooltip__hint'), `${KEYS}.tooltip.flyHint`);
+  tooltip.append(tooltipTitle, tooltipBody, tooltipFly);
   container.append(tooltip);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
   // the zone half of the hint only holds while there are zones on screen to hover
   const hintZones = el('span');
   hintZones.append(bindText(el('span'), `${KEYS}.hintZones`), document.createTextNode(' · '));
-  hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), hintZones, bindText(el('span'), `${KEYS}.hint`));
+  hint.append(
+    bindText(el('span'), 'panel.hint'),
+    document.createTextNode(' · '),
+    hintZones,
+    bindText(el('span'), `${KEYS}.hintFly`),
+    document.createTextNode(' · '),
+    bindText(el('span'), `${KEYS}.hint`),
+  );
   function syncHint() {
     hintZones.hidden = !state.showRing && !state.showZones;
   }
   container.append(hint);
 
-  // --- interaction: hover tooltips over the zones and the Sun ---------------------------------------
+  // --- interaction: hover tooltips over the zones, the Sun and the centre; click to fly ------------
   const raycaster = new THREE.Raycaster();
   raycaster.layers.set(HIT_LAYER);
   const pointer = new THREE.Vector2();
   const canvas = renderer.domElement;
   let hoverKind = null;
   let touchTimer = 0;
+  let press = null; // the press that may still turn into a click: { id, x, y, kind }
+
+  /** The camera view a click on this hit target flies to, if any. */
+  const CAMERA_FOR_KIND = Object.freeze({ sun: 'sun', centre: 'overview' });
 
   function pick(e) {
     const rect = canvas.getBoundingClientRect();
@@ -709,6 +749,8 @@ export default function mount(container, meta) {
     raycaster.setFromCamera(pointer, camera);
     const sunHits = raycaster.intersectObject(sunHit, false);
     if (sunHits.length) return 'sun';
+    const centreHits = raycaster.intersectObject(centreHit, false);
+    if (centreHits.length) return 'centre';
     const hits = raycaster.intersectObjects(overlays.hitMeshes, false);
     for (const h of hits) {
       const kind = h.object.userData.kind;
@@ -721,7 +763,8 @@ export default function mount(container, meta) {
   function showTooltip(kind, e) {
     const rect = container.getBoundingClientRect();
     tooltipTitle.textContent = t(`${KEYS}.tooltip.${kind}Title`);
-    tooltipBody.textContent = kind === 'sun' ? t(`${KEYS}.tooltip.sun`, { distance: fmt(model.sun.radiusLy, 0) }) : t(`${KEYS}.tooltip.${kind}`);
+    tooltipBody.textContent = tooltipBodyText(kind);
+    tooltipFly.hidden = !CAMERA_FOR_KIND[kind] || cameraMode === CAMERA_FOR_KIND[kind];
     tooltip.className = `lp-tooltip lp-tooltip--${kind}`;
     tooltip.hidden = false;
     const x = e.clientX - rect.left;
@@ -730,6 +773,10 @@ export default function mount(container, meta) {
     tooltip.style.left = `${flip ? x - 16 : x + 16}px`;
     tooltip.style.top = `${y + 14}px`;
     tooltip.style.transform = flip ? 'translateX(-100%)' : '';
+  }
+  /** The Sun's line carries its live distance; the rest are plain. */
+  function tooltipBodyText(kind) {
+    return kind === 'sun' ? t(`${KEYS}.tooltip.sun`, { distance: fmt(model.sun.radiusLy, 0) }) : t(`${KEYS}.tooltip.${kind}`);
   }
   function hideTooltip() {
     tooltip.hidden = true;
@@ -742,26 +789,46 @@ export default function mount(container, meta) {
     if (kind) {
       hoverKind = kind;
       showTooltip(kind, e);
-      canvas.classList.toggle('is-grab', kind === 'sun');
+      canvas.classList.toggle('is-grab', Boolean(CAMERA_FOR_KIND[kind]));
     } else if (hoverKind) {
       hideTooltip();
     }
   };
   const onPointerDown = (e) => {
-    if (e.pointerType !== 'touch') return;
     const kind = pick(e);
+    // a press on a fly-to target is a click until it turns into an orbit drag (see onPointerUp)
+    press = e.button > 0 ? null : { id: e.pointerId, x: e.clientX, y: e.clientY, kind };
+    if (e.pointerType !== 'touch') return;
     if (!kind) return hideTooltip();
     showTooltip(kind, e);
     clearTimeout(touchTimer);
-    touchTimer = setTimeout(hideTooltip, 3000);
+    touchTimer = setTimeout(hideTooltip, TOUCH_TOOLTIP_MS);
   };
-  const onPointerLeave = () => hideTooltip();
+  /** A click or tap on the Sun or the galactic centre flies the camera to its view. */
+  const onPointerUp = (e) => {
+    const p = press;
+    press = null;
+    if (!p || p.id !== e.pointerId || !p.kind) return;
+    if (Math.hypot(e.clientX - p.x, e.clientY - p.y) > CLICK_SLOP) return; // that was an orbit drag
+    const mode = CAMERA_FOR_KIND[p.kind];
+    if (!mode || mode === cameraMode) return;
+    setCamera(mode, { announce: true });
+    if (!tooltip.hidden && hoverKind) showTooltip(hoverKind, e); // the fly hint has served its purpose
+  };
+  const onPointerLeave = () => {
+    press = null;
+    hideTooltip();
+  };
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerLeave);
   canvas.addEventListener('pointerleave', onPointerLeave);
   disposers.push(() => {
     canvas.removeEventListener('pointermove', onPointerMove);
     canvas.removeEventListener('pointerdown', onPointerDown);
+    canvas.removeEventListener('pointerup', onPointerUp);
+    canvas.removeEventListener('pointercancel', onPointerLeave);
     canvas.removeEventListener('pointerleave', onPointerLeave);
     clearTimeout(touchTimer);
   });
@@ -861,7 +928,7 @@ export default function mount(container, meta) {
       updateReadouts(true);
       if (!tooltip.hidden && hoverKind) {
         tooltipTitle.textContent = t(`${KEYS}.tooltip.${hoverKind}Title`);
-        tooltipBody.textContent = hoverKind === 'sun' ? t(`${KEYS}.tooltip.sun`, { distance: fmt(model.sun.radiusLy, 0) }) : t(`${KEYS}.tooltip.${hoverKind}`);
+        tooltipBody.textContent = tooltipBodyText(hoverKind);
       }
       sim.requestRender();
     }),

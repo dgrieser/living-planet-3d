@@ -27,6 +27,7 @@
     "title": "Steuerung",
     "collapse": "Steuerung einklappen",
     "expand": "Steuerung ausklappen",
+    "cameraNext": "Nächste Kameraansicht",
     "reset": "Zurücksetzen",
     "info": "Informationen",
     "hint": "Ziehen zum Drehen · Scrollen oder Zwei-Finger-Geste zum Zoomen"
@@ -817,7 +818,10 @@
         "outerTitle": "Äußere Scheibe",
         "outer": "Zu wenige schwere Elemente für Gesteinsplaneten",
         "sunTitle": "Die Sonne",
-        "sun": "{distance} Lichtjahre vom galaktischen Zentrum, im Orion-Sporn"
+        "sun": "{distance} Lichtjahre vom galaktischen Zentrum, im Orion-Sporn",
+        "centreTitle": "Galaktisches Zentrum",
+        "centre": "Balken und Bulge um das zentrale Schwarze Loch – das dicht bevölkerte Herz der Milchstraße",
+        "flyHint": "Klicken, um hierher zu fliegen"
       },
       "labels": {
         "sun": "Sonne",
@@ -891,7 +895,8 @@
         "armCrossingsNote": "Bei starr rotierendem Muster durchquert die Sonne in Korotation nie einen Arm; die echte Sonne liegt nur nahe der Korotation und hat vermutlich alle 100–150 Mio. Jahre einen Arm durchquert. Ein Zusammenhang mit Eiszeitzyklen ist umstritten."
       },
       "hint": "Abstandsregler ziehen",
-      "hintZones": "Zonen mit der Maus erkunden"
+      "hintZones": "Zonen mit der Maus erkunden",
+      "hintFly": "Sonne oder Zentrum anklicken, um hinzufliegen"
     }
   }
 }

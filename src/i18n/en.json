@@ -27,6 +27,7 @@
     "title": "Controls",
     "collapse": "Collapse controls",
     "expand": "Expand controls",
+    "cameraNext": "Next camera view",
     "reset": "Reset",
     "info": "Information",
     "hint": "Drag to rotate · Scroll or pinch to zoom"
@@ -817,7 +818,10 @@
         "outerTitle": "Outer disc",
         "outer": "Too few heavy elements for rocky planets",
         "sunTitle": "The Sun",
-        "sun": "{distance} light-years from the galactic centre, on the Orion spur"
+        "sun": "{distance} light-years from the galactic centre, on the Orion spur",
+        "centreTitle": "Galactic centre",
+        "centre": "The bar and the bulge around the central black hole – the crowded heart of the Milky Way",
+        "flyHint": "Click to fly here"
       },
       "labels": {
         "sun": "Sun",
@@ -891,7 +895,8 @@
         "armCrossingsNote": "With a rigidly rotating pattern the Sun at corotation never crosses an arm; the real Sun is only close to corotation and has probably crossed arms every 100–150 Myr. Any link to ice-age cycles is debated."
       },
       "hint": "Drag the distance slider",
-      "hintZones": "Hover the zones for details"
+      "hintZones": "Hover the zones for details",
+      "hintFly": "Click the Sun or the centre to fly there"
     }
   }
 }
