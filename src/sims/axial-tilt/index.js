@@ -22,7 +22,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
 import * as S from './physics.js';
@@ -835,7 +835,10 @@ export default function mount(container, meta) {
     (preset.tiltDeg === undefined || Math.abs(state.tiltDeg - preset.tiltDeg) < 0.05) && (preset.periodH === undefined || Math.abs(state.periodH - preset.periodH) < 0.05);
 
   // --- UI ----------------------------------------------------------------------------------------------------------------------
-  const panel = createPanel();
+  // while the panel is open on a wide screen the picture slides left, so what the
+  // simulation shows stays centred in the free part of the canvas
+  const viewShift = createPanelShift({ sim, viewport });
+  const panel = createPanel({ onToggle: () => viewShift.sync() });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the tilt up front, the rest folded away ---------------------------------------------
@@ -1078,6 +1081,8 @@ export default function mount(container, meta) {
     legend, infoCard, physicsCard,
   );
   container.append(panel.el);
+  viewShift.attach(panel);
+  disposers.push(viewShift.dispose);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
   hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), bindText(el('span'), `${KEYS}.hint`));

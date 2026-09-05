@@ -11,7 +11,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createCollapsibleSection, createStateToggle, createButton, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createStateToggle, createButton, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
 import { planetPosition, orbitPath, orbitalPeriodDays, apsides, dateToJD, jdToDate, AU_KM, J2000_JD, DAYS_PER_YEAR, VALID_RANGE } from './kepler.js';
@@ -466,7 +466,10 @@ export default function mount(container, meta) {
   });
 
   // --- UI: panel --------------------------------------------------------------------------------------------------------------
-  const panel = createPanel();
+  // while the panel is open on a wide screen the picture slides left, so what the
+  // simulation shows stays centred in the free part of the canvas
+  const viewShift = createPanelShift({ sim, viewport });
+  const panel = createPanel({ onToggle: () => viewShift.sync() });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the time speed up front, date, view and camera folded away ------------------------
@@ -569,6 +572,8 @@ export default function mount(container, meta) {
   }
   panel.add({ el: info });
   container.append(panel.el);
+  viewShift.attach(panel);
+  disposers.push(viewShift.dispose);
 
   // --- UI: planet card + credit + hint ------------------------------------------------------------------------------------------
   const planetCard = createPlanetCard({

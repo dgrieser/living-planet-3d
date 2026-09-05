@@ -162,6 +162,58 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onTo
   };
 }
 
+const MIN_FREE_WIDTH = 480; // px of canvas that must be left over for shifting to be worth it
+
+/**
+ * Keeps the picture out from under the control panel.
+ *
+ * On a wide screen the panel floats over the top-right corner of the canvas; while it is
+ * open the picture slides left by half of what the panel covers, so the subject sits
+ * centred in the free part of the canvas. The camera, its target and picking all stay
+ * where they are – only the projection is offset (see `setViewShift()` in scene.js).
+ * Below the breakpoint the panel is a bottom sheet and there is nothing to dodge
+ * sideways, and neither is there when the panel would leave too little canvas over.
+ *
+ *   const viewShift = createPanelShift({ sim, viewport });
+ *   const panel = createPanel({ onToggle: () => viewShift.sync() });
+ *   …
+ *   container.append(panel.el);
+ *   viewShift.attach(panel);            // measures from here on
+ *   disposers.push(viewShift.dispose);
+ *
+ * @param {{ sim: { setViewShift: Function }, viewport: HTMLElement, minFreeWidth?: number }} opts
+ */
+export function createPanelShift({ sim, viewport, minFreeWidth = MIN_FREE_WIDTH }) {
+  let panel = null;
+
+  function shiftPx() {
+    if (!panel || panel.collapsed || window.matchMedia(SHEET_QUERY).matches) return 0;
+    const view = viewport.getBoundingClientRect();
+    const rect = panel.el.getBoundingClientRect();
+    if (!view.width || !rect.width) return 0;
+    const covered = Math.max(0, view.right - rect.left);
+    if (view.width - covered < minFreeWidth) return 0;
+    return Math.round(covered / 2);
+  }
+
+  const sync = (opts) => sim.setViewShift(shiftPx(), opts);
+  const onResize = () => sync({ animate: false });
+  window.addEventListener('resize', onResize);
+
+  return {
+    /** Re-measure and slide the picture; animated unless `{ animate: false }`. */
+    sync,
+    /** Start following this panel – call once it is in the DOM. */
+    attach(p) {
+      panel = p;
+      sync({ animate: false });
+    },
+    dispose() {
+      window.removeEventListener('resize', onResize);
+    },
+  };
+}
+
 /** Section heading inside a panel. */
 export function createSection(titleKey) {
   const section = el('div', 'lp-section');

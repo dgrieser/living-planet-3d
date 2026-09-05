@@ -44,7 +44,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as M from './model.js';
@@ -548,27 +548,10 @@ export default function mount(container, meta) {
   // =============================================================================================
   // control panel
   // =============================================================================================
-  // On a wide screen the panel floats over the top-right corner of the canvas. While it is
-  // open the picture slides left by half of what the panel covers, so the galaxy sits centred
-  // in the free part of the canvas – the camera itself stays on the galactic centre. Below the
-  // breakpoint the panel is a bottom sheet and there is nothing to dodge sideways.
-  const MIN_FREE_WIDTH = 480; // narrower than this, moving the galaxy aside only makes it worse
-  let panelMounted = false;
-
-  function panelShiftPx() {
-    if (!panelMounted || panel.collapsed || window.matchMedia('(max-width: 720px)').matches) return 0;
-    const view = viewport.getBoundingClientRect();
-    const rect = panel.el.getBoundingClientRect();
-    if (!view.width || !rect.width) return 0;
-    const covered = Math.max(0, view.right - rect.left);
-    if (view.width - covered < MIN_FREE_WIDTH) return 0;
-    return Math.round(covered / 2);
-  }
-  function syncViewShift(opts) {
-    sim.setViewShift(panelShiftPx(), opts);
-  }
-
-  const panel = createPanel({ onToggle: () => syncViewShift() });
+  // while the panel is open on a wide screen the picture slides left to keep the galaxy
+  // centred in the free part of the canvas – the camera stays on the galactic centre
+  const viewShift = createPanelShift({ sim, viewport });
+  const panel = createPanel({ onToggle: () => viewShift.sync() });
 
   // --- controls: the distance slider up front, the rest folded away -------------------------------
   const radiusSlider = createSlider({
@@ -659,11 +642,8 @@ export default function mount(container, meta) {
   const modelCard = createModelCard(CONFIG);
   panel.add(radiusRow, moreControls, zoneReadout, facts, legend, infoCard, modelCard);
   container.append(panel.el);
-  panelMounted = true;
-  syncViewShift({ animate: false });
-  const onWindowResize = () => syncViewShift({ animate: false });
-  window.addEventListener('resize', onWindowResize);
-  disposers.push(() => window.removeEventListener('resize', onWindowResize));
+  viewShift.attach(panel);
+  disposers.push(viewShift.dispose);
 
   // --- on-canvas: schematic badge, tooltip, hint ---------------------------------------------------
   const badge = el('div', 'lp-schematic-badge', { role: 'note' });

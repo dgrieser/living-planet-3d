@@ -19,7 +19,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as HZ from './physics.js';
@@ -667,7 +667,10 @@ export default function mount(container, meta) {
   }
 
   // --- UI ---------------------------------------------------------------------------------------------------------------------------------
-  const panel = createPanel();
+  // while the panel is open on a wide screen the picture slides left, so what the
+  // simulation shows stays centred in the free part of the canvas
+  const viewShift = createPanelShift({ sim, viewport });
+  const panel = createPanel({ onToggle: () => viewShift.sync() });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the planet's distance up front, the rest folded away -----------------------------
@@ -858,6 +861,8 @@ export default function mount(container, meta) {
     legend, infoCard, physicsCard,
   );
   container.append(panel.el);
+  viewShift.attach(panel);
+  disposers.push(viewShift.dispose);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
   hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), bindText(el('span'), `${KEYS}.hint`));

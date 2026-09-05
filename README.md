@@ -32,9 +32,10 @@ src/
   i18n/de.json       all German UI strings (1:1 mirror of en.json)
   lib/i18n.js        t(), tList(), setLanguage(), getLanguage(), onLanguageChange(),
                      applyTranslations(), bindText(), bindAttr(), formatNumber()
-  lib/ui.js          UI kit: createPanel, createSlider, createToggle, createStateToggle,
-                     createButton, createInfoCard, createNotice, createMessage,
-                     createSection, createCollapsibleSection, createControlRow, el()
+  lib/ui.js          UI kit: createPanel, createPanelShift, createSlider, createToggle,
+                     createStateToggle, createButton, createInfoCard, createNotice,
+                     createMessage, createSection, createCollapsibleSection,
+                     createControlRow, el()
   lib/prefs.js       createViewPrefs(): remembers a simulation's display toggles
                      (legends, labels, helper lines, overlays) in localStorage
   lib/scene.js       scene bootstrap: renderer (DPR ≤ 2), camera, OrbitControls,
@@ -100,6 +101,21 @@ and the full height of the canvas, and it stays where it is let go. Releasing wi
 of the default height (70 % of the canvas) or of the closed position snaps to it, and
 pulling a closed sheet upwards opens it. A press that starts on the chevron never drags, so
 the button keeps toggling as before.
+
+Above the breakpoint the panel floats over the top-right corner of the canvas, and every
+simulation slides its picture out from under it: while the panel is open the projection is
+offset to the left by half of what the panel covers, so the subject sits centred in the free
+part of the canvas. It is a projection offset, not a camera move – the camera, its orbit
+target and picking all stay where they are – it animates over 420 ms, and it is skipped when
+less than 480 px of canvas would be left over. One line per simulation wires it up:
+
+```js
+const viewShift = createPanelShift({ sim, viewport });          // lib/ui.js
+const panel = createPanel({ onToggle: () => viewShift.sync() });
+container.append(panel.el);
+viewShift.attach(panel);                                        // measures from here on
+disposers.push(viewShift.dispose);
+```
 
 ## Simulations
 
@@ -265,12 +281,10 @@ the button keeps toggling as before.
   overview) on the Orion spur; arms trail, i.e. their azimuth decreases with radius.
 - Panel: the shared layout above, with the radius slider as the headline control (a small "back to
   27 000 ly" button inline on its right) and the "Conditions in the solar system" box leading the readouts.
-  The schematic caveat opens the model card. On a wide screen the panel floats over the top-right corner of
-  the canvas; while it is open the picture slides left by half of what the panel covers (`sim.setViewShift()`,
-  a 420 ms projection offset – the camera and its target do not move), so the galaxy sits centred in the free
-  part of the canvas. Below the breakpoint, or when less than 480 px of canvas would be left, nothing shifts.
+  The schematic caveat opens the model card. Like every simulation it slides the picture left while the panel
+  is open on a wide screen (see *Panel layout*), so the galaxy stays centred in the free part of the canvas.
 - Camera presets: "Overview" looks down on the galactic centre from 133 kly (dead centre – the panel is
-  dodged by the view shift, not by moving the camera). "The Sun" flies down to the Sun's own height, 2.4 kly
+  dodged by the shared view shift, not by moving the camera). "The Sun" flies down to the Sun's own height, 2.4 kly
   outside it, and aims 21.6 kly inward along the radius: the disc lies across the frame as the band we see
   from Earth, the bulge glows at the far end and the Sun burns in the foreground. That view keeps a slow
   hands-off parallax (a 44 s sway across the orbit and in height) and rides along with the Sun; the first
