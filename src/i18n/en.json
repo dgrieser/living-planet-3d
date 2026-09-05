@@ -872,7 +872,8 @@
         "armCrossingsFormula": "T = 2π / ({arms} · |Ω(r) − Ω_p|),   Ω_p = 2π / {patternPeriod} Myr",
         "armCrossingsNote": "With a rigidly rotating pattern the Sun at corotation never crosses an arm; the real Sun is only close to corotation and has probably crossed arms every 100–150 Myr. Any link to ice-age cycles is debated."
       },
-      "hint": "Hover the zones for details · Drag the distance slider"
+      "hint": "Drag the distance slider",
+      "hintZones": "Hover the zones for details"
     }
   }
 }

@@ -392,6 +392,7 @@ export default function mount(container, meta) {
     applyModel();
     updateOverlay();
     updateReadouts(true);
+    syncHint();
     sim.requestRender();
   }
 
@@ -658,7 +659,13 @@ export default function mount(container, meta) {
   container.append(tooltip);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
-  hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), bindText(el('span'), `${KEYS}.hint`));
+  // the zone half of the hint only holds while there are zones on screen to hover
+  const hintZones = el('span');
+  hintZones.append(bindText(el('span'), `${KEYS}.hintZones`), document.createTextNode(' · '));
+  hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), hintZones, bindText(el('span'), `${KEYS}.hint`));
+  function syncHint() {
+    hintZones.hidden = !state.showRing && !state.showZones;
+  }
   container.append(hint);
 
   // --- interaction: hover tooltips over the zones and the Sun ---------------------------------------
