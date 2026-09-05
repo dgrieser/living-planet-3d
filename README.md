@@ -39,7 +39,8 @@ src/
                      (legends, labels, helper lines, overlays) in localStorage
   lib/scene.js       scene bootstrap: renderer (DPR ≤ 2), camera, OrbitControls,
                      starfield, resize, delta-time loop, tab-hidden pause,
-                     prefers-reduced-motion handling
+                     prefers-reduced-motion handling, setViewShift() (slides the
+                     picture sideways out from under an overlaying panel)
   lib/webgl.js       WebGL availability check (no Three.js import)
   sims/index.js      simulation registry (lazy-loaded modules)
   sims/<name>/       one folder per simulation
@@ -92,6 +93,13 @@ finds their way around the next:
    with the schematic caveats that qualify the numbers above it. Live warnings – the
    magnetic field is off, the Moon is gone, the date is out of range – stay next to the
    control or readout they describe.
+
+Below 720 px the panel is a bottom sheet, and there its header doubles as a drag handle
+(the grip above the title): press it and pull to resize the sheet anywhere between closed
+and the full height of the canvas, and it stays where it is let go. Releasing within 56 px
+of the default height (70 % of the canvas) or of the closed position snaps to it, and
+pulling a closed sheet upwards opens it. A press that starts on the chevron never drags, so
+the button keeps toggling as before.
 
 ## Simulations
 
@@ -257,7 +265,17 @@ finds their way around the next:
   overview) on the Orion spur; arms trail, i.e. their azimuth decreases with radius.
 - Panel: the shared layout above, with the radius slider as the headline control (a small "back to
   27 000 ly" button inline on its right) and the "Conditions in the solar system" box leading the readouts.
-  The schematic caveat opens the model card.
+  The schematic caveat opens the model card. On a wide screen the panel floats over the top-right corner of
+  the canvas; while it is open the picture slides left by half of what the panel covers (`sim.setViewShift()`,
+  a 420 ms projection offset – the camera and its target do not move), so the galaxy sits centred in the free
+  part of the canvas. Below the breakpoint, or when less than 480 px of canvas would be left, nothing shifts.
+- Camera presets: "Overview" looks down on the galactic centre from 133 kly (dead centre – the panel is
+  dodged by the view shift, not by moving the camera). "The Sun" flies down to the Sun's own height, 2.4 kly
+  outside it, and aims 21.6 kly inward along the radius: the disc lies across the frame as the band we see
+  from Earth, the bulge glows at the far end and the Sun burns in the foreground. That view keeps a slow
+  hands-off parallax (a 44 s sway across the orbit and in height) and rides along with the Sun; the first
+  drag or zoom hands it over, after which the visitor's own angle and distance are kept and only rotated
+  with the Sun. The lateral offsets shrink with the aspect ratio so the Sun stays in frame on a portrait phone.
 - Everything adjustable lives in `DEFAULT_CONFIG` in `model.js`; `createConfig({ zone: { innerKly, outerKly } })`
   changes the habitable-zone edges and the overlays, labels and readouts follow. The dev hook
   `window.__lpGalacticZone.setZoneEdges()` rebuilds them at run time.
@@ -351,7 +369,8 @@ remembered: every visit starts from the teaching defaults.
 ## Quality bar
 
 - Target 60 fps on a mid-range laptop; `devicePixelRatio` capped at 2.
-- Touch support via OrbitControls; the control panel collapses on small screens.
+- Touch support via OrbitControls; on small screens the control panel becomes a bottom sheet
+  that collapses and can be dragged to any height by its header.
 - `prefers-reduced-motion`: animation is paused and a static frame is rendered on demand;
   the view can still be rotated and zoomed.
 - Graceful bilingual fallback message when WebGL is unavailable.
