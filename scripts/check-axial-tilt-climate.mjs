@@ -1,7 +1,8 @@
 // Validates the axial-tilt climate module (src/sims/axial-tilt/climate.js):
 // seasonal extremes, hemispheric symmetry, the habitable fraction across the
 // tilt range (peak near Earth's tilt, frozen-pole minimum at 0°, hostile
-// extremes at 90°), the verdict tiers and the temperature colour ramp.
+// extremes at 90°), the verdict tiers, the temperature colour ramp and the
+// overlay opacity that keeps livable temperatures faint on the globe.
 import * as C from '../src/sims/axial-tilt/climate.js';
 import { EARTH_TILT_DEG } from '../src/sims/axial-tilt/physics.js';
 
@@ -93,6 +94,42 @@ assert('ramp endpoints are valid colours', validRgb(C.temperatureColor(-100)) &&
 assert('cold end is blue-dominant', (() => { const [r, , b] = C.temperatureColor(C.TEMP_COLOR_RANGE_C.min); return b > r; })());
 assert('hot end is red-dominant', (() => { const [r, , b] = C.temperatureColor(C.TEMP_COLOR_RANGE_C.max); return r > b; })());
 assert('livable middle is green-dominant', (() => { const [r, g, b] = C.temperatureColor(10); return g > r && g > b; })());
+
+console.log('— overlay opacity —');
+const { minAlpha } = C.OVERLAY_FADE;
+check('a lived-in 15 °C is barely painted', C.temperatureOverlayAlpha(15), minAlpha, 1e-9);
+check('the comfort window is flat at both ends', C.temperatureOverlayAlpha(-10), C.temperatureOverlayAlpha(30), 1e-9);
+check('the cold livable limit paints full', C.temperatureOverlayAlpha(C.LIVABLE.minWinterC), 1, 1e-9);
+check('the hot livable limit paints full', C.temperatureOverlayAlpha(C.LIVABLE.maxSummerC), 1, 1e-9);
+check('off the cold end of the ramp stays full', C.temperatureOverlayAlpha(-100), 1, 1e-9);
+check('off the hot end of the ramp stays full', C.temperatureOverlayAlpha(100), 1, 1e-9);
+assert('the comfortable middle is far more transparent than the ends', C.temperatureOverlayAlpha(15) < 0.5 * C.temperatureOverlayAlpha(-40));
+assert('opacity rises monotonically towards the cold end', (() => {
+  let prev = -1;
+  for (let tempC = -10; tempC >= -40; tempC -= 1) {
+    const a = C.temperatureOverlayAlpha(tempC);
+    if (a < prev - 1e-12) return false;
+    prev = a;
+  }
+  return true;
+})());
+assert('opacity rises monotonically towards the hot end', (() => {
+  let prev = -1;
+  for (let tempC = 30; tempC <= 60; tempC += 1) {
+    const a = C.temperatureOverlayAlpha(tempC);
+    if (a < prev - 1e-12) return false;
+    prev = a;
+  }
+  return true;
+})());
+assert('every temperature stays within [minAlpha, 1]', (() => {
+  for (let tempC = -80; tempC <= 100; tempC += 0.5) {
+    const a = C.temperatureOverlayAlpha(tempC);
+    if (!(a >= minAlpha - 1e-12 && a <= 1 + 1e-12)) return false;
+  }
+  return true;
+})());
+assert('the ramp-coordinate form matches the °C form', Math.abs(C.overlayAlpha(0.5) - C.temperatureOverlayAlpha(10)) < 1e-12);
 
 console.log(failed ? `\n${failed} check(s) failed` : '\nall checks passed');
 process.exit(failed ? 1 : 0);

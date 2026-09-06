@@ -6,10 +6,12 @@
  * through the year. A shader lights the textured Earth with a soft day/night
  * terminator and city lights on the night side, and can overlay either a heat
  * map of the daily mean insolation or temperature bands of the seasonal-mean
- * energy-balance temperature per latitude, plus a livable-region view that
- * darkens the latitudes that are not livable all year. Tropics, polar circles,
- * the subsolar point, a readout (day length, insolation, temperature estimate,
- * seasonal extremes, climate zone) for a selectable latitude and the year-round
+ * energy-balance temperature per latitude – both painted at full strength only
+ * where the colour ramp turns hostile, so livable values stay a tint the map
+ * shows through – plus a livable-region view that darkens the latitudes that are
+ * not livable all year. Tropics, polar circles, the subsolar point, a readout
+ * (day length, insolation, temperature estimate, seasonal extremes, climate
+ * zone) for a selectable latitude and the year-round
  * livable share of the surface with a verdict all update live. Clicking Earth
  * pins a place: the camera follows it and the readout switches to its latitude.
  * All physics lives in ./physics.js, the habitability estimates in ./climate.js.
@@ -86,17 +88,18 @@ const DEFAULTS = Object.freeze({
   latitudeDeg: 0,
 });
 
-/** Display toggles – remembered per visitor, see ../../lib/prefs.js. Only the axis and the pole
- *  labels to begin with: Earth arrives bare, and every overlay is one tap away in the panel. */
+/** Display toggles – remembered per visitor, see ../../lib/prefs.js. Earth arrives with the
+ *  climate story already on – temperature bands, the livable region and the subsolar point,
+ *  which is what the tilt is about – and everything else is one tap away in the panel. */
 const VIEW_DEFAULTS = Object.freeze({
   showHeat: false, // insolation heat map – exclusive with showClimate
-  showClimate: false, // seasonal-mean temperature bands
-  showLivable: false, // livable-region view (darkened hostile bands + border rings)
+  showClimate: true, // seasonal-mean temperature bands
+  showLivable: true, // livable-region view (darkened hostile bands + border rings)
   showTerminator: false,
   showEquator: false,
   showCircles: false, // tropics + polar circles
   showAxis: true,
-  showSubsolar: false,
+  showSubsolar: true,
   showGrid: false,
   showLabels: true,
 });
@@ -217,7 +220,8 @@ export default function mount(container, meta) {
   placeholder.needsUpdate = true;
   const nightPlaceholder = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); // no city lights until the map arrives
   nightPlaceholder.needsUpdate = true;
-  // temperature bands: one texel row per latitude (row 0 = south pole), coloured on the −40 … +60 °C ramp
+  // temperature bands: one texel row per latitude (row 0 = south pole), coloured on the −40 … +60 °C
+  // ramp, with the overlay strength for that temperature in the alpha channel (see C.overlayAlpha)
   const climateData = new Uint8Array(CLIMATE_ROWS * 4);
   const climateTexture = new THREE.DataTexture(climateData, 1, CLIMATE_ROWS, THREE.RGBAFormat);
   climateTexture.colorSpace = THREE.SRGBColorSpace;
@@ -410,7 +414,8 @@ export default function mount(container, meta) {
     for (let row = 0; row < CLIMATE_ROWS; row++) {
       const { meanC } = S.temperatureEstimate(rowLatitude(row), state.tiltDeg, declDeg, state.periodH, climateAnnual.values[row]);
       const [r, g, b] = C.temperatureColor(meanC);
-      climateData.set([r, g, b, 255], row * 4);
+      // alpha = how hard this band paints over the map: faint where the mean is livable, full at the hostile ends
+      climateData.set([r, g, b, Math.round(C.temperatureOverlayAlpha(meanC) * 255)], row * 4);
     }
     climateTexture.needsUpdate = true;
   }
@@ -1440,6 +1445,9 @@ function createRingTexture(size = 128) {
 // ============================================================================================================
 // shaders
 // ============================================================================================================
+const FADE = C.OVERLAY_FADE; // overlay opacity fade, shared with climate.js
+const glslFloat = (v) => v.toFixed(4);
+
 const EARTH_VERTEX = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vWorldPos;
@@ -1487,6 +1495,15 @@ const EARTH_FRAGMENT = /* glsl */ `
     return mix(c3, c4, x - 3.0);
   }
 
+  // Overlay strength for a position on that ramp – mirrors C.overlayAlpha(): the middle of the
+  // ramp, where a place lives the temperatures today's Earth has, is only tinted; the frozen and
+  // scorching ends paint at full strength. (Edges ascend: GLSL smoothstep needs edge0 < edge1.)
+  float overlayAlpha(float x) {
+    float cold = 1.0 - smoothstep(${glslFloat(FADE.danger[0])}, ${glslFloat(FADE.comfort[0])}, x);
+    float hot = smoothstep(${glslFloat(FADE.comfort[1])}, ${glslFloat(FADE.danger[1])}, x);
+    return ${glslFloat(FADE.minAlpha)} + ${glslFloat(1 - FADE.minAlpha)} * max(cold, hot);
+  }
+
   void main() {
     vec3 N = normalize(vWorldNormal);
     vec3 L = normalize(uSunPos - vWorldPos);
@@ -1506,12 +1523,15 @@ const EARTH_FRAGMENT = /* glsl */ `
     float cosH0 = clamp(-(sinLat * sd) / max(cosLat * cd, 1e-4), -1.0, 1.0);
     float H0 = acos(cosH0);
     float q = (H0 * sinLat * sd + cosLat * cd * sin(H0)) / PI;
-    vec3 heat = ramp(q / uHeatScale) * (0.35 + 0.65 * day);
-    color = mix(color, heat, uHeatMix * 0.88);
+    float heatT = clamp(q / uHeatScale, 0.0, 1.0);
+    vec3 heat = ramp(heatT) * (0.35 + 0.65 * day);
+    color = mix(color, heat, uHeatMix * 0.88 * overlayAlpha(heatT));
 
-    // seasonal-mean temperature bands (energy-balance model, −40 … +60 °C ramp)
-    vec3 band = texture2D(uClimateTex, vec2(0.5, lat / PI + 0.5)).rgb * (0.35 + 0.65 * day);
-    color = mix(color, band, uClimateMix * 0.7);
+    // seasonal-mean temperature bands (energy-balance model, −40 … +60 °C ramp);
+    // alpha carries the overlay strength for that temperature (climate.js)
+    vec4 bandTex = texture2D(uClimateTex, vec2(0.5, lat / PI + 0.5));
+    vec3 band = bandTex.rgb * (0.35 + 0.65 * day);
+    color = mix(color, band, uClimateMix * 0.7 * bandTex.a);
 
     // livable-region view: darken every latitude outside the livable bands
     float livable = 0.0;
