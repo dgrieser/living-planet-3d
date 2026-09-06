@@ -488,7 +488,6 @@ export default function mount(container, meta) {
     onToggle: () => viewShift.sync(),
     camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
   });
-  const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the time speed up front, date, view and camera folded away ------------------------
   const speedControl = createSpeedControl({
@@ -500,7 +499,7 @@ export default function mount(container, meta) {
     },
   });
 
-  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
   const dateControl = createDateControl({
     getJD: () => state.jd,
     onChange: (jd) => setJD(jd, { fromInput: true }),

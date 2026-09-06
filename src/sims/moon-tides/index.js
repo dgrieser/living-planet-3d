@@ -655,7 +655,7 @@ export default function mount(container, meta) {
   const moonRow = createControlRow(distanceSlider, moonBtn);
   const moonRemovedNote = bindText(el('p', 'lp-preset-note lp-preset-note--warn'), `${KEYS}.moonFacts.removed`);
 
-  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
 
   // tides controls (view A)
   const tidesControls = el('div', 'lp-group');
