@@ -471,7 +471,7 @@
         "stateNote": "The thresholds are this star’s own zone edges expressed as temperatures (T_eq depends only on the insolation L/d²), so they move with the star: around a red dwarf they sit 10–20 K lower than around the Sun. A planet at the outer edge stays habitable only with a far thicker greenhouse than Earth’s.",
         "appearanceLabel": "Surface appearance (schematic)",
         "appearanceFormula": "snowball ← {frozen} K · Earth · {scorched} K → cloud world → lava world (≈ {lava} K)",
-        "appearanceNote": "Beyond the outer edge the oceans freeze over and the ice thickens with falling temperature. Just beyond the inner edge a Venus-like cloud deck takes over; several hundred kelvin further in the crust cracks and the star-facing side melts into lava seas. Earth-like planets show the real Earth maps with city lights on the night side.",
+        "appearanceNote": "Beyond the outer edge the ice comes down from the poles, laid over the world that is already there: the oceans whiten but keep their coastlines, thin young ice lets the water darken it and cracks open as leads, and the land shows through the snow until a deep freeze buries the lot. Just beyond the inner edge a Venus-like cloud deck takes over; several hundred kelvin further in the crust cracks and the star-facing side melts into lava seas. Earth-like planets show the real Earth maps with city lights on the night side.",
         "evolutionLabel": "Stellar evolution (Gough 1981)",
         "evolutionFormula": "L(t) = L☉ / (1 + 0.4 · (1 − t / 4.57 Gyr))",
         "evolutionNote": "≈ 0.7 L☉ at birth, 1 L☉ today, ≈ 1.9 L☉ after 10 Gyr – about +10 % per Gyr.",

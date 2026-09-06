@@ -54,7 +54,17 @@ const STAR_DRAG_TRAVEL_PX = Object.freeze({ min: 260, max: 900 }); // ... but ne
  * own half-angle, so a narrow phone screen gets the same picture as a wide one, and the planet
  * gives way towards the edge when a distant star would otherwise fall outside `starFrame`.
  */
-const PLANET_VIEW = Object.freeze({ out: 11, side: 4.5, up: 2.6, frame: 0.45, starFrame: 0.75, edge: 0.9, starClearance: 1.4, portrait: 0.5 });
+const PLANET_VIEW = Object.freeze({
+  dist: 7.5, // camera distance from the planet, in planet radii
+  fov: 66, // wider than the scene's own: it takes room to hold a lit planet and its star at once
+  swing: 70, // degrees off the anti-star direction at most – see planetView() for what sets it
+  tilt: 12, // degrees of extra height on a wide frame, so the view looks down on the orbital plane
+  frame: 0.45, // the planet sits this far from the centre towards the edge, the star the other way
+  starFrame: 0.75,
+  edge: 0.72, // the planet's centre never goes further out than this, so its disc stays whole
+  margin: 0.9, // ... and the swing stops short of the very limit, so neither body sits on an edge
+  starClearance: 1.4,
+});
 const CAMERA_MODES = Object.freeze(['fit', 'follow', 'free']);
 /**
  * The camera views the panel's header button steps through, in the order of their buttons
@@ -582,41 +592,60 @@ export default function mount(container, meta) {
   const frameOverview = (duration) => frameRadius(HZ.DISTANCE_RANGE_AU.max * AU_UNITS, duration);
 
   /**
-   * Where the camera stands for the planet close-up: outside the orbit, a little to the side of
-   * the planet and above the plane, all measured in planet radii so the planet keeps its
-   * apparent size wherever it orbits. It aims between the planet and the star, which puts the
-   * planet large on one side of the frame and the star small in the distance on the other.
+   * The close-up trades a little perspective for the room to hold the planet's lit face and the
+   * star at once; every other mode keeps the scene's own field of view.
+   */
+  const defaultFov = camera.fov;
+  function setFieldOfView(fov) {
+    if (Math.abs(camera.fov - fov) < 1e-6) return;
+    camera.fov = fov;
+    camera.updateProjectionMatrix();
+  }
+  /**
+   * Where the camera stands for the planet close-up: swung off the line away from the star, far
+   * enough that a good part of the planet's lit face is turned towards us, and at a distance
+   * measured in planet radii so the planet keeps its apparent size wherever it orbits. It aims
+   * between the two, which puts the planet large on one side of the frame and the star small in
+   * the distance on the other.
    */
   function planetView() {
     const outward = tmpV.copy(planetPos).setY(0);
     if (outward.lengthSq() < 1e-12) outward.set(1, 0, 0);
     outward.normalize();
     const across = new THREE.Vector3(-outward.z, 0, outward.x);
-    // A portrait frame sees far less to the sides, so stand closer to the planet–star line there.
-    // The height above the plane stays: it is what keeps the distant star clear of the planet's
-    // disc on a narrow screen, where there is room above and below but not beside.
-    const wide = clamp((camera.aspect - 0.55) / 1.05, PLANET_VIEW.portrait, 1);
-    const position = planetPos.clone()
-      .addScaledVector(outward, PLANET_VIEW.out * PLANET_RADIUS)
-      .addScaledVector(across, PLANET_VIEW.side * wide * PLANET_RADIUS);
-    position.y += PLANET_VIEW.up * PLANET_RADIUS;
+    // How far the camera stands off the line away from the star is one angle doing two jobs: it is
+    // the phase angle, so it decides how much of the planet's face is lit for us, and it is the
+    // separation between the two bodies in the frame. Both want it large, so take as much as the
+    // picture actually on show can hold – the frame's half-angle along the swing, minus the part
+    // the panel covers, since the view shift slides the picture into the free canvas rather than
+    // moving the camera. A wide frame has that room beside the planet, a tall one above it.
+    const wide = clamp((camera.aspect - 0.55) / 1.05, 0, 1);
+    const halfV = THREE.MathUtils.degToRad(camera.fov / 2);
+    const halfAngle = THREE.MathUtils.lerp(halfV, Math.atan(Math.tan(halfV) * camera.aspect), wide);
+    const covered = camera.view?.enabled ? (2 * camera.view.offsetX) / (camera.view.fullWidth || 1) : 0;
+    const usable = clamp(1 - covered, 0.35, 1) * Math.tan(halfAngle);
+    const edgeLimit = Math.atan(PLANET_VIEW.edge * usable); // the planet's disc stays whole inside this
+    const starLimit = Math.atan(PLANET_VIEW.starFrame * usable); // and the star inside this, the other way
+    const swing = Math.min(THREE.MathUtils.degToRad(PLANET_VIEW.swing), (edgeLimit + starLimit) * PLANET_VIEW.margin);
+    const axis = new THREE.Vector3().copy(THREE.Object3D.DEFAULT_UP).multiplyScalar(-wide).addScaledVector(across, 1 - wide).normalize();
+    const dir = outward.clone()
+      .applyAxisAngle(axis, swing) // sideways on a wide frame, upwards on a tall one
+      .applyAxisAngle(across, THREE.MathUtils.degToRad(PLANET_VIEW.tilt) * wide); // a little above the plane either way
+    const position = planetPos.clone().addScaledVector(dir, PLANET_VIEW.dist * PLANET_RADIUS);
     // a swollen star could otherwise reach past the camera – stand clear of its drawn disc
     const clearance = model.starRadius * PLANET_VIEW.starClearance;
     if (position.length() < clearance) position.addScaledVector(outward, clearance - position.length());
     const toPlanet = planetPos.clone().sub(position).normalize();
     const toStar = position.clone().negate().normalize();
-    // Swing the view axis off the planet and towards the star, turning about the vertical so the
-    // two end up beside each other rather than diagonally: the planet sits this share of the way
-    // from the centre to the right edge, giving way towards the edge when a distant star would
-    // otherwise fall outside `starFrame`. Measuring against the frame's own half-angle keeps the
-    // composition the same on a narrow phone as on a wide screen.
-    const halfAngle = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
-    const flatPlanet = toPlanet.clone().setY(0).normalize();
-    const flatStar = toStar.clone().setY(0).normalize();
-    const separation = Math.acos(clamp(flatPlanet.dot(flatStar), -1, 1));
-    const off = clamp(Math.max(PLANET_VIEW.frame, separation / halfAngle - PLANET_VIEW.starFrame), 0, PLANET_VIEW.edge) * halfAngle;
-    const turn = Math.sign(flatPlanet.cross(flatStar).y || 1) * Math.min(off, separation);
-    const aim = toPlanet.clone().applyAxisAngle(THREE.Object3D.DEFAULT_UP, turn);
+    // Aim between the two: the planet sits `frame` of the way from the centre towards the edge and
+    // the star the other way, the planet giving way further out – as far as `edge` – when a nearby
+    // star would otherwise fall outside `starFrame`.
+    const separation = Math.acos(clamp(toPlanet.dot(toStar), -1, 1));
+    const off = Math.min(edgeLimit, Math.max(Math.atan(PLANET_VIEW.frame * usable), separation - starLimit));
+    const aimAxis = toPlanet.clone().cross(toStar);
+    const aim = aimAxis.lengthSq() > 1e-12
+      ? toPlanet.clone().applyAxisAngle(aimAxis.normalize(), Math.min(off, separation))
+      : toPlanet.clone();
     return { position, target: position.clone().addScaledVector(aim, position.distanceTo(planetPos)) };
   }
   /**
@@ -1013,6 +1042,7 @@ export default function mount(container, meta) {
   function setCameraMode(mode, { fly = true, duration, announce = false } = {}) {
     state.cameraMode = CAMERA_MODES.includes(mode) ? mode : 'free';
     viewPrefs.set('cameraMode', state.cameraMode);
+    setFieldOfView(state.cameraMode === 'follow' ? PLANET_VIEW.fov : defaultFov);
     followAutopilot = true; // a mode always starts on its own framing again
     syncCameraButtons({ announce });
     if (fly && state.cameraMode === 'fit') fitView(duration);
@@ -1886,30 +1916,32 @@ const PLANET_FRAGMENT = /* glsl */ `
     float mThaw = 1.0 - smoothstep(iceLine - 0.13, iceLine + 0.13, coldFront);  // 1 temperate, 0 frozen over
     float mScorch = 1.0 - smoothstep(scorchLine - 0.13, scorchLine + 0.13, hotFront); // 1 scorched, 0 not yet
 
-    // continents: from the Earth map when available (ocean = blue-dominant), procedural otherwise
+    // --- the world underneath: the Earth maps when they are loaded, procedural otherwise --------
+    // Both the temperate and the frozen look are built on this one surface, so freezing never
+    // swaps the planet for a different one – it only lays ice over the world that is already there.
     vec3 dayTex = texture2D(uDayMap, vUv).rgb;
     float land;
     float continents = 0.5;
+    vec3 bare;
     if (uHasDay > 0.5) {
       land = 1.0 - smoothstep(0.15, 0.5, (dayTex.b - max(dayTex.r, dayTex.g)) / (dayTex.b + 0.002));
+      bare = dayTex;
     } else {
       continents = fbm(p * 1.9 + vec3(3.1, 1.7, 5.3), 5);
       land = smoothstep(0.47, 0.53, continents);
+      vec3 ocean = mix(OCEAN_DEEP, OCEAN_SHALLOW, smoothstep(0.35, 0.5, continents));
+      vec3 landCol = mix(LAND_GREEN, LAND_BROWN, smoothstep(0.35, 0.75, detail));
+      landCol = mix(landCol, LAND_BROWN * 1.3, smoothstep(0.6, 0.85, continents)); // highlands
+      float polar = smoothstep(0.80, 0.90, lat + (detail - 0.5) * 0.12);
+      bare = mix(mix(ocean, landCol, land), ICE, polar);
     }
 
-    // --- temperate: Earth -----------------------------------------------------------------------
-    vec3 temperate = vec3(0.0);
+    // --- temperate: the world as it is ------------------------------------------------------------
+    vec3 temperate = bare;
     vec3 lights = vec3(0.0);
     float clouds = 0.0;
-    if (uThaw > 0.001 && uScorch < 0.999) {
-      if (uHasDay > 0.5) {
-        temperate = dayTex;
-      } else {
-        vec3 ocean = mix(OCEAN_DEEP, OCEAN_SHALLOW, smoothstep(0.35, 0.5, continents));
-        vec3 landCol = mix(LAND_GREEN, LAND_BROWN, smoothstep(0.35, 0.75, detail));
-        landCol = mix(landCol, LAND_BROWN * 1.3, smoothstep(0.6, 0.85, continents)); // highlands
-        float polar = smoothstep(0.80, 0.90, lat + (detail - 0.5) * 0.12);
-        temperate = mix(mix(ocean, landCol, land), ICE, polar);
+    if (mThaw > 0.001 && uScorch < 0.999) {
+      if (uHasDay < 0.5) {
         clouds = smoothstep(0.52, 0.68, fbm(p * 3.0 + vec3(uTime * 0.01, 0.0, 11.0), 4));
         temperate = mix(temperate, vec3(0.85), clouds * 0.75);
       }
@@ -1919,24 +1951,32 @@ const PLANET_FRAGMENT = /* glsl */ `
       }
     }
 
-    // --- frozen: snowball ---------------------------------------------------------------------------
-    vec3 frozen = vec3(0.0);
-    if (uThaw < 0.999) {
+    // --- frozen: the same world, iced over ----------------------------------------------------------
+    // Ice as a layer over that surface, not a replacement for it: the oceans whiten but keep their
+    // coastlines, and the land shows through the snow, so the planet stays recognisably itself while
+    // the ice is on its way. Only a deep freeze buries the lot.
+    vec3 frozen = bare;
+    if (mThaw < 0.999) {
       float relief = (uHasDay > 0.5) ? clamp(dot(dayTex, vec3(0.33)) * 4.0, 0.0, 1.0) : detail;
-      // sea ice: gently mottled, criss-crossed by thin dark leads (refrozen cracks)
+      // sea ice: gently mottled, criss-crossed by thin leads where it has cracked open again
       float leadField = fbm(p * 7.0 + vec3(21.0, 3.0, 8.0), 4);
       float leads = pow(1.0 - abs(leadField * 2.0 - 1.0), 18.0);
       vec3 seaIce = mix(SEA_ICE, SEA_ICE_DARK, smoothstep(0.4, 0.7, fbm(p * 3.5 + vec3(9.0), 3)) * 0.6);
-      seaIce = mix(seaIce, LEAD, leads * 0.85);
-      // land: snow over the relief; just past the edge bare tundra pokes through near the equator
-      vec3 landIce = mix(ICE_SHADE, ICE, 0.45 + 0.55 * relief);
-      float bare = (1.0 - uCold) * smoothstep(0.4, 0.08, lat) * smoothstep(0.42, 0.55, detail);
-      landIce = mix(landIce, TUNDRA, bare * 0.95);
-      vec3 surface = mix(seaIce, landIce, land);
-      surface = mix(surface, vec3(0.62, 0.74, 0.92), uCold * 0.3); // deep freeze: thicker, bluer ice
+      // young ice is thin enough for the water below to darken it, and the leads open right through
+      // to it; the deeper the freeze, the more it piles up until nothing shows through at all
+      float pack = mix(0.80, 1.0, uCold) * (1.0 - leads * 0.85);
+      vec3 iced = mix(mix(bare, LEAD, leads * 0.5), seaIce, pack);
+      // snow on land: it takes to the high ground first and covers everything as the cold deepens
+      float cover = clamp(mix(0.50, 1.0, uCold) + (relief - 0.5) * 0.35, 0.0, 1.0);
+      vec3 snowy = mix(bare, mix(ICE_SHADE, ICE, 0.45 + 0.55 * relief), cover);
+      // just past the ice edge, ground near the equator stays clear of it
+      float clear = (1.0 - uCold) * smoothstep(0.4, 0.08, lat) * smoothstep(0.42, 0.55, detail);
+      snowy = mix(snowy, mix(bare, TUNDRA, 0.45), clear * 0.9);
+      vec3 surface = mix(iced, snowy, land);
+      surface = mix(surface, vec3(0.62, 0.74, 0.92), uCold * 0.28); // deep freeze: thicker, bluer ice
       // blowing snow and ice fog drifting across the surface
       float wisps = smoothstep(0.55, 0.78, fbm(rotateY(p, uTime * 0.03) * 4.0 + vec3(0.0, uTime * 0.01, 31.0), 4));
-      frozen = mix(surface, vec3(0.9, 0.93, 0.97), wisps * 0.5);
+      frozen = mix(surface, vec3(0.9, 0.93, 0.97), wisps * 0.5 * (0.35 + 0.65 * uCold));
     }
 
     // --- scorched: cloud world → cracked crust → lava world ---------------------------------------------

@@ -340,13 +340,18 @@ disposers.push(viewShift.dispose);
   and out under a finger; a 6 % tolerance suppresses pointless tweens. Stellar evolution has no pointer to
   wait for, so playback re-frames itself with a wider 30 % tolerance, as does a window resize.
 - **`follow` — "Planet".** A close-up that rides along with the planet, for seeing what its surface looks
-  like at the moment. The camera stands 11 planet radii outside the orbit, 4.5 to the side and 2.6 above
-  the plane — all in planet radii, so the planet keeps the same apparent size at any orbit — and aims
-  between the two bodies, turning about the vertical so they end up beside each other rather than
-  diagonally: the planet sits 45 % of the way from the centre to the right edge, the star smaller and
-  further left, both measured against the frame's own half-angle so a phone gets the same picture as a
-  desktop (the lateral offset shrinks on a portrait frame, the height above the plane does not — that
-  height is what keeps the star clear of the planet's disc where there is no room beside it). Left alone
+  like at the moment. The camera stands 7.5 planet radii away — in planet radii, so the planet keeps the
+  same apparent size at any orbit — swung off the line away from the star. That swing is one angle doing
+  two jobs: it is the phase angle, so it sets how much of the planet's face is lit for us, and it is the
+  separation between the two bodies in the frame. Both want it large, so it takes as much as the picture
+  actually on show can hold — the frame's half-angle along the swing (this view widens the field of view
+  to 66° for the room), less the part the panel covers, since the view shift slides the picture into the
+  free canvas rather than moving the camera, and stopping a tenth short of that limit so neither body
+  sits on an edge. A wide frame has the room beside the planet and a tall one above it, so the swing
+  turns about the axis that has it: the star ends up left of the planet on a desktop and above it on a
+  phone. The aim then puts the planet 45 % of the way from the centre towards the edge and the star the
+  other way, the planet giving way further out — never so far that its own disc is cut — when a nearby
+  star would otherwise fall outside the frame. Left alone
   the camera stays on that framing; once the visitor has taken hold of the view (`start` on the controls)
   it keeps their own angle and distance, carried around with the planet — the offsets are re-read from the
   live camera every frame, so orbiting and zooming keep working, and a planet dragged to another orbit
@@ -354,6 +359,13 @@ disposers.push(viewShift.dispose);
   planet is moving while the camera flies to it. A star swollen far past its own orbit can still fill this
   view; the camera keeps clear of its drawn disc, and the "Star size on screen" control is the way out.
 - **`free` — "Overview".** Flies out to 5 AU and leaves the camera to the visitor.
+- Freezing lays ice **over** the surface instead of swapping the planet for a different one: the temperate
+  and the frozen look are built from the same bare world (the Earth day map, or the procedural ocean and
+  land while it loads), so the oceans whiten but keep their coastlines and the land shows through the
+  snow. Young ice is thin enough for the water below to darken it and cracks open as leads; `cold`
+  thickens it until a deep freeze buries the continents and the planet reads as a snowball. The
+  in-between distances — 1.7 to 2.4 AU around the Sun — therefore show a recognisable Earth icing over
+  rather than a white ball.
 - Surface visuals are driven by `stateMix()`. `thaw` and `scorch` are **one-sided ramps that start at the
   edges** — 35 K below the outer edge, 45 K above the inner one — so a planet inside the zone always looks
   like one, and crossing an edge starts a transition rather than flipping a switch: around the Sun the ice
