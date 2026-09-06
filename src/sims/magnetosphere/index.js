@@ -604,7 +604,7 @@ export default function mount(container, meta) {
   const cmeRow = el('div', 'lp-button-row lp-button-row--full');
   cmeRow.append(cmeButton.el);
 
-  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
 
   const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
   const toggles = {

@@ -620,7 +620,7 @@ export default function mount(container, meta) {
   const sunHome = createButton({ labelKey: `${KEYS}.controls.sunHome`, icon: '↺', compact: true, onClick: () => setSunRadius(CONFIG.sun.radiusKly) });
   const radiusRow = createControlRow(radiusSlider, sunHome);
 
-  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
   const timeSlider = createSlider({
     labelKey: `${KEYS}.controls.time`,
     min: 0,

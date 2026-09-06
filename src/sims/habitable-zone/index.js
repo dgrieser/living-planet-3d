@@ -1093,7 +1093,7 @@ export default function mount(container, meta) {
   });
   distanceSlider.input.addEventListener('change', () => fitViewIfAuto());
 
-  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
 
   const presetRow = el('div', 'lp-presets lp-presets--tight', { role: 'group' });
   bindAttr(presetRow, { 'aria-label': `${KEYS}.star.presets` });

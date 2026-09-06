@@ -879,7 +879,7 @@ export default function mount(container, meta) {
     onChange: (v) => setTilt(v, { fromSlider: true }),
   });
 
-  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
+  const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
 
   const periodSlider = createSlider({
     labelKey: `${KEYS}.controls.rotationPeriod`,
