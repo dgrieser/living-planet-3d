@@ -166,6 +166,15 @@ for (const [L0, k] of [[1, 10], [0.01, 100], [3, 0.1]]) {
   // the exponent is what the star pull relies on: k× the luminosity → k^0.24 × the radius
   check(`${L0} → ${L0 * k} L☉: radius ratio`, HZ.mainSequenceStar(L0 * k).radiusSolar / HZ.mainSequenceStar(L0).radiusSolar, Math.pow(k, HZ.RADIUS_LUMINOSITY_EXPONENT), 1e-9);
 }
+// the city lights only burn while the planet is a place to live
+const livable = (teq) => HZ.stateMix(teq, HZ.SOLAR_TEFF_K).livable;
+check('Earth: fully livable', livable(HZ.equilibriumTemperatureK(1, 1)), 1, 1e-9);
+assert('Just inside the outer edge is still livable', livable(sunEdges.frozen + 0.5) > 0.9);
+assert('A few kelvin past the outer edge the lights are going out', livable(sunEdges.frozen - HZ.LIVABLE_FADE_K / 2) < 0.6);
+assert('Past the outer edge the lights are out', livable(sunEdges.frozen - HZ.LIVABLE_FADE_K) === 0);
+assert('Past the inner edge the lights are out', livable(sunEdges.scorched + HZ.LIVABLE_FADE_K) === 0);
+assert('Venus distance is not lived on', livable(HZ.equilibriumTemperatureK(1, 0.723)) === 0);
+
 const mixCold = HZ.stateMix(sunEdges.frozen - HZ.COLD_RAMP_K, HZ.SOLAR_TEFF_K);
 const mixHot = HZ.stateMix(sunEdges.scorched + HZ.HEAT_RAMP_K, HZ.SOLAR_TEFF_K);
 assert('stateMix: deep-frozen planet → cold = 1, heat = 0', mixCold.cold === 1 && mixCold.heat === 0 && mixCold.thaw === 0);

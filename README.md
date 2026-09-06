@@ -359,13 +359,22 @@ disposers.push(viewShift.dispose);
   planet is moving while the camera flies to it. A star swollen far past its own orbit can still fill this
   view; the camera keeps clear of its drawn disc, and the "Star size on screen" control is the way out.
 - **`free` — "Overview".** Flies out to 5 AU and leaves the camera to the visitor.
-- Freezing lays ice **over** the surface instead of swapping the planet for a different one: the temperate
-  and the frozen look are built from the same bare world (the Earth day map, or the procedural ocean and
-  land while it loads), so the oceans whiten but keep their coastlines and the land shows through the
-  snow. Young ice is thin enough for the water below to darken it and cracks open as leads; `cold`
-  thickens it until a deep freeze buries the continents and the planet reads as a snowball. The
-  in-between distances — 1.7 to 2.4 AU around the Sun — therefore show a recognisable Earth icing over
-  rather than a white ball.
+- Both hostile states are built **over** the same bare world (the Earth day map, or the procedural ocean
+  and land while it loads) rather than swapping the planet for a different one, so the in-between
+  distances show a recognisable Earth changing rather than a different picture arriving.
+  - **Freezing** lays ice over it: the oceans whiten but keep their coastlines, young ice is thin enough
+    for the water below to darken it and cracks open as leads, and the land shows through the snow.
+    `cold` thickens all of it until a deep freeze buries the continents and the planet reads as a
+    snowball — 1.7 to 2.4 AU around the Sun.
+  - **Drying** takes the water away in the order it would go: the green goes out of the land first
+    (`parch`, from the map's own vegetation), then the sea level falls (`fall`), leaving pale seabed
+    graded by depth and salt pans crusting where the water has just left. The map has no bathymetry —
+    its ocean is one flat blue — so the basins are a smooth noise field of their own. Only once the
+    water is in the air does the Venus-like cloud deck close over it, and the crust bakes to rock
+    underneath: 0.95 → 0.73 AU around the Sun, which puts the full deck at Venus's own distance.
+- City lights burn **only while the planet is a place to live**: `livable` is 1 inside the zone and falls
+  to 0 within 8 K of either edge, so a world that has started to freeze or to dry goes dark. It multiplies
+  the per-pixel belt factors, which already keep the lights out of the frozen and scorched bands.
 - Surface visuals are driven by `stateMix()`. `thaw` and `scorch` are **one-sided ramps that start at the
   edges** — 35 K below the outer edge, 45 K above the inner one — so a planet inside the zone always looks
   like one, and crossing an edge starts a transition rather than flipping a switch: around the Sun the ice

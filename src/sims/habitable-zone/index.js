@@ -302,6 +302,7 @@ export default function mount(container, meta) {
       uScorch: { value: 0 },
       uCold: { value: 0 },
       uHeat: { value: 0 },
+      uLivable: { value: 1 },
       uLightColor: { value: new THREE.Color(0xffffff) },
       uLightIntensity: { value: 1.6 },
       uTime: { value: 0 },
@@ -446,6 +447,7 @@ export default function mount(container, meta) {
     planetMaterial.uniforms.uScorch.value = mix.scorch;
     planetMaterial.uniforms.uCold.value = mix.cold;
     planetMaterial.uniforms.uHeat.value = mix.heat;
+    planetMaterial.uniforms.uLivable.value = mix.livable;
     // light the planet with a desaturated version of the star colour so the surface state stays readable around red stars
     planetMaterial.uniforms.uLightColor.value.copy(starColor).lerp(tmpColor.set(0xffffff), 0.6);
     planetMaterial.uniforms.uLightIntensity.value = 1.7 * Math.pow(clamp(model.insolation, 0.02, 8), 0.25);
@@ -1844,8 +1846,10 @@ const PLANET_VERTEX = /* glsl */ `
  *    simulation); a procedural Earth with drifting clouds while the maps are unavailable
  *  - frozen: a snowball – sea ice with dark refrozen leads, snow-covered continents, blowing snow;
  *    bare tundra shows through at the equator just past the outer edge (uCold → 0)
- *  - scorched: a Venus-like banded cloud deck just past the inner edge (uHeat → 0) that burns off to
- *    a cracked crust drifting on magma, with convecting lava seas and flaring vents (uHeat → 1)
+ *  - hot: the same world drying out past the inner edge – the green goes out of the land, then the
+ *    sea level falls and leaves pale seabed and salt pans (uScorch → 1) – under a Venus-like banded
+ *    cloud deck once the water is in the air, which burns off again to a cracked crust drifting on
+ *    magma, with convecting lava seas and flaring vents (uHeat → 1)
  *
  * The looks do not cross-fade as whole pictures: `uThaw` and `uScorch` move a *climate belt* across
  * the globe. Ice grows from the poles towards the equator, scorched ground spreads from the equator
@@ -1858,6 +1862,7 @@ const PLANET_FRAGMENT = /* glsl */ `
   uniform float uScorch;    // 0 = temperate, 1 = scorched
   uniform float uCold;      // 0 = just frozen, 1 = deep-frozen
   uniform float uHeat;      // 0 = just scorched (cloud world), 1 = lava world
+  uniform float uLivable;   // 1 inside the zone, 0 once it is no place to live
   uniform vec3 uLightColor;
   uniform float uLightIntensity;
   uniform float uTime;
@@ -1881,6 +1886,12 @@ const PLANET_FRAGMENT = /* glsl */ `
   const vec3 SEA_ICE_DARK = vec3(0.40, 0.54, 0.70);
   const vec3 LEAD = vec3(0.04, 0.09, 0.18);
   const vec3 TUNDRA = vec3(0.16, 0.12, 0.08);
+  const vec3 SAND = vec3(0.36, 0.22, 0.08);
+  const vec3 SAND_PALE = vec3(0.58, 0.42, 0.21);
+  const vec3 SEABED = vec3(0.065, 0.050, 0.038);
+  const vec3 SEABED_PALE = vec3(0.22, 0.17, 0.11);
+  const vec3 SALT = vec3(0.70, 0.66, 0.58);
+  const vec3 BRINE = vec3(0.025, 0.055, 0.035);
   const vec3 ROCK_DARK = vec3(0.045, 0.012, 0.006);
   const vec3 ROCK_RED = vec3(0.16, 0.035, 0.012);
   const vec3 LAVA_DARK = vec3(0.30, 0.04, 0.004);
@@ -1945,9 +1956,10 @@ const PLANET_FRAGMENT = /* glsl */ `
         clouds = smoothstep(0.52, 0.68, fbm(p * 3.0 + vec3(uTime * 0.01, 0.0, 11.0), 4));
         temperate = mix(temperate, vec3(0.85), clouds * 0.75);
       }
-      if (uHasNight > 0.5) {
-        // city lights, faded out across the terminator so they only show on the night side
-        lights = texture2D(uNightMap, vUv).rgb * smoothstep(0.08, -0.12, ndl) * 1.8;
+      if (uHasNight > 0.5 && uLivable > 0.001) {
+        // city lights, faded out across the terminator so they only show on the night side – and
+        // only while the planet is a place to live at all: a frozen or a scorched world goes dark
+        lights = texture2D(uNightMap, vUv).rgb * smoothstep(0.08, -0.12, ndl) * 1.8 * uLivable;
       }
     }
 
@@ -1979,11 +1991,33 @@ const PLANET_FRAGMENT = /* glsl */ `
       frozen = mix(surface, vec3(0.9, 0.93, 0.97), wisps * 0.5 * (0.35 + 0.65 * uCold));
     }
 
-    // --- scorched: cloud world → cracked crust → lava world ---------------------------------------------
-    vec3 scorched = vec3(0.0);
+    // --- hot: the same world drying out → cloud deck → cracked crust → lava world -------------------
+    vec3 scorched = bare;
     vec3 emissive = vec3(0.0);
     if (uScorch > 0.001) {
       float t = uTime;
+      // Before anything burns, the world simply loses its water, and it does that on the same map
+      // the temperate planet uses: first the green goes out of the land, then the sea level falls
+      // and the shelves come up as damp sediment and salt pans. It is this planet drying out, not
+      // a different one arriving.
+      float parch = smoothstep(0.0, 0.35, uScorch); // the land dries first
+      float fall = smoothstep(0.35, 1.0, uScorch); // and only then does the sea level go down
+      float green = clamp((bare.g - max(bare.r, bare.b)) * 5.0, 0.0, 1.0);
+      vec3 sand = mix(SAND, SAND_PALE, smoothstep(0.35, 0.75, detail));
+      vec3 parched = mix(bare, sand, parch * (0.30 + 0.70 * green));
+      // The map has no bathymetry – its ocean is one flat blue – so the basins are a smooth noise
+      // field of their own: the shallows go first and the water pulls back into the deep ones,
+      // which is the shape a drying ocean takes.
+      float depth = smoothstep(0.35, 0.68, fbm(p * 1.7 + vec3(19.0, 4.0, 27.0), 4));
+      float exposed = smoothstep(fall + 0.12, fall - 0.12, depth);
+      // the floor it leaves behind: pale on the shelves, dark in the basins, and crusted with salt
+      // where the water has only just gone
+      float pans = smoothstep(0.45, 0.85, fbm(p * 4.5 + vec3(13.0, 2.0, 6.0), 3));
+      float justLeft = smoothstep(0.30, 0.0, abs(depth - fall));
+      vec3 seabed = mix(SEABED, SEABED_PALE, 1.0 - depth);
+      seabed = mix(seabed, SALT, pans * (0.20 + 0.80 * justLeft));
+      vec3 shrinking = mix(mix(bare, BRINE, fall * 0.75), seabed, exposed); // what is left turns briny
+      vec3 dried = mix(shrinking, parched, land);
       // The crust is a raft of plates riding on the magma below, so the pattern has to *move*, not
       // just brighten: a domain warp whose offset drifts pulls the plates apart and pushes them back
       // together, and the lanes between them open, glow and close again.
@@ -2024,14 +2058,17 @@ const PLANET_FRAGMENT = /* glsl */ `
         + glow(clamp(seaHeat * 0.55, 0.0, 1.0)) * sea * (0.5 + 0.35 * uHeat)
         + glow(1.0) * burst * 0.9;
 
-      // Venus-like cloud deck: banded, slowly circulating; burns off as the heat rises
-      float cover = 1.0 - smoothstep(0.05, 0.45, uHeat);
+      // Venus-like cloud deck: it is the oceans, now in the air, so it thickens as the last of them
+      // goes; banded and slowly circulating, and it burns off again as the heat rises
+      float cover = smoothstep(0.55, 0.98, uScorch) * (1.0 - smoothstep(0.05, 0.45, uHeat));
       vec3 hp = rotateY(p, t * 0.05);
       float bands = fbm(vec3(hp.x, hp.y * 3.5, hp.z) * 2.2 + vec3(0.0, 0.0, t * 0.01), 4);
       float swirl = fbm(hp * 5.0 + vec3(3.0), 3);
       vec3 haze = mix(HAZE_DARK, HAZE_LIGHT, smoothstep(0.25, 0.75, bands)) * (0.8 + 0.4 * swirl);
-      scorched = mix(surface, haze, cover);
-      emissive *= (1.0 - cover * 0.95);
+      // the dry world gives way to bare rock once there is no water left to keep it a landscape
+      float bake = smoothstep(0.70, 1.0, uScorch);
+      scorched = mix(mix(dried, surface, bake), haze, cover);
+      emissive *= bake * (1.0 - cover * 0.95);
     }
 
     vec3 albedo = mix(frozen, temperate, mThaw);

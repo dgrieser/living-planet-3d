@@ -139,6 +139,8 @@ export const HEAT_RAMP_K = 500;
  */
 export const FREEZE_RAMP_K = 35;
 export const SCORCH_RAMP_K = 45;
+/** How far past an edge the last city lights go out: a world outside the zone is not lived on. */
+export const LIVABLE_FADE_K = 8;
 
 /**
  * Continuous blend factors for the surface shader (0…1 each). `thaw` and `scorch` say how far the
@@ -152,6 +154,8 @@ export function stateMix(teqK, teffK = SOLAR_TEFF_K) {
     // how far beyond the edges the planet is – drives the look of the hostile surfaces (schematic):
     cold: smoothstep(frozen, frozen - COLD_RAMP_K, teqK), // 0 partly glaciated → 1 deep-frozen ice world
     heat: smoothstep(scorched, scorched + HEAT_RAMP_K, teqK), // 0 Venus-like cloud world → 1 lava world
+    // whether anyone could live there: 1 inside the zone, out within a few kelvin of either edge
+    livable: smoothstep(frozen - LIVABLE_FADE_K, frozen, teqK) * (1 - smoothstep(scorched, scorched + LIVABLE_FADE_K, teqK)),
   };
 }
 
