@@ -476,12 +476,16 @@ disposers.push(viewShift.dispose);
   "click to fly here" line in their tooltip, and the panel header names the view it switched to.
   A press that travels more than 6 px was an orbit drag and flies nowhere.
 - Camera presets: "Overview" looks down on the galactic centre from 133 kly (dead centre – the panel is
-  dodged by the shared view shift, not by moving the camera). "The Sun" flies down to the Sun's own height, 2.4 kly
-  outside it, and aims 21.6 kly inward along the radius: the disc lies across the frame as the band we see
-  from Earth, the bulge glows at the far end and the Sun burns in the foreground. That view keeps a slow
-  hands-off parallax (a 44 s sway across the orbit and in height) and rides along with the Sun; the first
-  drag or zoom hands it over, after which the visitor's own angle and distance are kept and only rotated
-  with the Sun. The lateral offsets shrink with the aspect ratio so the Sun stays in frame on a portrait phone.
+  dodged by the shared view shift, not by moving the camera). "The Sun" flies down to just above the Sun's own
+  height, 2.4 kly outside it, and **looks back at the Sun itself**: the Sun is what the view is about, so it is
+  also what the camera aims at and therefore what a drag orbits and a wheel zooms around — it stays put in the
+  frame while the galaxy turns behind it. Standing outside it is what keeps the galaxy there: the disc lies
+  across the frame as the band we see from Earth and the bulge glows beyond it, with the Sun in the foreground.
+  The camera sits barely above the plane (0.22 kly), since aiming at the Sun means any more height pushes the
+  band up the frame and leaves the bottom empty. That view keeps a slow hands-off parallax (a 44 s sway across
+  the orbit and in height) and rides along with the Sun; the first drag or zoom hands it over, after which the
+  visitor's own angle and distance are kept and only rotated with the Sun. The lateral offsets step the centre
+  out from behind the Sun and shrink with the aspect ratio, so a portrait phone keeps both in frame.
 - Everything adjustable lives in `DEFAULT_CONFIG` in `model.js`; `createConfig({ zone: { innerKly, outerKly } })`
   changes the habitable-zone edges and the overlays, labels and readouts follow. The dev hook
   `window.__lpGalacticZone.setZoneEdges()` rebuilds them at run time.
