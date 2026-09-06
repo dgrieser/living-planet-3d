@@ -115,18 +115,18 @@ const VIEW_DEFAULTS = Object.freeze({
 // projection instead (see panelShiftPx below), which leaves the camera where it belongs
 const CAMERA_OVERVIEW = Object.freeze({ position: [0, 104, 82], target: [0, 0, 0] });
 /**
- * Sun preset: down at the Sun's own height, a step outside it, aimed inward along the
- * radius – the disc lies across the frame as the band we see from Earth, the bulge glows
- * at the far end of it and the Sun burns in the foreground. `lookKly` is how far inward
- * the camera aims (capped so it never overshoots the centre); the lateral offsets shrink
- * with the aspect ratio so the Sun stays in frame on a portrait phone, and `drift` is the
- * slow parallax the view keeps until the visitor takes hold of it.
+ * Sun preset: down at the Sun's own height, a step outside it, looking back at it along the
+ * radius – the disc lies across the frame as the band we see from Earth and the bulge glows
+ * beyond it, with the Sun in the foreground. The Sun is what the view is *about*, so it is
+ * also what the camera aims at and therefore what a drag orbits around; standing outside it
+ * is what keeps the galaxy behind it. The lateral offsets step the centre out from behind the
+ * Sun and shrink with the aspect ratio so a portrait phone keeps both, and `drift` is the slow
+ * parallax the view keeps until the visitor takes hold of it.
  */
 const SUN_VIEW = Object.freeze({
   outward: 2.4,
   side: 0.75,
-  up: 0.5,
-  lookKly: 22,
+  up: 0.22, // barely above the plane: aimed at the Sun, more height would push the band up the frame
   drift: { side: 0.35, up: 0.15, periodS: 44 },
 });
 
@@ -454,10 +454,9 @@ export default function mount(container, meta) {
   /** Phase of the slow hands-off drift of the Sun view; frozen for reduced motion. */
   const driftPhase = () => (sim.reducedMotion ? 0 : (time / SUN_VIEW.drift.periodS) * TAU);
 
-  /** The point the Sun view aims at: a stretch of the disc between the Sun and the centre. */
+  /** What the Sun view aims at, and so what it orbits and zooms around: the Sun. */
   function sunLookTarget(out) {
-    const r = Math.max(sunPos.length(), 1e-6);
-    return out.copy(sunPos).multiplyScalar(1 - Math.min(SUN_VIEW.lookKly, r * 0.8) / r).setY(0);
+    return out.copy(sunPos);
   }
 
   /** Camera end state for the Sun preset, computed from the Sun's current position. */
