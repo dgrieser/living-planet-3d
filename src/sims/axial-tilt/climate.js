@@ -123,3 +123,38 @@ export function temperatureColor(tempC) {
   const f = (t - a.t) / (b.t - a.t);
   return a.rgb.map((v, k) => Math.round(v + (b.rgb[k] - v) * f));
 }
+
+// --- overlay opacity: only the hostile ends of the ramp paint over the map --------
+/**
+ * How strongly a ramp colour is painted over Earth's texture. Values a place like
+ * today's Earth lives in stay nearly transparent – the map keeps showing through, so
+ * the overlay reads as a tint rather than a repaint – and the overlay only reaches full
+ * strength where the seasonal mean leaves what LIVABLE allows (below −25 °C / above
+ * +45 °C). Positions are ramp coordinates (0 … 1 over TEMP_COLOR_RANGE_C) so the same
+ * fade can be applied to the insolation heat map, which shares the ramp (see the
+ * overlayAlpha() mirror in the Earth shader).
+ */
+const rampAt = (tempC) => (tempC - TEMP_COLOR_RANGE_C.min) / (TEMP_COLOR_RANGE_C.max - TEMP_COLOR_RANGE_C.min);
+export const OVERLAY_FADE = Object.freeze({
+  minAlpha: 0.3, // opacity factor inside the comfortable window
+  comfort: Object.freeze([rampAt(-10), rampAt(30)]), // habitable everyday temperatures: faintest
+  danger: Object.freeze([rampAt(LIVABLE.minWinterC), rampAt(LIVABLE.maxSummerC)]), // beyond livable: full strength
+});
+
+const smoothstep = (edge0, edge1, x) => {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+};
+
+/** Overlay opacity factor (OVERLAY_FADE.minAlpha … 1) for a position on the colour ramp. */
+export function overlayAlpha(rampT) {
+  const { minAlpha, comfort, danger } = OVERLAY_FADE;
+  const cold = 1 - smoothstep(danger[0], comfort[0], rampT);
+  const hot = smoothstep(comfort[1], danger[1], rampT);
+  return minAlpha + (1 - minAlpha) * Math.max(cold, hot);
+}
+
+/** Overlay opacity factor for a seasonal-mean temperature (°C). */
+export function temperatureOverlayAlpha(tempC) {
+  return overlayAlpha(rampAt(tempC));
+}

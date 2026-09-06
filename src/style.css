@@ -575,6 +575,10 @@ a:hover { color: #a9d9ff; }
 .lp-heat-legend__bar {
   height: 10px; border-radius: 5px;
   background: linear-gradient(to right, #1a2a7a, #2a75d6, #5ccb67, #f7c53a, #e6341a);
+  /* the globe only tints the livable middle of the ramp and paints the hostile ends solid
+     (OVERLAY_FADE in climate.js) – the bar fades with it, so the legend reads like the globe */
+  -webkit-mask-image: linear-gradient(to right, #000 15%, rgba(0, 0, 0, 0.3) 30%, rgba(0, 0, 0, 0.3) 70%, #000 85%);
+  mask-image: linear-gradient(to right, #000 15%, rgba(0, 0, 0, 0.3) 30%, rgba(0, 0, 0, 0.3) 70%, #000 85%);
 }
 .lp-heat-legend__scale { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
 .lp-presets__value { font-size: 0.72rem; font-weight: 500; color: var(--lp-text-muted); }
