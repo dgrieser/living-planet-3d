@@ -50,6 +50,7 @@ const WIND_START_X = 28; // upstream spawn plane (just outside the default view)
 const WIND_PATH_LENGTH = 72; // spawn plane → far end of the tail
 const WIND_RHO_MAX = 18; // radius of the illuminated wind beam
 const WIND_BASE_RATE = 0.135; // path fractions per second at 400 km/s
+const EROSION_BASE_RATE = 0.16; // ditto for the atmosphere escaping with the shield off
 const DEFLECTION_OFFSET = 0.28; // the flow starts turning 0.28·r₀ sunward of the nose, i.e. at the bow shock
 // A hollow tube of particles projects to a filled disc, so most of the beam is
 // concentrated in a slab around the noon–midnight meridian (the plane spanned by the
@@ -95,10 +96,13 @@ const VIEW_DEFAULTS = Object.freeze({
   showLabels: true,
 });
 
+// Every view orbits Earth itself: the target stays at the origin, so the planet sits in the
+// middle of the picture and dragging turns it rather than swinging it out of frame. The tail
+// view only moves the camera downstream, so the stretched lobes lead away from Earth.
 const CAMERA_PRESETS = Object.freeze({
-  side: { position: [2, 12, 32], target: [-3, 0, 0] },
+  side: { position: [4, 11, 30], target: [0, 0, 0] },
   polar: { position: [0.02, 9, 0.01], target: [0, 0, 0] },
-  tail: { position: [-52, 13, 24], target: [-16, 0, 0] },
+  tail: { position: [-38, 13, 34], target: [0, 0, 0] },
 });
 /** The views in the order the panel's header button steps through them. */
 const CAMERA_VIEWS = Object.freeze(
@@ -114,6 +118,10 @@ export default function mount(container, meta) {
   const state = { ...DEFAULTS, ...viewPrefs.values };
   const disposers = [];
   let time = 0; // seconds of animated time
+  // How far the wind / escaping particles have travelled along their path, in path fractions.
+  // Integrated per frame so the flow only ever runs downwind, whatever the speed does.
+  let windPhase = 0;
+  let erosionPhase = 0;
   let cme = null; // { t, x, impacted, sinceImpact }
   let staticStorm = false; // reduced-motion fallback for the CME button
   let model = null;
@@ -142,32 +150,51 @@ export default function mount(container, meta) {
   const labelFont = getComputedStyle(document.documentElement).getPropertyValue('--lp-font') || 'sans-serif';
   const maxAnisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
-  // --- Earth, atmosphere, light -----------------------------------------------------------------
+  // --- Earth, atmosphere -------------------------------------------------------------------------
+  // Same day/night treatment as the other simulations (see axial-tilt): the terminator is a
+  // smoothstep on N·L, the night side keeps a faint blue-grey of the day map, and the city
+  // lights fade in across that same transition.
   const loader = new THREE.TextureLoader();
-  const earthMaterial = new THREE.MeshStandardMaterial({ color: 0x1c4696, roughness: 0.9, metalness: 0 });
-  loader.load(
-    `${TEXTURE_BASE}2k_earth_daymap.jpg`,
-    (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = maxAnisotropy;
-      earthMaterial.map = tex;
-      earthMaterial.color.set(0xffffff);
-      earthMaterial.needsUpdate = true;
-      sim.requestRender();
+  function loadTexture(file, onLoad) {
+    loader.load(
+      TEXTURE_BASE + file,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = maxAnisotropy;
+        onLoad(tex);
+        sim.requestRender();
+      },
+      undefined,
+      () => console.warn(`[magnetosphere] texture not available: ${file} – using flat colour`),
+    );
+  }
+  const dayPlaceholder = new THREE.DataTexture(new Uint8Array([28, 70, 150, 255]), 1, 1);
+  dayPlaceholder.colorSpace = THREE.SRGBColorSpace;
+  dayPlaceholder.needsUpdate = true;
+  const nightPlaceholder = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1); // no city lights until the map arrives
+  nightPlaceholder.needsUpdate = true;
+  const earthMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      uMap: { value: dayPlaceholder },
+      uNightMap: { value: nightPlaceholder },
+      uSunPos: { value: new THREE.Vector3(SUN_SPRITE_DISTANCE, 0, 0) },
     },
-    undefined,
-    () => console.warn('[magnetosphere] earth texture not available – using flat colour'),
-  );
+    vertexShader: EARTH_VERTEX,
+    fragmentShader: EARTH_FRAGMENT,
+  });
+  loadTexture('2k_earth_daymap.jpg', (tex) => {
+    earthMaterial.uniforms.uMap.value = tex;
+  });
+  // city lights (NASA Black Marble data via Solar System Scope), shown on the night side only
+  loadTexture('2k_earth_nightmap.jpg', (tex) => {
+    earthMaterial.uniforms.uNightMap.value = tex;
+  });
 
   const earthSpin = new THREE.Group();
   const earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS, 96, 64), earthMaterial);
   earth.name = 'earth';
   earthSpin.add(earth);
   scene.add(earthSpin);
-
-  const sunLight = new THREE.DirectionalLight(0xfff4e2, 2.5);
-  sunLight.position.set(1, 0, 0);
-  scene.add(sunLight, new THREE.AmbientLight(0x6a7fb0, 0.4));
 
   const atmosphereMaterial = new THREE.ShaderMaterial({
     uniforms: {
@@ -405,8 +432,7 @@ export default function mount(container, meta) {
     // atmosphere reacts to unshielded impact
     atmosphereMaterial.uniforms.uErosion.value = shield ? 0 : 1;
 
-    // particles
-    const rate = WIND_BASE_RATE * (m.speed / P.WIND_NOMINAL.speed);
+    // particles – positions come from the phases integrated in `frame`, never from `time × rate`
     for (const sys of [wind, cmeCloud, erosion]) {
       const u = sys.uniforms;
       u.uTime.value = time;
@@ -415,16 +441,15 @@ export default function mount(container, meta) {
       u.uBsNose.value = bsNose;
       u.uFieldOn.value = shield ? 1 : 0;
     }
-    wind.uniforms.uRate.value = rate;
+    wind.uniforms.uPhase.value = windPhase;
     wind.uniforms.uOpacity.value = clamp(0.4 + 0.5 * Math.min(m.density / 30, 1), 0.4, 0.9);
     wind.points.visible = m.density > 0;
 
-    cmeCloud.uniforms.uRate.value = rate;
     cmeCloud.uniforms.uCmeX.value = m.cmeX;
     cmeCloud.uniforms.uOpacity.value = m.cmeOpacity;
     cmeCloud.points.visible = m.cmeOpacity > 0.01;
 
-    erosion.uniforms.uRate.value = 0.16 * (m.speed / P.WIND_NOMINAL.speed);
+    erosion.uniforms.uPhase.value = erosionPhase;
     erosion.uniforms.uOpacity.value = shield ? 0 : clamp(0.25 + 0.75 * Math.min(m.pressureRatio, 3) / 3, 0.25, 1);
     erosion.points.visible = !shield;
 
@@ -503,7 +528,8 @@ export default function mount(container, meta) {
       if (!cme.impacted) {
         const travel = clamp(cme.t / P.CME.travelSeconds, 0, 1);
         const nose = model ? model.standoff : 10.5;
-        cme.x = WIND_START_X + (nose - WIND_START_X) * (travel * travel * (3 - 2 * travel));
+        // never let a slider that moves the magnetopause outwards mid-flight pull the cloud back
+        cme.x = Math.min(cme.x, WIND_START_X + (nose - WIND_START_X) * (travel * travel * (3 - 2 * travel)));
         if (travel >= 1) {
           cme.impacted = true;
           cme.sinceImpact = 0;
@@ -518,6 +544,9 @@ export default function mount(container, meta) {
       }
     }
     model = derive();
+    // integrate the flow: the speed sets how fast, the sign never changes
+    windPhase += dt * WIND_BASE_RATE * (model.speed / P.WIND_NOMINAL.speed);
+    erosionPhase += dt * EROSION_BASE_RATE * (model.speed / P.WIND_NOMINAL.speed);
     applyModel();
     stepTween(dt);
     updateOverlay();
@@ -626,6 +655,7 @@ export default function mount(container, meta) {
     panel.setCameraView(cameraMode, { announce });
   }
 
+  // the way back from any storm, so it stays in reach without opening the view section
   const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
   const resetRow = el('div', 'lp-button-row lp-button-row--full');
   resetRow.append(resetBtn.el);
@@ -633,7 +663,7 @@ export default function mount(container, meta) {
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
     cameraRow,
-    toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora, labelsToggle, resetRow,
+    toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora, labelsToggle,
   );
 
   // --- readouts: what that wind does to the magnetosphere -----------------------------------------
@@ -668,7 +698,7 @@ export default function mount(container, meta) {
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
-    fieldRow, fieldOffNotice, densitySlider, speedSlider, cmeRow, moreControls,
+    fieldRow, fieldOffNotice, densitySlider, speedSlider, cmeRow, moreControls, resetRow,
     bindText(el('p', 'lp-subheading'), `${KEYS}.storm.title`), stormReadout, stormFacts,
     legend, infoCard, physicsCard,
   );
@@ -707,6 +737,8 @@ export default function mount(container, meta) {
     cme = null;
     staticStorm = false;
     time = 0;
+    windPhase = 0;
+    erosionPhase = 0;
     earthSpin.rotation.y = 0;
     densitySlider.setValue(state.density, { silent: true });
     speedSlider.setValue(state.speed, { silent: true });
@@ -806,6 +838,12 @@ export default function mount(container, meta) {
       get time() {
         return time;
       },
+      get windPhase() {
+        return windPhase;
+      },
+      get erosionPhase() {
+        return erosionPhase;
+      },
       setDensity,
       setSpeed,
       setFieldOn,
@@ -828,6 +866,8 @@ export default function mount(container, meta) {
     hint.remove();
     credit.remove();
     for (const l of Object.values(labels)) l.dispose();
+    dayPlaceholder.dispose();
+    nightPlaceholder.dispose();
     for (const sys of [wind, cmeCloud, erosion]) sys.dispose();
     magnetopause.dispose();
     bowShock.dispose();
@@ -875,7 +915,11 @@ function createParticles({ count, mode, size, cold, hot, rho }) {
 
   const uniforms = {
     uTime: { value: 0 },
-    uRate: { value: 0.14 },
+    // Distance already travelled along the path, integrated on the CPU (see `frame`). Using
+    // an accumulated phase rather than `time × rate` keeps the flow moving downwind when the
+    // rate changes: with `time × rate` a falling rate makes the product shrink, and the whole
+    // stream visibly runs backwards – which is what a decaying CME used to do.
+    uPhase: { value: 0 },
     uStartX: { value: WIND_START_X },
     uLength: { value: WIND_PATH_LENGTH },
     uR0: { value: 10.9 },
@@ -1110,6 +1154,55 @@ function createGlowTexture(size = 128) {
 // ============================================================================================================
 // shaders
 // ============================================================================================================
+/**
+ * Earth's surface: day map lit by the Sun, city lights on the night side and a soft
+ * terminator between them. Identical treatment to the other simulations (axial-tilt),
+ * so the same planet reads the same way wherever it turns up.
+ */
+const EARTH_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  varying vec3 vWorldPos;
+  varying vec3 vWorldNormal;
+  void main() {
+    vUv = uv;
+    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+    vWorldPos = worldPos.xyz;
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+  }
+`;
+
+const EARTH_FRAGMENT = /* glsl */ `
+  uniform sampler2D uMap;
+  uniform sampler2D uNightMap;   // city lights, night side only
+  uniform vec3 uSunPos;
+  varying vec2 vUv;
+  varying vec3 vWorldPos;
+  varying vec3 vWorldNormal;
+  void main() {
+    vec3 N = normalize(vWorldNormal);
+    vec3 L = normalize(uSunPos - vWorldPos);
+    float ndl = dot(N, L);
+    float day = smoothstep(-0.03, 0.10, ndl);
+    vec3 base = texture2D(uMap, vUv).rgb;
+    vec3 dayColor = base * (0.10 + 1.05 * clamp(ndl, 0.0, 1.0));
+    vec3 nightColor = base * vec3(0.030, 0.040, 0.075);
+    vec3 color = mix(nightColor, dayColor, day);
+
+    // city lights, fading in across the terminator
+    color += texture2D(uNightMap, vUv).rgb * (1.0 - day) * 1.6;
+
+    // thin atmospheric rim
+    vec3 V = normalize(cameraPosition - vWorldPos);
+    float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
+    color += vec3(0.25, 0.5, 1.0) * rim * (0.15 + 0.5 * day);
+
+    gl_FragColor = vec4(color, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
 /** Thin translucent shell: fresnel rim, brighter where the Sun hits, hot when the shield is off. */
 const ATMOSPHERE_VERTEX = /* glsl */ `
   varying vec3 vNormalW;
@@ -1175,6 +1268,8 @@ const AURORA_FRAGMENT = /* glsl */ `
 /**
  * Solar-wind / CME / erosion particles. Everything is derived from the four
  * per-particle attributes and the uniforms, so the CPU never touches positions.
+ * `uPhase` is the integrated flow distance, so a changing wind speed changes how fast
+ * the stream moves, never which way.
  * Deflection: the transverse radius follows ρ(x) = √(ρ∞² + ρ_mp(x + Δ)²), which
  * can never enter the magnetopause and starts bending at the bow shock (Δ).
  */
@@ -1185,7 +1280,7 @@ const PARTICLE_VERTEX = /* glsl */ `
   attribute float aDepth;
 
   uniform float uTime;
-  uniform float uRate;
+  uniform float uPhase;
   uniform float uStartX;
   uniform float uLength;
   uniform float uR0;
@@ -1219,7 +1314,7 @@ const PARTICLE_VERTEX = /* glsl */ `
     vSheath = 0.0;
     if (uMode == 2) {
       // atmospheric erosion: escape from the sunlit hemisphere, then blow downwind
-      float s = fract(aSeed + uTime * uRate);
+      float s = fract(aSeed + uPhase);
       float sn = sin(aRho);
       vec3 dir = vec3(cos(aRho), sn * cos(aPhi), sn * sin(aPhi));
       float travel = s * s;
@@ -1233,7 +1328,7 @@ const PARTICLE_VERTEX = /* glsl */ `
         float lag = aRho / 20.0;
         x = uCmeX - aDepth * 14.0 - lag * lag * 9.0;   // convex leading edge
       } else {
-        float s = fract(aSeed + uTime * uRate * (0.85 + 0.3 * aDepth));
+        float s = fract(aSeed + uPhase * (0.85 + 0.3 * aDepth));
         x = uStartX - s * uLength;
         edgeFade = smoothstep(0.0, 0.06, s) * smoothstep(1.0, 0.94, s); // hide the recycling planes
       }
