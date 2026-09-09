@@ -655,7 +655,6 @@ export default function mount(container, meta) {
     panel.setCameraView(cameraMode, { announce });
   }
 
-  // the way back from any storm, so it stays in reach without opening the view section
   const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
   const resetRow = el('div', 'lp-button-row lp-button-row--full');
   resetRow.append(resetBtn.el);
@@ -663,7 +662,7 @@ export default function mount(container, meta) {
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
     cameraRow,
-    toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora, labelsToggle,
+    toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora, labelsToggle, resetRow,
   );
 
   // --- readouts: what that wind does to the magnetosphere -----------------------------------------
@@ -698,7 +697,7 @@ export default function mount(container, meta) {
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
-    fieldRow, fieldOffNotice, densitySlider, speedSlider, cmeRow, moreControls, resetRow,
+    fieldRow, fieldOffNotice, densitySlider, speedSlider, cmeRow, moreControls,
     bindText(el('p', 'lp-subheading'), `${KEYS}.storm.title`), stormReadout, stormFacts,
     legend, infoCard, physicsCard,
   );
