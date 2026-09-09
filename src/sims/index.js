@@ -49,7 +49,6 @@ export const simulations = [
     descriptionKey: 'sims.magnetosphere.description',
     icon: '🧲',
     load: () => import('./magnetosphere/index.js'),
-    hidden: true, // work in progress – only listed when the header toggle is on
   },
 ];
 
