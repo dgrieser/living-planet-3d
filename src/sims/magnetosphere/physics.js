@@ -386,3 +386,302 @@ export function magnetosphereState(densityCm3, speedKmS, { fieldOn = true, bzNT 
     env,
   };
 }
+
+// =============================================================================================
+// the unshielded Earth – what the wind does once the field is gone
+// =============================================================================================
+/*
+ * Everything below describes the planet after the switch: how fast the solar wind can
+ * strip the atmosphere, what the thinning air does to the climate, and what is left when
+ * it is gone. The picture in index.js is driven from these numbers alone.
+ *
+ * What is real and what is schematic
+ * - The escape budget is energy-limited: the kinetic-energy flux of the wind that the
+ *   planet intercepts, times an efficiency, pays for lifting gas out of the gravity well
+ *   (Watson et al. 1981 for the energy-limited argument; Zendejas et al. 2010 for the
+ *   solar-wind version). The efficiency is calibrated so that the quiet wind gives the
+ *   ≈ 1–2 kg/s measured today at Venus, Earth and Mars alike (Gunell et al. 2018) – which
+ *   is also why the honest answer for the quiet wind is "longer than the Sun will live".
+ *   A stronger wind strips faster as n·v³, so the sliders matter a great deal.
+ * - The climate is a grey atmosphere whose optical depth grows as √P (calibrated to the
+ *   logarithmic CO₂ forcing and the pressure-broadening result of Goldblatt et al. 2009
+ *   that doubling N₂ warms by ≈ 4 K) coupled to the Budyko/North one-dimensional ice line
+ *   with the ice–albedo feedback. It reproduces today's 288 K and ≈ 70° ice line, and
+ *   freezes the planet over once roughly three quarters of the air are gone.
+ * - Below the triple point of water (6.1 hPa) ice can no longer melt, only sublimate: the
+ *   sunlit low latitudes lose their ice to the polar cold traps, as on Mars. The cap
+ *   extent, the migration time and the reddening of the dry surface are order-of-
+ *   magnitude choices, labelled schematic in the UI.
+ */
+export const G = 6.674e-11; // m³ kg⁻¹ s⁻²
+export const SIGMA = 5.670374e-8; // W m⁻² K⁻⁴
+export const SOLAR_CONSTANT = 1361; // W/m²
+export const YEAR_SECONDS = 3.15576e7;
+export const EARTH_MASS = 5.972e24; // kg
+export const ATMOSPHERE_MASS = 5.15e18; // kg
+export const OCEAN_MASS = 1.35e21; // kg – all of it, ≈ 260 atmospheres' worth
+export const SEA_LEVEL_PRESSURE_HPA = 1013.25;
+export const TRIPLE_POINT_HPA = 6.117; // below this liquid water cannot exist
+export const SCALE_HEIGHT_KM = 7.8; // barometric scale height used for the "like … m altitude" readout
+export const SUN_REMAINING_YR = 5e9; // main-sequence life left – the clock keeps running, the caveat appears
+
+export const ESCAPE = Object.freeze({
+  efficiency: 0.0025, // fraction of the intercepted kinetic-energy flux that ends up lifting gas
+  exobaseAltitudeKm: 500, // radius of the obstacle the wind actually hits
+});
+
+export const CLIMATE = Object.freeze({
+  albedoOpen: 0.2884, // ice-free surface + clouds; calibrated so today's fixed point is A = 0.30
+  albedoIce: 0.6084, // planetary albedo of a fully frozen world
+  tau0: 0.85, // grey optical depth today: (288/254.6)⁴ = 1 + ¾τ₀
+  tauExponent: 0.5, // τ ∝ P^½ – logarithmic-like forcing plus pressure broadening
+  iceThresholdC: -10, // Budyko: the ice line sits where the annual mean is −10 °C
+  meridionalT2: -28, // North (1975): T(x) = T_m + T₂·P₂(x), x = sin φ
+  iterations: 80,
+  damping: 0.5,
+});
+
+export const AIRLESS = Object.freeze({
+  albedoGround: 0.2, // bare rock, dry basins
+  albedoIce: 0.6,
+  capLatDeg: 55, // where the polar caps end while the whole ocean is still there (flow vs. sublimation)
+  capLatDryDeg: 84, // …and when nearly all of it has been lost
+  migrationYr: 1e6, // low-latitude ice → polar cold traps (mm–m per year, so geologically instant)
+  rustYr: 1.5e9, // e-folding time of the oxidation / space-weathering of the bare surface
+  noonFactor: 0.9, // thermal lag of a 24-h rotator below the instantaneous subsolar temperature
+  nightDropK: 45, // how far a rock surface cools below its mean during a 12-h night
+});
+
+export const CLOCK = Object.freeze({
+  maxYr: 1e11, // the scrub range and the cap for the running clock
+  timeLapse: { minMyrPerS: 1, maxMyrPerS: 1000, defaultMyrPerS: 100 },
+});
+
+const TODAY_ICE_LINE = { x: 0 }; // filled in below once the model exists
+
+// ---------- energy-limited escape ------------------------------------------------------------
+/** Kinetic-energy flux of the wind, ½ρv³, in W/m². */
+export function kineticEnergyFlux(densityCm3, speedKmS) {
+  const v = Math.max(speedKmS, 0) * 1e3;
+  return 0.5 * massDensity(densityCm3) * v * v * v;
+}
+
+/** Radius of the obstacle the wind hits when there is no magnetosphere, in metres. */
+export function exobaseRadius() {
+  return EARTH.radius + ESCAPE.exobaseAltitudeKm * 1e3;
+}
+
+/** Wind power intercepted by the unshielded planet, in watts. */
+export function interceptedPower(densityCm3, speedKmS) {
+  const r = exobaseRadius();
+  return kineticEnergyFlux(densityCm3, speedKmS) * Math.PI * r * r;
+}
+
+/** Energy needed to lift one kilogram from the exobase to infinity, J/kg. */
+export function escapeEnergyPerKg() {
+  return (G * EARTH_MASS) / exobaseRadius();
+}
+
+/**
+ * Energy-limited mass-loss rate in kg/s: ε · ½ρv³ · πR² / (GM/R).
+ * ≈ 1.7 kg/s for the quiet wind, ≈ 4 t/s for 100 cm⁻³ at 2000 km/s.
+ */
+export function escapeRateKgS(densityCm3, speedKmS) {
+  return (ESCAPE.efficiency * interceptedPower(densityCm3, speedKmS)) / escapeEnergyPerKg();
+}
+
+/** Years until the whole atmosphere is gone at a constant rate (Infinity for no wind). */
+export function atmosphereLifetimeYr(rateKgS) {
+  if (rateKgS <= 0) return Infinity;
+  return ATMOSPHERE_MASS / rateKgS / YEAR_SECONDS;
+}
+
+/** Fraction of the atmosphere at which the surface pressure drops below the triple point. */
+export const TRIPLE_POINT_FRACTION = TRIPLE_POINT_HPA / SEA_LEVEL_PRESSURE_HPA;
+
+// ---------- the thinning atmosphere ------------------------------------------------------------
+/** Mass still in the air, as a fraction of today's, after `lostKg` have been carried off. */
+export function atmosphereFraction(lostKg) {
+  return clamp(1 - Math.max(lostKg, 0) / ATMOSPHERE_MASS, 0, 1);
+}
+
+/** Fraction of the ocean left once the air is gone and the water starts to go. */
+export function waterFraction(lostKg) {
+  return clamp(1 - Math.max(lostKg - ATMOSPHERE_MASS, 0) / OCEAN_MASS, 0, 1);
+}
+
+/** Altitude on today's Earth with the same pressure, in metres (barometric formula). */
+export function equivalentAltitudeM(fraction) {
+  if (fraction <= 0) return Infinity;
+  return Math.max(0, -SCALE_HEIGHT_KM * 1e3 * Math.log(fraction));
+}
+
+/** How the air feels: 'fine' below 3 km, 'thin' up to Everest, 'deathZone' beyond, 'none' in vacuum. */
+export function breathability(fraction) {
+  if (fraction < TRIPLE_POINT_FRACTION * 2) return 'none';
+  const h = equivalentAltitudeM(fraction);
+  if (h < 3000) return 'fine';
+  if (h < 8000) return 'thin';
+  return 'deathZone';
+}
+
+// ---------- climate: grey greenhouse + Budyko ice line ---------------------------------------
+/** Effective (emission) temperature for a planetary albedo A, K. */
+export function effectiveTemperature(albedo) {
+  return Math.pow((SOLAR_CONSTANT * (1 - albedo)) / (4 * SIGMA), 0.25);
+}
+
+/** Grey-atmosphere surface temperature: T_s⁴ = T_e⁴·(1 + ¾τ), τ = τ₀·f^k. */
+export function greenhouseSurfaceTemperature(effectiveK, fraction) {
+  const tau = CLIMATE.tau0 * Math.pow(clamp(fraction, 0, 1), CLIMATE.tauExponent);
+  return effectiveK * Math.pow(1 + 0.75 * tau, 0.25);
+}
+
+/**
+ * sin(latitude) of the ice line for a global mean T_m (°C): the latitude where
+ * T_m + T₂·(3x² − 1)/2 = −10 °C. 1 means ice-free, 0 means frozen to the equator.
+ */
+export function iceLineSin(meanC) {
+  const p2 = (meanC - CLIMATE.iceThresholdC) / -CLIMATE.meridionalT2; // required (3x²−1)/2
+  const x2 = (1 + 2 * p2) / 3;
+  if (x2 <= 0) return 0;
+  return Math.min(Math.sqrt(x2), 1);
+}
+
+/** Planetary albedo for an ice line at x = sin φ: area fraction poleward of it is 1 − x per hemisphere. */
+export function planetaryAlbedo(iceSin) {
+  const frozenArea = 1 - clamp(iceSin, 0, 1);
+  return CLIMATE.albedoOpen + (CLIMATE.albedoIce - CLIMATE.albedoOpen) * frozenArea;
+}
+
+/**
+ * Fixed point of greenhouse + ice–albedo feedback for an atmosphere fraction f.
+ * Always iterated from today's warm state, so the result is a function of f alone.
+ */
+export function climateState(fraction) {
+  let meanK = 288;
+  for (let i = 0; i < CLIMATE.iterations; i++) {
+    const x = iceLineSin(meanK - 273.15);
+    const next = greenhouseSurfaceTemperature(effectiveTemperature(planetaryAlbedo(x)), fraction);
+    meanK += CLIMATE.damping * (next - meanK);
+  }
+  const iceSin = iceLineSin(meanK - 273.15);
+  return {
+    meanK,
+    meanC: meanK - 273.15,
+    iceSin,
+    iceLineLatDeg: (Math.asin(iceSin) * 180) / Math.PI,
+    frozenArea: 1 - iceSin,
+    albedo: planetaryAlbedo(iceSin),
+    snowball: iceSin <= 1e-6,
+  };
+}
+
+TODAY_ICE_LINE.x = climateState(1).iceSin;
+/** sin(latitude) of today's ice line in the model (≈ 0.96, i.e. ≈ 74°). */
+export const TODAY_ICE_SIN = TODAY_ICE_LINE.x;
+
+// ---------- the airless world ----------------------------------------------------------------
+/** Latitude where the polar caps begin, for a remaining water fraction w (schematic). */
+export function capLatitudeDeg(waterFrac) {
+  const w = clamp(waterFrac, 0, 1);
+  if (w <= 0) return 90;
+  // thickness → extent: the caps shrink poleward as the inventory goes, and vanish with it
+  return AIRLESS.capLatDeg + (AIRLESS.capLatDryDeg - AIRLESS.capLatDeg) * (1 - Math.pow(w, 0.4));
+}
+
+/** Rough surface temperatures of a bare, airless Earth at the equator, K. */
+export function airlessTemperatures(capLatDeg) {
+  const capArea = 1 - Math.sin((clamp(capLatDeg, 0, 90) * Math.PI) / 180);
+  const albedo = AIRLESS.albedoGround + (AIRLESS.albedoIce - AIRLESS.albedoGround) * capArea;
+  const subsolar = Math.pow((SOLAR_CONSTANT * (1 - AIRLESS.albedoGround)) / SIGMA, 0.25);
+  const equatorMean = Math.pow((SOLAR_CONSTANT * (1 - AIRLESS.albedoGround)) / (Math.PI * SIGMA), 0.25);
+  return {
+    albedo,
+    meanK: effectiveTemperature(albedo),
+    noonK: AIRLESS.noonFactor * subsolar,
+    nightK: equatorMean - AIRLESS.nightDropK,
+  };
+}
+
+/** Progress 0…1 of the low-latitude ice moving to the poles, `airlessYr` after the air went. */
+export function migrationProgress(airlessYr) {
+  return smoothstep(0, AIRLESS.migrationYr, Math.max(airlessYr, 0));
+}
+
+/** How rusty and space-weathered the bare surface has become, 0…1. */
+export function rustProgress(airlessYr) {
+  return 1 - Math.exp(-Math.max(airlessYr, 0) / AIRLESS.rustYr);
+}
+
+// ---------- the timeline -------------------------------------------------------------------------
+/**
+ * Advance the integrated state by `dtYr` years of a wind that strips `rateKgS`.
+ * `airlessYr` only counts once the pressure is below the triple point.
+ */
+export function advanceUnshielded(state, rateKgS, dtYr) {
+  const elapsedYr = Math.min(state.elapsedYr + Math.max(dtYr, 0), CLOCK.maxYr);
+  const applied = elapsedYr - state.elapsedYr;
+  const lostKg = Math.min(state.lostKg + Math.max(rateKgS, 0) * applied * YEAR_SECONDS, ATMOSPHERE_MASS + OCEAN_MASS);
+  const before = atmosphereFraction(state.lostKg);
+  const after = atmosphereFraction(lostKg);
+  let below = 0; // share of the step spent below the triple point
+  if (before <= TRIPLE_POINT_FRACTION) below = 1;
+  else if (after < TRIPLE_POINT_FRACTION) below = (TRIPLE_POINT_FRACTION - after) / (before - after);
+  return { elapsedYr, lostKg, airlessYr: state.airlessYr + applied * below };
+}
+
+/** The state after `elapsedYr` years of a *constant* wind – used when the clock is scrubbed. */
+export function historyAtConstantWind(rateKgS, elapsedYr) {
+  const yr = clamp(elapsedYr, 0, CLOCK.maxYr);
+  const lostKg = Math.min(rateKgS * yr * YEAR_SECONDS, ATMOSPHERE_MASS + OCEAN_MASS);
+  const tripleYr = rateKgS > 0 ? (ATMOSPHERE_MASS * (1 - TRIPLE_POINT_FRACTION)) / rateKgS / YEAR_SECONDS : Infinity;
+  return { elapsedYr: yr, lostKg, airlessYr: Math.max(0, yr - tripleYr) };
+}
+
+/**
+ * Everything the panel and the picture need about the unshielded planet.
+ * @param {{ elapsedYr: number, lostKg: number, airlessYr: number }} state
+ * @param {number} densityCm3 steady wind (the CME sheath lasts a day and is not integrated)
+ * @param {number} speedKmS
+ */
+export function unshieldedState(state, densityCm3, speedKmS) {
+  const fraction = atmosphereFraction(state.lostKg);
+  const water = waterFraction(state.lostKg);
+  const climate = climateState(fraction);
+  const airless = fraction <= TRIPLE_POINT_FRACTION;
+  const migration = airless ? migrationProgress(state.airlessYr) : 0;
+  const capLatDeg = capLatitudeDeg(water);
+  const bare = airlessTemperatures(capLatDeg);
+  const rate = escapeRateKgS(densityCm3, speedKmS);
+  let stage = 'intact';
+  if (airless) stage = migration >= 0.999 ? 'airless' : 'sublimating';
+  else if (climate.snowball) stage = 'snowball';
+  else if (climate.iceLineLatDeg < 60) stage = 'iceAge';
+  else if (fraction < 0.97) stage = 'thinning';
+  // the mean temperature hands over from the ice-line model to the bare-rock world as the ice migrates
+  const meanK = climate.meanK + (bare.meanK - climate.meanK) * migration;
+  return {
+    elapsedYr: state.elapsedYr,
+    lostKg: state.lostKg,
+    airlessYr: state.airlessYr,
+    fraction,
+    pressureHPa: fraction * SEA_LEVEL_PRESSURE_HPA,
+    altitudeM: equivalentAltitudeM(fraction),
+    breathability: breathability(fraction),
+    water,
+    airless,
+    climate,
+    meanK,
+    meanC: meanK - 273.15,
+    migration,
+    rust: airless ? rustProgress(state.airlessYr) : 0,
+    capLatDeg,
+    bare,
+    rateKgS: rate,
+    lifetimeYr: atmosphereLifetimeYr(rate),
+    remainingYr: rate > 0 ? (fraction * ATMOSPHERE_MASS) / rate / YEAR_SECONDS : Infinity,
+    stage,
+    beyondSun: state.elapsedYr > SUN_REMAINING_YR,
+  };
+}

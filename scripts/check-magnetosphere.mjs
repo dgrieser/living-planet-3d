@@ -3,7 +3,9 @@
 // magnetopause standoff distances and their scaling with the wind, the
 // paraboloid fits for the boundary surfaces, dipole field-line geometry, the
 // containment/stretching properties of the field-line deformation, the
-// Kp-style index, the aurora viewline and the CME envelope.
+// Kp-style index, the aurora viewline and the CME envelope – and the unshielded run:
+// energy-limited stripping, the grey greenhouse + Budyko ice line, the triple point and
+// the timeline helpers.
 import * as P from '../src/sims/magnetosphere/physics.js';
 
 let failed = 0;
@@ -351,6 +353,98 @@ assert('switching the field off reports no shield', (() => {
   const off = P.magnetosphereState(5, 400, { fieldOn: false });
   return off.level === 'unshielded' && off.kp === 0 && off.auroraIntensity === 0 && off.geosyncExposed;
 })());
+
+console.log('— unshielded Earth: energy-limited stripping —');
+const quietRate = P.escapeRateKgS(5, 400);
+checkRel('kinetic-energy flux of the quiet wind (W/m²)', P.kineticEnergyFlux(5, 400), 2.676e-4, 0.01);
+checkRel('escape energy from the exobase (MJ/kg)', P.escapeEnergyPerKg() / 1e6, 58.0, 0.01);
+between('quiet-wind stripping rate matches the measured ≈ 1–2 kg/s (Gunell et al. 2018)', quietRate, 0.5, 2);
+checkRel('quiet-wind rate (kg/s)', quietRate, 1.71, 0.02);
+between('quiet wind needs ≈ 100 Gyr for the whole atmosphere', P.atmosphereLifetimeYr(quietRate) / 1e9, 80, 120);
+check('rate scales with n·v³ (density)', P.escapeRateKgS(10, 400) / quietRate, 2, 1e-9);
+check('rate scales with n·v³ (speed)', P.escapeRateKgS(5, 800) / quietRate, 8, 1e-9);
+between('extreme wind strips ≈ 4 t/s', P.escapeRateKgS(100, 2000), 4000, 4600);
+between('extreme wind strips the atmosphere in tens of Myr', P.atmosphereLifetimeYr(P.escapeRateKgS(100, 2000)) / 1e6, 30, 50);
+check('no wind, no loss', P.escapeRateKgS(0, 400), 0, 0);
+assert('no wind means the atmosphere lasts forever', P.atmosphereLifetimeYr(0) === Infinity);
+
+console.log('— unshielded Earth: the thinning air —');
+check('nothing lost → full atmosphere', P.atmosphereFraction(0), 1, 0);
+check('all of it lost → none left', P.atmosphereFraction(P.ATMOSPHERE_MASS), 0, 0);
+check('the ocean only starts to go once the air is gone', P.waterFraction(P.ATMOSPHERE_MASS * 0.9), 1, 0);
+checkRel('half the ocean gone', P.waterFraction(P.ATMOSPHERE_MASS + P.OCEAN_MASS / 2), 0.5, 1e-9);
+checkRel('triple point is 0.6 % of today\'s pressure', P.TRIPLE_POINT_FRACTION, 0.00604, 0.01);
+between('half the air feels like ≈ 5.5 km altitude', P.equivalentAltitudeM(0.5), 5000, 5800);
+between('a third of the air is Everest', P.equivalentAltitudeM(0.31), 8500, 9400);
+assert('breathability tiers', P.breathability(1) === 'fine' && P.breathability(0.5) === 'thin' && P.breathability(0.3) === 'deathZone' && P.breathability(0.005) === 'none');
+
+console.log('— unshielded Earth: climate —');
+const today = P.climateState(1);
+checkRel('effective temperature for A = 0.30 (K)', P.effectiveTemperature(0.3), 254.6, 0.005);
+check('today\'s mean surface temperature (K)', today.meanK, 288, 0.5);
+between('today\'s ice line sits at ≈ 70–75°', today.iceLineLatDeg, 68, 76);
+check('today\'s planetary albedo is 0.30', today.albedo, 0.30, 0.005);
+assert('today is not a snowball', !today.snowball);
+between('half the air cools the world to about 0 °C', P.climateState(0.5).meanC, -6, 3);
+between('half the air moves the ice line to ≈ 45–55°', P.climateState(0.5).iceLineLatDeg, 40, 56);
+assert('a fifth of the air is a snowball Earth', P.climateState(0.2).snowball);
+between('the snowball sits near −40 °C', P.climateState(0.2).meanC, -45, -32);
+between('the bare, airless world is what the Sun alone gives (K)', P.climateState(0).meanK, 218, 224);
+assert('temperature and ice line fall monotonically as the air goes', (() => {
+  let prevT = Infinity;
+  let prevIce = Infinity;
+  for (let f = 1; f >= 0; f -= 0.01) {
+    const c = P.climateState(f);
+    if (c.meanK > prevT + 1e-6 || c.iceLineLatDeg > prevIce + 1e-6) return false;
+    prevT = c.meanK;
+    prevIce = c.iceLineLatDeg;
+  }
+  return true;
+})());
+assert('the ice line is 1 for a warm world and 0 for a frozen one', P.iceLineSin(20) === 1 && P.iceLineSin(-30) === 0);
+checkRel('ice line for today\'s 15 °C mean (sin φ)', P.iceLineSin(15), 0.9636, 0.001);
+
+console.log('— unshielded Earth: the airless world —');
+const bare = P.airlessTemperatures(P.capLatitudeDeg(1));
+between('airless equatorial noon (°C)', bare.noonK - 273.15, 50, 75);
+between('airless equatorial night (°C)', bare.nightK - 273.15, -60, -25);
+between('airless global mean (°C)', bare.meanK - 273.15, -25, -8);
+check('polar caps reach 55° while the ocean is all there', P.capLatitudeDeg(1), P.AIRLESS.capLatDeg, 1e-12);
+check('no water, no caps', P.capLatitudeDeg(0), 90, 0);
+assert('the caps retreat poleward as the water goes', P.capLatitudeDeg(0.5) > P.capLatitudeDeg(1) && P.capLatitudeDeg(0.05) > P.capLatitudeDeg(0.5));
+assert('the ice has moved to the poles within 1 Myr', P.migrationProgress(0) === 0 && P.migrationProgress(P.AIRLESS.migrationYr) === 1);
+checkRel('one e-folding time of rust', P.rustProgress(P.AIRLESS.rustYr), 1 - Math.exp(-1), 1e-9);
+
+console.log('— unshielded Earth: timeline —');
+const extremeRate = P.escapeRateKgS(100, 2000);
+assert('integrating the clock in steps matches the constant-wind history', (() => {
+  let st = { elapsedYr: 0, lostKg: 0, airlessYr: 0 };
+  for (let i = 0; i < 400; i++) st = P.advanceUnshielded(st, extremeRate, 2.5e5);
+  const h = P.historyAtConstantWind(extremeRate, 1e8);
+  return Math.abs(st.lostKg - h.lostKg) / h.lostKg < 1e-9 && Math.abs(st.airlessYr - h.airlessYr) / h.airlessYr < 1e-6 && st.elapsedYr === h.elapsedYr;
+})());
+assert('the airless clock only counts below the triple point', P.historyAtConstantWind(extremeRate, 1e7).airlessYr === 0 && P.historyAtConstantWind(extremeRate, 5e7).airlessYr > 0);
+assert('the clock is capped', P.advanceUnshielded({ elapsedYr: P.CLOCK.maxYr - 1, lostKg: 0, airlessYr: 0 }, 0, 1e9).elapsedYr === P.CLOCK.maxYr);
+assert('the stages come in the right order under the extreme wind', (() => {
+  const order = ['intact', 'thinning', 'iceAge', 'snowball', 'sublimating', 'airless'];
+  let last = -1;
+  const seen = new Set();
+  for (let yr = 0; yr <= 2e8; yr += 1e5) {
+    const w = P.unshieldedState(P.historyAtConstantWind(extremeRate, yr), 100, 2000);
+    const idx = order.indexOf(w.stage);
+    if (idx < last) return false;
+    last = idx;
+    seen.add(w.stage);
+  }
+  return seen.size === order.length;
+})());
+const quietRun = P.unshieldedState(P.historyAtConstantWind(quietRate, 1e9), 5, 400);
+between('a billion years of the quiet wind takes only ≈ 1 % of the air', (1 - quietRun.fraction) * 100, 0.8, 1.3);
+assert('…and leaves the planet intact', quietRun.stage === 'intact' && !quietRun.airless);
+const late = P.unshieldedState(P.historyAtConstantWind(extremeRate, 1e10), 100, 2000);
+assert('ten billion years of the extreme wind take the ocean too', late.airless && late.water < 0.05 && late.beyondSun && late.capLatDeg > 75);
+const start = P.unshieldedState({ elapsedYr: 0, lostKg: 0, airlessYr: 0 }, 5, 400);
+assert('at the switch the readouts show today\'s Earth', start.stage === 'intact' && start.fraction === 1 && Math.abs(start.meanC - 14.85) < 0.6 && start.breathability === 'fine' && start.water === 1);
 
 console.log(failed === 0 ? '\nAll magnetosphere physics checks passed.' : `\n${failed} check(s) FAILED.`);
 process.exit(failed ? 1 : 0);
