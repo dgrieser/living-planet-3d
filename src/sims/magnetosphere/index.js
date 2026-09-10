@@ -17,6 +17,12 @@
  *    per-frame CPU cost is a few uniform writes.
  *  - The magnetopause and bow-shock paraboloids are also evaluated in a vertex
  *    shader from (u, v) parameters, so changing the wind never rebuilds geometry.
+ *  - With the field switched off a clock starts running in millions of years per
+ *    second: the wind strips the atmosphere at the energy-limited rate from
+ *    `physics.unshieldedState`, the planet cools and freezes over as the greenhouse
+ *    goes, and below the triple point the ice sublimates to the poles and leaves a
+ *    dry, Mars-like Earth. The Earth shader paints all of that from a handful of
+ *    eased uniforms; the physics never touches pixels.
  *
  * All quantitative work lives in ./physics.js; this module only maps it to pixels.
  */
@@ -86,7 +92,16 @@ const DEFAULTS = Object.freeze({
   density: P.DENSITY_RANGE.default,
   speed: P.SPEED_RANGE.default,
   fieldOn: true,
+  timeLapse: P.CLOCK.timeLapse.defaultMyrPerS, // Myr of the unshielded clock per second of scene time
 });
+
+/** The picture follows the model with this time constant (s), so a scrubbed clock does not pop. */
+const VISUAL_EASE = 0.45;
+/** Clock slider: 0 = the switch, then 1 Myr … 100 Gyr on a log scale. */
+const CLOCK_SLIDER_STEPS = 1000;
+const CLOCK_SLIDER_MIN_YR = 1e6;
+/** The dev hook and the readouts treat this as "the ice line has moved". */
+const NO_ICE_EDGE = 1.08;
 
 /** Display toggles – remembered per visitor, see ../../lib/prefs.js. */
 const VIEW_DEFAULTS = Object.freeze({
@@ -125,6 +140,13 @@ export default function mount(container, meta) {
   let cme = null; // { t, x, impacted, sinceImpact }
   let staticStorm = false; // reduced-motion fallback for the CME button
   let model = null;
+  // The unshielded Earth's clock: years since the switch, mass carried off, years below the triple point.
+  let unshielded = { elapsedYr: 0, lostKg: 0, airlessYr: 0 };
+  let scrubPointer = false; // the clock slider is being dragged – the running clock must not fight it
+  let scrubKeyAt = -Infinity;
+  // What the Earth shader currently shows; eased towards the model every frame.
+  const vis = { atm: 1, iceEdge: NO_ICE_EDGE, deep: 0, veg: 0, lights: 1, migrate: 0, capEdge: 1, rust: 0 };
+  const steadyRate = () => P.escapeRateKgS(state.density, state.speed);
 
   const viewport = el('div', 'lp-sim__viewport');
   container.append(viewport);
@@ -178,6 +200,16 @@ export default function mount(container, meta) {
       uMap: { value: dayPlaceholder },
       uNightMap: { value: nightPlaceholder },
       uSunPos: { value: new THREE.Vector3(SUN_SPRITE_DISTANCE, 0, 0) },
+      // the unshielded run – see `syncVisuals`
+      uAtm: { value: 1 },
+      uIceEdge: { value: NO_ICE_EDGE },
+      uDeep: { value: 0 },
+      uVeg: { value: 0 },
+      uLights: { value: 1 },
+      uMigrate: { value: 0 },
+      uCapEdge: { value: 1 },
+      uRust: { value: 0 },
+      uTime: { value: 0 },
     },
     vertexShader: EARTH_VERTEX,
     fragmentShader: EARTH_FRAGMENT,
@@ -391,6 +423,8 @@ export default function mount(container, meta) {
     else if (cme) phase = !cme.impacted ? 'incoming' : cme.sinceImpact < P.CME.riseSeconds + P.CME.holdSeconds ? 'impact' : 'decay';
     return {
       ...active,
+      // the stripping integrates the steady wind: a CME sheath lasts a day, which is nothing on this clock
+      world: P.unshieldedState(unshielded, state.density, state.speed),
       envelope,
       phase,
       cmeActive: phase !== 'none',
@@ -429,8 +463,23 @@ export default function mount(container, meta) {
     auroraMaterial.uniforms.uIntensity.value = m.auroraIntensity * (1 + 0.55 * m.envelope);
     auroraMaterial.uniforms.uTime.value = time;
 
-    // atmosphere reacts to unshielded impact
+    // the planet itself: what is left of the air, and what that did to the surface
+    const eu = earthMaterial.uniforms;
+    eu.uAtm.value = vis.atm;
+    eu.uIceEdge.value = vis.iceEdge;
+    eu.uDeep.value = vis.deep;
+    eu.uVeg.value = vis.veg;
+    eu.uLights.value = vis.lights;
+    eu.uMigrate.value = vis.migrate;
+    eu.uCapEdge.value = vis.capEdge;
+    eu.uRust.value = vis.rust;
+    eu.uTime.value = time;
+    // the shell thins with the air; it glows hot only while there is air for the wind to hit
     atmosphereMaterial.uniforms.uErosion.value = shield ? 0 : 1;
+    atmosphereMaterial.uniforms.uOpacity.value = Math.pow(vis.atm, 0.6);
+    atmosphere.visible = vis.atm > 0.01;
+    atmosphere.scale.setScalar((EARTH_RADIUS + (ATMOSPHERE_RADIUS - EARTH_RADIUS) * (0.35 + 0.65 * vis.atm)) / ATMOSPHERE_RADIUS);
+    const absorbRadius = EARTH_RADIUS + (ATMOSPHERE_RADIUS - EARTH_RADIUS) * vis.atm;
 
     // particles – positions come from the phases integrated in `frame`, never from `time × rate`
     for (const sys of [wind, cmeCloud, erosion]) {
@@ -440,6 +489,7 @@ export default function mount(container, meta) {
       u.uC.value = c;
       u.uBsNose.value = bsNose;
       u.uFieldOn.value = shield ? 1 : 0;
+      u.uAtmR.value = absorbRadius;
     }
     wind.uniforms.uPhase.value = windPhase;
     wind.uniforms.uOpacity.value = clamp(0.4 + 0.5 * Math.min(m.density / 30, 1), 0.4, 0.9);
@@ -450,8 +500,10 @@ export default function mount(container, meta) {
     cmeCloud.points.visible = m.cmeOpacity > 0.01;
 
     erosion.uniforms.uPhase.value = erosionPhase;
-    erosion.uniforms.uOpacity.value = shield ? 0 : clamp(0.25 + 0.75 * Math.min(m.pressureRatio, 3) / 3, 0.25, 1);
-    erosion.points.visible = !shield;
+    // the plume dwindles with the air; once it is gone only the sublimating ice still feeds it
+    const plume = vis.atm + (1 - vis.atm) * 0.08 * m.world.water;
+    erosion.uniforms.uOpacity.value = shield ? 0 : clamp(0.25 + 0.75 * Math.min(m.pressureRatio, 3) / 3, 0.25, 1) * plume;
+    erosion.points.visible = !shield && plume > 0.005;
 
     // labels
     const showLabels = state.showLabels;
@@ -480,8 +532,36 @@ export default function mount(container, meta) {
     }
   }
 
+  /**
+   * Targets for the Earth shader from the unshielded state. The ice edge is remapped so
+   * that today's ice line adds nothing to the texture (which already has its polar ice) and
+   * a snowball freezes the equator too.
+   */
+  function visualTargets(w) {
+    const iceShare = clamp(w.climate.iceSin / P.TODAY_ICE_SIN, 0, 1);
+    return {
+      atm: w.fraction,
+      iceEdge: -0.22 + (NO_ICE_EDGE + 0.22) * iceShare,
+      deep: clamp((P.CLIMATE.iceThresholdC - w.climate.meanC) / 35, 0, 1),
+      // plants starve of CO₂ as the air goes, and freeze before that if the cold comes first
+      veg: Math.max(P.smoothstep(0.65, 0.3, w.fraction), P.smoothstep(8, -5, w.climate.meanC)),
+      // the lights go out between "Everest base camp" and "the death zone", or when the world freezes
+      lights: P.smoothstep(0.32, 0.6, w.fraction) * P.smoothstep(-22, -6, w.climate.meanC),
+      migrate: w.migration,
+      capEdge: Math.sin(w.capLatDeg * DEG),
+      rust: w.rust,
+    };
+  }
+  /** Ease the picture towards the model; `dt = null` snaps (start-up, reset, reduced motion). */
+  function syncVisuals(dt) {
+    const target = visualTargets(model.world);
+    const k = dt === null ? 1 : 1 - Math.exp(-dt / VISUAL_EASE);
+    for (const key of Object.keys(vis)) vis[key] += (target[key] - vis[key]) * k;
+  }
+
   function refresh() {
     model = derive();
+    if (sim.reducedMotion) syncVisuals(null);
     applyModel();
     updateOverlay();
     updateReadouts(true);
@@ -543,7 +623,13 @@ export default function mount(container, meta) {
         }
       }
     }
+    if (!state.fieldOn) {
+      // the unshielded clock: Myr per second of scene time, stripping at the steady wind's rate
+      unshielded = P.advanceUnshielded(unshielded, steadyRate(), dt * state.timeLapse * 1e6);
+      syncClockSlider();
+    }
     model = derive();
+    syncVisuals(dt);
     // integrate the flow: the speed sets how fast, the sign never changes
     windPhase += dt * WIND_BASE_RATE * (model.speed / P.WIND_NOMINAL.speed);
     erosionPhase += dt * EROSION_BASE_RATE * (model.speed / P.WIND_NOMINAL.speed);
@@ -577,6 +663,24 @@ export default function mount(container, meta) {
     state.fieldOn = on;
     syncFieldButton();
     refresh();
+  }
+  function setTimeLapse(myrPerS, { fromSlider = false } = {}) {
+    const { minMyrPerS, maxMyrPerS } = P.CLOCK.timeLapse;
+    state.timeLapse = clamp(myrPerS, minMyrPerS, maxMyrPerS);
+    if (!fromSlider) timeLapseSlider.setValue(Math.log10(state.timeLapse), { silent: true });
+    updateReadouts(true);
+  }
+  /** Scrub the clock: the state is what a constant wind (the one set now) would have done in that time. */
+  function setElapsed(yr, { fromSlider = false } = {}) {
+    unshielded = P.historyAtConstantWind(steadyRate(), yr);
+    if (!fromSlider) syncClockSlider(true);
+    refresh();
+  }
+  function syncClockSlider(force = false) {
+    const scrubbing = scrubPointer || performance.now() - scrubKeyAt < 1500;
+    if (scrubbing && !force) return;
+    const u = sliderFromClock(unshielded.elapsedYr);
+    if (u !== clockSlider.value) clockSlider.setValue(u, { silent: true });
   }
   function launchCme() {
     if (sim.reducedMotion) {
@@ -628,6 +732,43 @@ export default function mount(container, meta) {
     decimals: 0,
     onChange: (v) => setSpeed(v, { fromSlider: true }),
   });
+
+  // --- the unshielded clock: how fast it runs, and where it stands ---------------------------------
+  const timeLapseSlider = createSlider({
+    labelKey: `${KEYS}.controls.timeLapse`,
+    min: Math.log10(P.CLOCK.timeLapse.minMyrPerS),
+    max: Math.log10(P.CLOCK.timeLapse.maxMyrPerS),
+    step: 0.05,
+    value: Math.log10(state.timeLapse),
+    format: (u) => t(`${KEYS}.controls.timeLapseValue`, { n: formatYears(Math.pow(10, u) * 1e6) }),
+    onChange: (u) => setTimeLapse(Math.pow(10, u), { fromSlider: true }),
+  });
+  const clockSlider = createSlider({
+    labelKey: `${KEYS}.controls.elapsed`,
+    min: 0,
+    max: CLOCK_SLIDER_STEPS,
+    step: 1,
+    value: 0,
+    format: (u) => formatYears(clockFromSlider(u)),
+    onChange: (u) => setElapsed(clockFromSlider(u), { fromSlider: true }),
+  });
+  clockSlider.input.addEventListener('pointerdown', () => {
+    scrubPointer = true;
+  });
+  const endScrub = () => {
+    scrubPointer = false;
+  };
+  window.addEventListener('pointerup', endScrub);
+  window.addEventListener('pointercancel', endScrub);
+  disposers.push(() => {
+    window.removeEventListener('pointerup', endScrub);
+    window.removeEventListener('pointercancel', endScrub);
+  });
+  clockSlider.input.addEventListener('keydown', () => {
+    scrubKeyAt = performance.now();
+  });
+  const clockControls = el('div', 'lp-clock');
+  clockControls.append(timeLapseSlider.el, clockSlider.el);
 
   const cmeButton = createButton({ labelKey: `${KEYS}.controls.launchCme`, icon: '☀', variant: 'primary', slim: true, onClick: launchCme });
   const cmeRow = el('div', 'lp-button-row lp-button-row--full');
@@ -694,10 +835,30 @@ export default function mount(container, meta) {
     [`${KEYS}.legend.erosion`, COLORS.erosion],
   ]);
 
+  // the unshielded Earth: how much air is left, what state the planet is in, and the numbers behind it
+  const worldSection = el('div', 'lp-world');
+  const worldReadout = el('div', 'lp-readout lp-readout--world');
+  const worldValue = el('div', 'lp-readout__value', { 'aria-live': 'off' });
+  const worldPill = el('span', 'lp-state');
+  const worldNote = el('span', 'lp-state lp-state--phase', { hidden: true });
+  worldReadout.append(bindText(el('div', 'lp-readout__label'), `${KEYS}.world.atmosphere`), worldValue, worldPill, worldNote);
+  const worldFacts = createFacts([
+    ['elapsed', `${KEYS}.world.elapsed`],
+    ['pressure', `${KEYS}.world.pressure`],
+    ['rate', `${KEYS}.world.rate`],
+    ['remaining', `${KEYS}.world.remaining`],
+    ['temp', `${KEYS}.world.temp`],
+    ['air', `${KEYS}.world.air`],
+    ['ice', `${KEYS}.world.ice`],
+    ['ocean', `${KEYS}.world.ocean`],
+  ]);
+  worldSection.append(bindText(el('p', 'lp-subheading'), `${KEYS}.world.title`), worldReadout, worldFacts.el);
+
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
-    fieldRow, fieldOffNotice, densitySlider, speedSlider, cmeRow, moreControls,
+    fieldRow, fieldOffNotice, clockControls, densitySlider, speedSlider, cmeRow, moreControls,
+    worldSection,
     bindText(el('p', 'lp-subheading'), `${KEYS}.storm.title`), stormReadout, stormFacts,
     legend, infoCard, physicsCard,
   );
@@ -719,9 +880,16 @@ export default function mount(container, meta) {
     fieldButton.el.classList.toggle('lp-button--primary', !state.fieldOn);
     fieldButton.el.classList.toggle('lp-button--ghost', state.fieldOn);
     fieldOffNotice.el.hidden = state.fieldOn;
+    clockControls.hidden = state.fieldOn;
+    syncWorldVisibility();
     toggles.showFieldLines.el.hidden = !state.fieldOn;
     toggles.showBoundaries.el.hidden = !state.fieldOn;
     toggles.showAurora.el.hidden = !state.fieldOn;
+  }
+
+  /** The unshielded readout stays while there is damage to show, even after the field is back on. */
+  function syncWorldVisibility() {
+    worldSection.hidden = state.fieldOn && unshielded.lostKg <= 0;
   }
 
   function syncCmeButton() {
@@ -739,11 +907,16 @@ export default function mount(container, meta) {
     windPhase = 0;
     erosionPhase = 0;
     earthSpin.rotation.y = 0;
+    unshielded = { elapsedYr: 0, lostKg: 0, airlessYr: 0 };
     densitySlider.setValue(state.density, { silent: true });
     speedSlider.setValue(state.speed, { silent: true });
+    timeLapseSlider.setValue(Math.log10(state.timeLapse), { silent: true });
+    syncClockSlider(true);
     syncFieldButton();
     syncCmeButton();
     setCamera('side');
+    model = derive();
+    syncVisuals(null);
     refresh();
   }
 
@@ -753,6 +926,7 @@ export default function mount(container, meta) {
   let lastReadoutKey = '';
   function updateReadouts(force = false) {
     const m = model;
+    const w = m.world;
     const key = [
       state.fieldOn,
       m.pressureNPa.toFixed(2),
@@ -762,9 +936,17 @@ export default function mount(container, meta) {
       m.level,
       m.speed.toFixed(0),
       m.density.toFixed(0),
+      w.stage,
+      w.fraction.toFixed(3),
+      w.elapsedYr.toPrecision(3),
+      w.meanC.toFixed(0),
+      w.water.toFixed(3),
+      w.capLatDeg.toFixed(0),
+      w.beyondSun,
     ].join('|');
     if (!force && key === lastReadoutKey) return;
     lastReadoutKey = key;
+    updateWorldReadouts(w);
 
     stormFacts.set('pressure', `${fmt(m.pressureNPa, m.pressureNPa < 10 ? 2 : 1, 1)} ${t('units.nanopascal')}`);
     stormFacts.set('ratio', `${fmt(m.pressureRatio, m.pressureRatio < 10 ? 1 : 0, 1)}×`);
@@ -791,6 +973,45 @@ export default function mount(container, meta) {
     if (m.phase !== 'none') stormPhase.textContent = t(`${KEYS}.storm.phase.${m.phase}`);
   }
 
+  function updateWorldReadouts(w) {
+    syncWorldVisibility();
+    if (worldSection.hidden) return;
+    const K = `${KEYS}.world`;
+    const pct = w.fraction * 100;
+    worldValue.textContent = `${fmt(pct, pct < 1 ? 2 : pct < 10 ? 1 : 0)} %`;
+    worldPill.textContent = t(`${K}.stage.${w.stage}`);
+    worldPill.className = `lp-state lp-state--world-${w.stage}`;
+    const note = state.fieldOn ? 'halted' : w.beyondSun ? 'beyondSun' : null;
+    worldNote.hidden = !note;
+    if (note) worldNote.textContent = t(`${K}.${note}`);
+    worldReadout.classList.toggle('is-airless', w.airless);
+
+    worldFacts.set('elapsed', formatYears(w.elapsedYr));
+    worldFacts.set('pressure', w.pressureHPa < 1 ? `${fmt(w.pressureHPa * 100, 1)} Pa` : `${fmt(w.pressureHPa, w.pressureHPa < 10 ? 1 : 0)} ${t('units.hectopascal')}`);
+    // with the field back on nothing is being stripped, so the rate rows go blank
+    worldFacts.set('rate', state.fieldOn ? '—' : formatRate(w.rateKgS));
+    worldFacts.set('remaining', w.airless ? t(`${K}.airGone`) : state.fieldOn ? '—' : w.remainingYr > P.CLOCK.maxYr ? `> ${formatYears(P.CLOCK.maxYr)}` : formatYears(w.remainingYr));
+    const degC = (k) => `${fmt(k - 273.15, 0)} ${t('units.celsius')}`;
+    worldFacts.set(
+      'temp',
+      w.airless && w.migration > 0.5
+        ? t(`${K}.tempAirless`, { mean: degC(w.meanK), noon: degC(w.bare.noonK), night: degC(w.bare.nightK) })
+        : t(`${K}.tempMean`, { mean: degC(w.meanK) }),
+    );
+    const altitude = fmt(Math.min(w.altitudeM, 99999), 0);
+    worldFacts.set('air', w.breathability === 'none' ? t(`${K}.airNone`) : t(`${K}.air${w.breathability[0].toUpperCase()}${w.breathability.slice(1)}`, { alt: altitude }));
+    if (w.airless) worldFacts.set('ice', t(`${K}.caps`, { lat: fmt(w.capLatDeg, 0) }));
+    else if (w.climate.snowball) worldFacts.set('ice', t(`${K}.frozenOver`));
+    else worldFacts.set('ice', t(`${K}.iceTo`, { lat: fmt(w.climate.iceLineLatDeg, 0) }));
+    let ocean;
+    if (!w.airless) ocean = t(`${K}.${w.climate.snowball ? 'oceanFrozen' : 'oceanLiquid'}`);
+    else if (w.migration < 0.999) ocean = t(`${K}.oceanMigrating`);
+    else ocean = t(`${K}.oceanCaps`);
+    const lost = (1 - w.water) * 100;
+    if (lost >= 0.05) ocean += ` · ${t(`${K}.waterLost`, { n: fmt(lost, lost < 10 ? 1 : 0) })}`;
+    worldFacts.set('ocean', ocean);
+  }
+
   // --- language ---------------------------------------------------------------------------------
   function syncLabelText() {
     labels.sun.setText(t(`${KEYS}.labels.sun`));
@@ -805,6 +1026,8 @@ export default function mount(container, meta) {
       syncLabelText();
       densitySlider.setValue(densitySlider.value, { silent: true });
       speedSlider.setValue(speedSlider.value, { silent: true });
+      timeLapseSlider.setValue(timeLapseSlider.value, { silent: true });
+      clockSlider.setValue(clockSlider.value, { silent: true });
       syncFieldButton();
       syncCmeButton();
       physicsCard.render();
@@ -816,6 +1039,7 @@ export default function mount(container, meta) {
   // --- go ----------------------------------------------------------------------------------------
   syncLabelText();
   model = derive();
+  syncVisuals(null);
   rebuildFieldLines({ ...model.env });
   syncFieldButton();
   syncCmeButton();
@@ -843,9 +1067,17 @@ export default function mount(container, meta) {
       get erosionPhase() {
         return erosionPhase;
       },
+      get unshielded() {
+        return unshielded;
+      },
+      get visuals() {
+        return vis;
+      },
       setDensity,
       setSpeed,
       setFieldOn,
+      setTimeLapse,
+      setElapsed,
       launchCme,
       setCamera,
       reset,
@@ -1055,11 +1287,11 @@ function createPhysicsCard() {
   summary.append(bindText(el('span', 'lp-info__title'), `${KEYS}.physics.title`));
   const body = el('div', 'lp-info__body');
   details.append(summary, body);
-  const entries = ['pressure', 'standoff', 'shue', 'shock', 'kp', 'aurora'];
+  const entries = ['pressure', 'standoff', 'shue', 'shock', 'kp', 'aurora', 'escape', 'greenhouse', 'iceLine', 'sublimation'];
   function render() {
     body.replaceChildren();
-    // the caveats behind the on-canvas storm index and the CME's scene timing
-    for (const key of [`${KEYS}.storm.schematic`, `${KEYS}.controls.cmeHint`]) {
+    // the caveats behind the on-canvas storm index, the CME's scene timing and the unshielded run
+    for (const key of [`${KEYS}.storm.schematic`, `${KEYS}.controls.cmeHint`, `${KEYS}.world.schematic`]) {
       const caveat = el('div', 'lp-notice lp-notice--info', { role: 'note' });
       caveat.textContent = t(key);
       body.append(caveat);
@@ -1086,6 +1318,41 @@ function createPhysicsCard() {
 function formatDuration(hours) {
   if (hours >= 48) return t(`${KEYS}.facts.days`, { n: formatNumber(hours / 24, { maximumFractionDigits: 1, minimumFractionDigits: 1 }) });
   return `${formatNumber(hours, { maximumFractionDigits: 1, minimumFractionDigits: 1 })} ${t('units.hours')}`;
+}
+
+/** Years on the geological clock: 0 yr, 12 kyr, 1.5 Myr, 4.6 Gyr – and ∞ for a wind that never gets there. */
+function formatYears(yr) {
+  if (!Number.isFinite(yr)) return '∞';
+  const steps = [
+    [1e9, 'units.gigayears'],
+    [1e6, 'units.millionYears'],
+    [1e3, 'units.kyr'],
+  ];
+  for (const [scale, unit] of steps) {
+    if (yr >= scale * 0.9995) {
+      const v = yr / scale;
+      return `${fmt(v, v < 10 ? 1 : 0)} ${t(unit)}`;
+    }
+  }
+  return `${fmt(yr, 0)} ${t('units.years')}`;
+}
+
+/** Mass-loss rate: kg/s up to a tonne, t/s beyond. */
+function formatRate(kgS) {
+  if (kgS >= 1000) return `${fmt(kgS / 1000, kgS < 1e4 ? 1 : 0)} ${t('units.tonnesPerSecond')}`;
+  return `${fmt(kgS, kgS < 10 ? 1 : 0)} ${t('units.kilogramsPerSecond')}`;
+}
+
+/** Log-scaled clock slider: 0 is the moment of the switch, then 1 Myr … 100 Gyr. */
+function clockFromSlider(u) {
+  if (u <= 0) return 0;
+  const decades = Math.log10(P.CLOCK.maxYr / CLOCK_SLIDER_MIN_YR);
+  return Math.pow(10, Math.log10(CLOCK_SLIDER_MIN_YR) + (decades * u) / CLOCK_SLIDER_STEPS);
+}
+function sliderFromClock(yr) {
+  if (yr < CLOCK_SLIDER_MIN_YR * 0.5) return 0;
+  const decades = Math.log10(P.CLOCK.maxYr / CLOCK_SLIDER_MIN_YR);
+  return clamp(Math.round((CLOCK_SLIDER_STEPS * (Math.log10(Math.max(yr, CLOCK_SLIDER_MIN_YR)) - Math.log10(CLOCK_SLIDER_MIN_YR))) / decades), 0, CLOCK_SLIDER_STEPS);
 }
 
 // ============================================================================================================
@@ -1153,17 +1420,56 @@ function createGlowTexture(size = 128) {
 // ============================================================================================================
 // shaders
 // ============================================================================================================
+/** Value noise shared by the Earth shader – the same construction the habitable-zone planet uses. */
+const NOISE_GLSL = /* glsl */ `
+  float hash(vec3 p) {
+    p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3));
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+  }
+  float noise(vec3 x) {
+    vec3 i = floor(x);
+    vec3 f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(mix(hash(i + vec3(0, 0, 0)), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
+      mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y),
+      f.z);
+  }
+  float fbm(vec3 p, int octaves) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 6; i++) {
+      if (i >= octaves) break;
+      v += a * noise(p);
+      p = p * 2.02 + vec3(1.7, 9.2, 3.1);
+      a *= 0.5;
+    }
+    return v;
+  }
+`;
+
 /**
  * Earth's surface: day map lit by the Sun, city lights on the night side and a soft
- * terminator between them. Identical treatment to the other simulations (axial-tilt),
- * so the same planet reads the same way wherever it turns up.
+ * terminator between them – identical to the other simulations while the shield is on.
+ *
+ * With the field off the same map is taken through the unshielded run, in the order the
+ * physics gives: the vegetation dies back to soil as the CO₂ goes (uVeg), ice grows from the
+ * poles behind a ragged front and thickens as the world freezes over (uIceEdge, uDeep), the
+ * lights go out (uLights), and once the air is below the triple point the ice between the caps
+ * sublimates away (uMigrate, uCapEdge) and leaves dry basins with salt in the deep ones and
+ * bare land that rusts and darkens over the aeons (uRust). The rim glow, the soft terminator
+ * and the blue night side all thin with the air (uAtm), so the airless world has the hard
+ * shadow line of the Moon. Ice is always a layer over the world that is there, never a swap.
  */
 const EARTH_VERTEX = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vWorldPos;
   varying vec3 vWorldNormal;
+  varying vec3 vLocal;
   void main() {
     vUv = uv;
+    vLocal = position;
     vec4 worldPos = modelMatrix * vec4(position, 1.0);
     vWorldPos = worldPos.xyz;
     vWorldNormal = normalize(mat3(modelMatrix) * normal);
@@ -1175,26 +1481,113 @@ const EARTH_FRAGMENT = /* glsl */ `
   uniform sampler2D uMap;
   uniform sampler2D uNightMap;   // city lights, night side only
   uniform vec3 uSunPos;
+  uniform float uAtm;      // air left, 0…1 – rim glow, terminator softness, night-side blue
+  uniform float uIceEdge;  // ice where |sin φ| (+ noise) exceeds this; ≥ 1.08 adds nothing, −0.22 freezes the equator
+  uniform float uDeep;     // 0…1 how far below −10 °C the world is – thicker, bluer ice
+  uniform float uVeg;      // 0 living vegetation … 1 dead
+  uniform float uLights;   // city lights 0…1
+  uniform float uMigrate;  // 0…1 low-latitude ice sublimated away to the poles
+  uniform float uCapEdge;  // sin(latitude) where the polar caps begin once the air is gone
+  uniform float uRust;     // 0…1 oxidised and space-weathered bare surface
+  uniform float uTime;
   varying vec2 vUv;
   varying vec3 vWorldPos;
   varying vec3 vWorldNormal;
+  varying vec3 vLocal;
+  ${NOISE_GLSL}
+  // palette in linear RGB
+  const vec3 SOIL_DARK = vec3(0.16, 0.11, 0.06);
+  const vec3 SOIL_PALE = vec3(0.36, 0.25, 0.12);
+  const vec3 ICE = vec3(0.80, 0.86, 0.92);
+  const vec3 ICE_SHADE = vec3(0.45, 0.58, 0.72);
+  const vec3 SEA_ICE = vec3(0.60, 0.72, 0.84);
+  const vec3 SEA_ICE_DARK = vec3(0.40, 0.54, 0.70);
+  const vec3 LEAD = vec3(0.04, 0.09, 0.18);
+  const vec3 SEABED = vec3(0.075, 0.058, 0.042);
+  const vec3 SEABED_PALE = vec3(0.26, 0.20, 0.13);
+  const vec3 SALT = vec3(0.72, 0.68, 0.60);
+  const vec3 RUST = vec3(0.34, 0.13, 0.05);
+  const vec3 RUST_DARK = vec3(0.14, 0.055, 0.025);
   void main() {
+    vec3 p = normalize(vLocal);
     vec3 N = normalize(vWorldNormal);
     vec3 L = normalize(uSunPos - vWorldPos);
+    vec3 V = normalize(cameraPosition - vWorldPos);
     float ndl = dot(N, L);
-    float day = smoothstep(-0.03, 0.10, ndl);
-    vec3 base = texture2D(uMap, vUv).rgb;
-    vec3 dayColor = base * (0.10 + 1.05 * clamp(ndl, 0.0, 1.0));
-    vec3 nightColor = base * vec3(0.030, 0.040, 0.075);
+    vec3 tex = texture2D(uMap, vUv).rgb;
+    float lat = abs(p.y);
+    float detail = fbm(p * 6.5 + vec3(7.0), 4);
+    // what the map shows: land is where blue does not dominate, the paler blues are the shelves
+    float land = 1.0 - smoothstep(0.15, 0.5, (tex.b - max(tex.r, tex.g)) / (tex.b + 0.002));
+    float lum = dot(tex, vec3(0.333));
+    float shelf = smoothstep(0.10, 0.34, lum) * (1.0 - land);
+    float green = clamp((tex.g - max(tex.r, tex.b)) * 5.0, 0.0, 1.0);
+    float relief = clamp(lum * 4.0, 0.0, 1.0);
+
+    // 1. the living world, and its vegetation dying back to bare soil
+    vec3 soil = mix(SOIL_DARK, SOIL_PALE, smoothstep(0.3, 0.75, detail));
+    vec3 ground = mix(tex, soil, uVeg * land * (0.25 + 0.75 * green));
+
+    // 2. ice: sea ice criss-crossed by leads, snow on the land, growing from the poles behind a
+    //    front the noise makes ragged; young ice lets the water darken it, a deep freeze buries all
+    float front = lat + (fbm(p * 3.4 + vec3(17.0, 2.0, 41.0), 4) - 0.5) * 0.28;
+    float iced = smoothstep(uIceEdge - 0.07, uIceEdge + 0.07, front);
+    vec3 frozen = ground;
+    if (iced > 0.001) {
+      float leadField = fbm(p * 7.0 + vec3(21.0, 3.0, 8.0), 4);
+      float leads = pow(1.0 - abs(leadField * 2.0 - 1.0), 18.0) * (1.0 - uDeep * 0.7);
+      vec3 seaIce = mix(SEA_ICE, SEA_ICE_DARK, smoothstep(0.4, 0.7, fbm(p * 3.5 + vec3(9.0), 3)) * 0.6);
+      float pack = mix(0.78, 1.0, uDeep) * (1.0 - leads * 0.85);
+      vec3 icedSea = mix(mix(ground, LEAD, leads * 0.5), seaIce, pack);
+      float cover = clamp(mix(0.55, 1.0, uDeep) + (relief - 0.5) * 0.35, 0.0, 1.0);
+      vec3 snowy = mix(ground, mix(ICE_SHADE, ICE, 0.45 + 0.55 * relief), cover);
+      frozen = mix(mix(icedSea, snowy, land), vec3(0.62, 0.74, 0.92), uDeep * 0.25);
+    }
+    vec3 surf = mix(ground, frozen, iced);
+
+    // 3. no air: between the caps the ice sublimates away to the poles. The basins come up dry –
+    //    pale sediment on the shelves, dark floor with salt where the last brine froze in the deeps –
+    //    the land is bare soil, and both rust and darken with the aeons; the caps thicken with what
+    //    left the tropics.
+    float capFront = lat + (fbm(p * 2.6 + vec3(5.0, 23.0, 8.0), 4) - 0.5) * 0.16;
+    float inCap = smoothstep(uCapEdge - 0.05, uCapEdge + 0.05, capFront);
+    float cleared = uMigrate * (1.0 - inCap);
+    if (uMigrate > 0.001) {
+      // the map has no bathymetry, so the deeps that held the last brine are a noise field of their own;
+      // the salt crusts sit in them as small sharp-edged pans, not as a haze
+      float basin = smoothstep(0.42, 0.62, fbm(p * 1.7 + vec3(19.0, 4.0, 27.0), 4)) * (1.0 - shelf);
+      float pans = smoothstep(0.58, 0.72, fbm(p * 11.0 + vec3(13.0, 2.0, 6.0), 3)) * (0.35 + 0.65 * basin);
+      vec3 seabed = mix(SEABED, SEABED_PALE, shelf) * (0.8 + 0.4 * detail);
+      seabed = mix(seabed, SALT, pans * (0.9 - 0.6 * uRust));
+      // the land keeps the map's relief under its dead soil
+      vec3 dry = mix(seabed, mix(ground, soil, 0.45), land);
+      // oxidation is a tint over that structure, and space weathering darkens it
+      vec3 tinted = dry * vec3(1.55, 0.92, 0.6) * (0.75 + 0.25 * detail);
+      vec3 rusty = mix(dry, mix(tinted, RUST, 0.3), uRust * 0.9);
+      surf = mix(surf, rusty, cleared);
+      vec3 thick = mix(frozen, mix(ICE_SHADE, ICE, 0.5 + 0.5 * relief), 0.6);
+      surf = mix(surf, thick, uMigrate * inCap);
+    }
+
+    // lighting: the terminator softens and the night side keeps its blue only while there is air
+    float soft = 0.02 + 0.08 * uAtm;
+    float day = smoothstep(-0.03 * uAtm, soft, ndl);
+    vec3 dayColor = surf * (0.02 + 0.08 * uAtm + 1.05 * clamp(ndl, 0.0, 1.0));
+    vec3 nightColor = surf * mix(vec3(0.012, 0.012, 0.014), vec3(0.030, 0.040, 0.075), uAtm);
     vec3 color = mix(nightColor, dayColor, day);
 
-    // city lights, fading in across the terminator
-    color += texture2D(uNightMap, vUv).rgb * (1.0 - day) * 1.6;
+    // city lights, fading in across the terminator – and going out as the air goes
+    color += texture2D(uNightMap, vUv).rgb * (1.0 - day) * 1.6 * uLights;
 
-    // thin atmospheric rim
-    vec3 V = normalize(cameraPosition - vWorldPos);
+    // glints: open water, a little on ice, none on dry rock
+    vec3 H = normalize(L + V);
+    float open = (1.0 - land) * (1.0 - iced) * (1.0 - cleared);
+    float spec = pow(clamp(dot(N, H), 0.0, 1.0), 60.0) * step(0.0, ndl);
+    color += vec3(1.0, 0.95, 0.85) * spec * (0.30 * open + 0.12 * iced * (1.0 - cleared));
+
+    // thin atmospheric rim – gone with the air
     float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
-    color += vec3(0.25, 0.5, 1.0) * rim * (0.15 + 0.5 * day);
+    color += vec3(0.25, 0.5, 1.0) * rim * (0.15 + 0.5 * day) * uAtm;
 
     gl_FragColor = vec4(color, 1.0);
     #include <tonemapping_fragment>

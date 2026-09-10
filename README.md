@@ -18,7 +18,7 @@ npm run check:axial  # validate axial-tilt physics (declination, day length, ins
 npm run check:orbits # validate planet-position algorithm against known events
 npm run check:hz     # validate habitable-zone physics (Kopparapu flux limits, zone edges, T_eq, stellar evolution, true sizes)
 npm run check:tides   # validate moon-tides physics (2GMR/r³, 1/r³ scaling, spring/neap, periods, tilt models)
-npm run check:mag     # validate magnetosphere physics (ram pressure, standoff, boundary fits, field-line deformation, Kp, aurora)
+npm run check:mag     # validate magnetosphere physics (ram pressure, standoff, boundary fits, field-line deformation, Kp, aurora, unshielded stripping + climate)
 npm run check:galaxy  # validate galactic-zone model (Sun's orbit, zone edges, metallicity gradient, spiral geometry, point cloud statistics, "life on Earth" scalings, haze/dust/globular generators)
 ```
 
@@ -54,7 +54,9 @@ src/
                      radii – pure JS; solar-orbit imports the Sun's zone edges from here), index.js
   sims/moon-tides/   physics.js (tidal acceleration, equilibrium bulge, spring/neap, Kepler periods, tilt models – pure JS), index.js
   sims/magnetosphere/ physics.js (ram pressure, magnetopause standoff, Shue boundary, dipole lines,
-                     field-line deformation, streamlines, Kp-style index, aurora oval – pure JS), index.js
+                     field-line deformation, streamlines, Kp-style index, aurora oval, and the unshielded
+                     run: energy-limited stripping, grey greenhouse + Budyko ice line, triple point,
+                     airless world, clock helpers – pure JS), index.js
   sims/galactic-zone/ model.js (config object with zone edges, Sun's orbit, metallicity gradient, log-spiral
                      arms, seeded 50 000-point galaxy generator, haze / dust-lane / globular-cluster generators,
                      "life on Earth" neighbourhood scalings – pure JS), index.js
@@ -166,7 +168,7 @@ disposers.push(viewShift.dispose);
 | `axial-tilt` | Axial tilt, seasons & day length | Earth orbiting an emissive Sun with adjustable tilt (0–90°) and rotation period (6–300 h); shader day/night terminator with real city lights on the night side, switchable overlays for the insolation heat map or the seasonal-mean temperature bands (energy-balance model per latitude), livable-region view (green border rings + darkened hostile bands), live tropics/polar circles/subsolar point, draggable orbit position with season stops, annual-cycle animation, day-length/insolation/temperature/seasonal-extremes/climate-zone readout for any latitude, click-to-pin a place (camera follows it, readout switches to its latitude, livable verdict), year-round livable surface fraction with a verdict (no / moderate / severe / extreme seasons), camera modes Earth / overview / top / pinned place, bilingual what-if presets (0°, 23.4°, 90°, 300 h, 6 h). |
 | `solar-orbit` | Earth's orbit & the habitable zone | All 8 planets from JPL Keplerian elements (1800–2050), habitable-zone annulus (0.95–1.68 AU, shared with the habitable-zone simulation), Earth highlight, hypothetical e = 0.3 orbit, true/visual scale, date picker, camera presets, bilingual planet info cards. |
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
-| `magnetosphere` | Earth's magnetosphere | Earth with the shader day/night terminator and city lights of the other simulations, dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout in the panel (Kp, storm phase, boundary distances, aurora reach, geostationary exposure), and a clearly flagged schematic "magnetic field off" mode with atmospheric erosion. |
+| `magnetosphere` | Earth's magnetosphere | Earth with the shader day/night terminator and city lights of the other simulations, dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (200–2000 km/s) sliders, "Launch CME" event with a space-weather readout in the panel (Kp, storm phase, boundary distances, aurora reach, geostationary exposure), and a "magnetic field off" mode that runs a geological clock (1 Myr–1 Gyr per second, scrubbable): the wind strips the atmosphere at an energy-limited rate ∝ n·v³, the planet cools and freezes over as the greenhouse goes, and below the triple point the ice sublimates to the poles and leaves a dry, rusting, Mars-like Earth – with a readout of air left, pressure, stripping rate, temperature, ice and ocean state. |
 | `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes as Beer–Lambert extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood (click the Sun or the galactic centre to fly to either view), what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and a "Conditions in the solar system" box that explains in prose, against today's Earth as the reference, the odds of ozone-damaging supernovae and comet-shower passages, whether the Sun would cross spiral arms here, and what a solar system born here would have got in terms of a Jupiter and radiogenic heat, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
 | `habitable-zone` | The habitable zone | Adjustable star set by its two physical properties – effective temperature (2600–7200 K) and radius, with the luminosity following from `L = R²T⁴`, so it can be pulled off the main sequence into a subgiant or a giant – with M/K/G/F presets, a colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged up and down (mouse or touch) for its type, carrying temperature, size and brightness together along the main sequence, with a slider to inflate it off that sequence into a subgiant or giant; draggable planet (0.1–5 AU, grabbed by its offset and eased towards the pointer) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into a lava world — and morphs as a climate does, the ice closing in from the poles and the scorched ground spreading from the equator behind a ragged front with steam where the oceans boil, ending in a crust of drifting plates over convecting lava seas with flaring vents; live Kopparapu zone (T_eff-dependent flux limits, so the zone is not a plain √L scaling) with a master toggle and flat-annulus / 3D-shell sub-toggles, three camera modes on one row — "frame zone" keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), "planet" rides along with the planet for a close-up with the star in the distance behind it, "overview" hands the camera back — Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
 
@@ -465,8 +467,38 @@ disposers.push(viewShift.dispose);
   table – ram pressure, the two boundary distances, Sun→Earth transit, the aurora's reach and whether
   geostationary orbit is exposed.
 - "Magnetic field off" hides the field lines, boundaries and aurora, sends the particles straight into the
-  atmosphere (they are absorbed inside r = 1.045) and releases an escaping-atmosphere plume downwind. Flagged
-  as schematic: real atmospheric escape takes hundreds of millions of years.
+  atmosphere (they are absorbed at the top of whatever air is left) and releases an escaping-atmosphere plume
+  downwind – and starts the unshielded clock, which runs at a chosen time lapse (1 Myr … 1 Gyr per second of
+  scene time, default 100 Myr/s) and can be scrubbed (0 … 100 Gyr, log scale; scrubbing re-derives the state
+  for a constant wind). Switching the field back on halts the loss but nothing comes back; Reset does.
+- Stripping is energy-limited: `Ṃ = ε·½ρv³·πR²/(GM/R)` with R the 500-km exobase and ε = 0.25 %, calibrated
+  so the quiet wind gives 1.7 kg/s – the ≈ 1–2 kg/s measured today at Venus, Earth and Mars alike (Gunell et
+  al. 2018). That is ≈ 95 Gyr for the 5.15 × 10¹⁸ kg of air, i.e. the honest answer for the quiet wind is
+  "longer than the Sun will live"; the rate grows as n·v³, so 100 cm⁻³ at 2000 km/s strips 4.3 t/s and the
+  atmosphere in 38 Myr. Only the steady slider wind is integrated – a CME sheath lasts a day, nothing on this
+  clock – and the plume's brightness still follows the effective wind.
+- Climate of the thinning air: a grey atmosphere `T_s⁴ = T_e⁴·(1 + ¾τ)`, `τ = 0.85·f^½` (τ ∝ √P stands in for
+  the logarithmic CO₂ forcing plus pressure broadening – Goldblatt et al. 2009: doubling N₂ ≈ +4.4 K), coupled
+  to the Budyko/North ice line `T(φ) = T_m − 28 K·P₂(sin φ)`, ice where T < −10 °C, with the planetary albedo
+  0.288 → 0.608 as the frozen area grows. Iterated (80 damped steps from today's warm state, so it is a pure
+  function of f): 288 K / 74° today, ≈ −1 °C and 47° at half the air, snowball (−38 °C) below ≈ 35 %, and the
+  bare 221 K once the air is gone.
+- Below the triple point (6.1 hPa, f = 0.6 %) the ice sublimates in the sunlit low latitudes and freezes out at
+  the poles: `migration` runs 0 → 1 over 1 Myr of airless time, the caps end at 55° while the ocean is all
+  there and retreat towards 84° as the inventory goes (`capLatitudeDeg`), and the bare surface rusts with a
+  1.5-Gyr e-folding time. The airless readout quotes the bare-rock world: A = 0.2 ground / 0.6 caps, ≈ −16 °C
+  mean, equatorial noon 0.9·T_subsolar ≈ 62 °C and night ≈ −39 °C (45 K below the equatorial mean). The ocean
+  (1.35 × 10²¹ kg) is only lost under the strongest wind, over ≈ 10 Gyr, well past the Sun's remaining 5 Gyr –
+  the readout says so.
+- The Earth shader paints all of it from eight eased uniforms (time constant 0.45 s, snapped on reset and under
+  reduced motion): `uAtm` thins the rim glow, the soft terminator and the blue night side towards the Moon's hard
+  shadow line; `uVeg` browns the vegetation (CO₂ starvation below 65 % of the air, or cold below 8 °C); `uIceEdge`
+  / `uDeep` lay sea ice with leads and snow over the existing map from the poles down (remapped so today's
+  ice line adds nothing and a snowball reaches the equator); `uLights` fades the cities out between 60 % and
+  32 % of the air; `uMigrate` / `uCapEdge` clear the ice between the caps to dry basins (pale shelves from the
+  map's lighter blues, dark floor and salt pans in the deeps) and bare soil; `uRust` reddens and darkens it.
+  The atmosphere shell shrinks and fades with `uAtm`, the particles are absorbed at the top of the remaining
+  air, and the erosion plume dwindles with it.
 
 ### galactic-zone notes
 

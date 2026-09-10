@@ -80,7 +80,10 @@
     "earthRadii": "R⊕",
     "lightYears": "ly",
     "millionYears": "Myr",
-    "kiloparsec": "kpc"
+    "kiloparsec": "kpc",
+    "hectopascal": "hPa",
+    "kilogramsPerSecond": "kg/s",
+    "tonnesPerSecond": "t/s"
   },
   "sims": {
     "axialTilt": {
@@ -662,7 +665,10 @@
         "camera": "Camera",
         "cameraSide": "Side",
         "cameraPolar": "Polar",
-        "cameraTail": "Tail"
+        "cameraTail": "Tail",
+        "timeLapse": "Time lapse",
+        "timeLapseValue": "1 s = {n}",
+        "elapsed": "Time since the switch"
       },
       "facts": {
         "pressure": "Dynamic pressure",
@@ -700,7 +706,7 @@
         }
       },
       "warn": {
-        "fieldOff": "Schematic: without the magnetic field the wind hits the atmosphere directly and carries part of it away. Real atmospheric escape takes hundreds of millions of years – Mars is the textbook case."
+        "fieldOff": "Without the field the wind hits the upper atmosphere and carries it off. The clock runs in millions of years per second, and the picture follows the physics: the air thins, the planet cools and freezes over, and below 6 hPa the ice sublimates to the poles. With today's quiet wind the stripping would take about 100 billion years – far longer than the Sun will live – so turn up the wind, or the time lapse. Lost air does not come back when the field returns."
       },
       "legend": {
         "fieldLines": "Dipole field lines",
@@ -726,7 +732,8 @@
         "body": [
           "Earth's magnetic field and atmosphere form a double shield. The magnetic field deflects the solar wind — a stream of charged particles that would otherwise strip the atmosphere and bombard the surface with radiation.",
           "The magnetopause sits where the magnetic pressure balances the ram pressure of the wind: about 10 Earth radii sunward in a quiet wind, and inside geostationary orbit during a strong storm. On the night side the field is drawn out into a magnetotail hundreds of Earth radii long.",
-          "The particles that do get in are guided along the field lines down to the poles, where they light up the auroral oval — the visible sign that the shield is working. What still reaches the atmosphere is stopped by the second layer of the shield."
+          "The particles that do get in are guided along the field lines down to the poles, where they light up the auroral oval — the visible sign that the shield is working. What still reaches the atmosphere is stopped by the second layer of the shield.",
+          "Switch the field off and the second layer is on its own: the wind carries the air away at a rate set by the particles it throws – density times speed cubed. With today's quiet wind that takes far longer than the Sun will live, but a strong wind does it in tens of millions of years: the greenhouse goes, the oceans freeze over, and once the pressure drops below the triple point of water the ice sublimates to the poles and leaves a dry, rusting, Mars-like Earth."
         ]
       },
       "physics": {
@@ -749,10 +756,60 @@
         "auroraLabel": "Auroral oval",
         "auroraFormula": "λ ≈ 66.5° − 2.1 · Kp",
         "auroraNote": "Equatorward edge of the oval in geomagnetic latitude, following the NOAA viewline table: Iceland at Kp 0, central Europe at Kp 8.",
-        "scaleNote": "Lengths are in Earth radii (1 R⊕ = 6371 km) and Earth is drawn to scale. The field-line deformation, the particle streamlines and the CME are qualitative: the dipole is drawn aligned with the rotation axis (the real offset is 11°), and there is no interplanetary magnetic field, no reconnection and no ring current."
+        "scaleNote": "Lengths are in Earth radii (1 R⊕ = 6371 km) and Earth is drawn to scale. The field-line deformation, the particle streamlines and the CME are qualitative: the dipole is drawn aligned with the rotation axis (the real offset is 11°), and there is no interplanetary magnetic field, no reconnection and no ring current.",
+        "escapeLabel": "Energy-limited stripping (field off)",
+        "escapeFormula": "Ṃ = ε · ½ρv³ · πR² / (GM/R),   ε = 0.25 %",
+        "escapeNote": "The kinetic-energy flux of the wind that the planet intercepts pays for lifting gas out of the gravity well. ε is set so that the quiet wind gives 1.7 kg/s – the ≈ 1–2 kg/s measured today at Venus, Earth and Mars alike (Gunell et al. 2018) – which strips the 5.1 × 10¹⁸ kg of air in ≈ 95 billion years. The rate grows as n·v³: at 100 cm⁻³ and 2000 km/s it is 4 tonnes per second and 38 million years.",
+        "greenhouseLabel": "Greenhouse of a thinning atmosphere",
+        "greenhouseFormula": "T_s⁴ = T_e⁴ · (1 + ¾τ),   τ = 0.85 · (P/P₀)^½",
+        "greenhouseNote": "A grey atmosphere: T_e = 255 K is what the Sun alone provides, the optical depth lifts the surface to 288 K today. τ ∝ √P stands in for the logarithmic CO₂ forcing and the pressure broadening of the absorption lines (doubling N₂ warms by ≈ 4 K, Goldblatt et al. 2009): half the air costs ≈ 8 K before the ice feeds back.",
+        "iceLineLabel": "Ice line and ice–albedo feedback",
+        "iceLineFormula": "T(φ) = T_m − 28 K · (3 sin²φ − 1)/2,   ice where T < −10 °C",
+        "iceLineNote": "Budyko's one-dimensional climate: the ice reaches the latitude where the annual mean is −10 °C, and every frozen zone raises the planet's albedo from 0.29 towards 0.61, which cools it further. Today that gives 74°; with 60 % of the air the ice stands at 53°, and below ≈ 35 % the feedback runs away into a snowball Earth at ≈ −38 °C.",
+        "sublimationLabel": "Below the triple point",
+        "sublimationFormula": "P < 6.1 hPa  →  ice ⇌ vapour, no liquid",
+        "sublimationNote": "Under 6.1 hPa water cannot be liquid. Where the Sun warms the frozen ocean it sublimates and the vapour freezes out again at the cold poles, as on Mars – millimetres to metres a year, so within a million years the tropics are dry basins and the water sits in polar caps down to ≈ 55°. Vapour that reaches the exosphere is split by UV; the hydrogen escapes, the oxygen rusts the bare surface. The ocean itself goes only under the strongest wind, and then over ≈ 10 billion years."
       },
-      "hint": "Move the sliders, then launch a CME",
-      "credit": "Earth textures: Solar System Scope (CC BY 4.0)"
+      "hint": "Move the sliders, launch a CME – or switch the field off and let the clock run",
+      "credit": "Earth textures: Solar System Scope (CC BY 4.0)",
+      "world": {
+        "title": "The unshielded Earth",
+        "atmosphere": "Atmosphere left",
+        "elapsed": "Elapsed",
+        "pressure": "Surface pressure",
+        "rate": "Stripping rate",
+        "remaining": "Rest of the air gone in",
+        "airGone": "gone",
+        "temp": "Temperature",
+        "tempMean": "{mean} mean",
+        "tempAirless": "{mean} mean · noon {noon}, night {night}",
+        "air": "Air",
+        "airFine": "breathable · like {alt} m altitude",
+        "airThin": "thin · like {alt} m altitude",
+        "airDeathZone": "death zone · like {alt} m altitude",
+        "airNone": "vacuum",
+        "ice": "Ice",
+        "iceTo": "down to {lat}° latitude",
+        "frozenOver": "frozen over",
+        "caps": "polar caps down to {lat}°",
+        "ocean": "Oceans",
+        "oceanLiquid": "liquid",
+        "oceanFrozen": "frozen over, liquid beneath the ice",
+        "oceanMigrating": "ice sublimating towards the poles",
+        "oceanCaps": "locked in the polar caps",
+        "waterLost": "{n} % lost to space",
+        "halted": "Loss halted – the air does not come back",
+        "beyondSun": "beyond the Sun's remaining life",
+        "schematic": "The unshielded run is a teaching model: energy-limited stripping calibrated to the ≈ 1–2 kg/s measured today at Venus, Earth and Mars; a grey greenhouse coupled to the Budyko ice line; cap extent, migration time and reddening are order-of-magnitude choices. The Sun is held constant, although it would leave the main sequence after 5 billion years.",
+        "stage": {
+          "intact": "Intact",
+          "thinning": "Thinning · cooling",
+          "iceAge": "Ice age",
+          "snowball": "Snowball Earth",
+          "sublimating": "Ice sublimating",
+          "airless": "Airless · Mars-like"
+        }
+      }
     },
     "galacticZone": {
       "title": "The galactic habitable zone",

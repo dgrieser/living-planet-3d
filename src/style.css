@@ -622,6 +622,17 @@ a:hover { color: #a9d9ff; }
 .lp-state--kp-g3, .lp-state--kp-g4, .lp-state--kp-g5 { color: #ffc7b8; background: rgba(255, 107, 74, 0.2); border-color: rgba(255, 107, 74, 0.65); }
 .lp-state--kp-unshielded { color: #ffc7b8; background: rgba(255, 107, 74, 0.2); border-color: rgba(255, 107, 74, 0.65); }
 
+/* the unshielded Earth: its clock under the field switch, and a readout that warms up once the air is gone */
+.lp-clock[hidden], .lp-world[hidden] { display: none; }
+.lp-readout--world { transition: border-color 200ms ease, background 200ms ease; }
+.lp-readout--world.is-airless { border-color: rgba(255, 170, 110, 0.6); background: rgba(255, 150, 90, 0.08); }
+.lp-state--world-intact { color: #cfe9ff; background: rgba(159, 216, 255, 0.16); border-color: rgba(159, 216, 255, 0.5); }
+.lp-state--world-thinning { color: #b8f5cf; background: rgba(90, 220, 140, 0.16); border-color: rgba(90, 220, 140, 0.55); }
+.lp-state--world-iceAge { color: #ffe1a3; background: rgba(255, 209, 102, 0.16); border-color: rgba(255, 209, 102, 0.55); }
+.lp-state--world-snowball { color: #eaf6ff; background: rgba(210, 236, 255, 0.2); border-color: rgba(210, 236, 255, 0.6); }
+.lp-state--world-sublimating { color: #ffd9b0; background: rgba(255, 170, 90, 0.18); border-color: rgba(255, 170, 90, 0.6); }
+.lp-state--world-airless { color: #ffc7b8; background: rgba(255, 107, 74, 0.2); border-color: rgba(255, 107, 74, 0.65); }
+
 /* ---------- galactic-zone simulation ---------- */
 .lp-schematic-badge {
   position: absolute; left: 16px; top: 16px; z-index: 10;
