@@ -707,7 +707,8 @@
           "impact": "Einschlag",
           "decay": "Klingt ab"
         },
-        "noGlow": "keine Luft, die leuchten könnte"
+        "noGlow": "keine Luft, die leuchten könnte",
+        "noWind": "kein Wind – ungestörter Dipol"
       },
       "warn": {
         "fieldOff": "Ohne Feld drückt der Wind die Ionosphäre auf der Tagseite nieder, reißt an ihren Flanken Plasmawolken ab und zieht sie in einen Ionenschweif – so geht die Luft verloren. Die Uhr unten läuft in Millionen Jahren pro Sekunde. Mit dem heutigen ruhigen Wind dauerte das Abtragen rund 100 Milliarden Jahre, und was ein starker Wind nimmt, ersetzen die Vulkane durch CO₂ – also Wind aufdrehen, Vulkane abschalten oder die Luft wegnehmen.",
@@ -752,7 +753,7 @@
         "standoffNote": "Das komprimierte Dipolfeld 2B₀(R⊕/r)³ hält k·ρv² stand (k = 0,88). Mit B₀ = 31 200 nT ergibt das 10,5 R⊕ für ruhigen Wind; wegen der sechsten Wurzel drückt zehnfacher Druck die Grenze nur um ein Drittel nach innen.",
         "shueLabel": "Form der Magnetopause",
         "shueFormula": "r(θ) = r₀ · [2/(1 + cos θ)]^α,   r₀ = 11,4 · P^(−1/6,6)",
-        "shueNote": "Shue et al. (1997), angepasst an tausende Grenzschicht-Durchgänge von Raumsonden. Die Feldlinien werden auf der Tagseite unter dieser Fläche gehalten und auf der Nachtseite in den Schweif gezogen.",
+        "shueNote": "Shue et al. (1997), angepasst an tausende Grenzschicht-Durchgänge von Raumsonden. Die Feldlinien werden auf der Tagseite unter dieser Fläche gehalten und auf der Nachtseite in den Schweif gezogen – beides im Verhältnis zu r₀, sodass ein schwacher Wind eine große, fast dipolare Magnetosphäre lässt und gar kein Wind den nackten Dipol.",
         "shockLabel": "Bugstoßwelle",
         "shockFormula": "x_bs ≈ 1,3 · r₀,   ρ² = 4 · r₀ · (x_bs − x)",
         "shockNote": "Der Sonnenwind kommt schneller an als die lokale magnetosonische Geschwindigkeit, wird also abgebremst und aufgeheizt, bevor er um die Magnetopause strömt. Das Paraboloid hier ist eine Anpassung an Messungen, keine Strömungslösung.",
