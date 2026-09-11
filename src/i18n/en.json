@@ -83,7 +83,8 @@
     "kiloparsec": "kpc",
     "hectopascal": "hPa",
     "kilogramsPerSecond": "kg/s",
-    "tonnesPerSecond": "t/s"
+    "tonnesPerSecond": "t/s",
+    "millisievertPerYear": "mSv/yr"
   },
   "sims": {
     "axialTilt": {
@@ -668,7 +669,10 @@
         "cameraTail": "Tail",
         "timeLapse": "Time lapse",
         "timeLapseValue": "1 s = {n}",
-        "elapsed": "Time since the switch"
+        "elapsed": "Time on the clock",
+        "removeAir": "Remove the atmosphere",
+        "restoreAir": "Give the air back",
+        "volcanoes": "Volcanoes keep outgassing"
       },
       "facts": {
         "pressure": "Dynamic pressure",
@@ -703,10 +707,12 @@
           "incoming": "CME incoming",
           "impact": "Impact",
           "decay": "Decaying"
-        }
+        },
+        "noGlow": "no air to glow"
       },
       "warn": {
-        "fieldOff": "Without the field the wind presses the ionosphere down on the dayside, tears plasma clouds off its flanks and drags them into an ion tail – that is how the air leaves. The clock runs in millions of years per second, and the picture follows the physics: the air thins, the planet cools and freezes over, and below 6 hPa the ice sublimates to the poles. With today's quiet wind the stripping would take about 100 billion years – far longer than the Sun will live – so turn up the wind, or the time lapse. Lost air does not come back when the field returns."
+        "fieldOff": "Without the field the wind presses the ionosphere down on the dayside, tears plasma clouds off its flanks and drags them into an ion tail – that is how the air leaves. The clock below runs in millions of years per second. With today's quiet wind the stripping would take about 100 billion years, and volcanoes replace what a strong wind takes with CO₂ – so turn up the wind, switch the volcanoes off, or take the air away.",
+        "airRemoved": "Every last bit of gas is gone in an instant: the oceans boil until an ice lid stops them within minutes, everything that breathed is dead, the sky is black and the ground takes the Moon's dose of cosmic rays. Then the clock decides. As long as the volcanoes keep going they rebuild a CO₂ atmosphere in about a million years and the ice thaws – Earth is big and alive, which is why it is not Mars. Switch the volcanoes off for the dead-planet path, and the field on or off to see what it still protects."
       },
       "legend": {
         "fieldLines": "Dipole field lines",
@@ -733,7 +739,7 @@
           "Earth's magnetic field and atmosphere form a double shield. The magnetic field deflects the solar wind — a stream of charged particles that would otherwise strip the atmosphere and bombard the surface with radiation.",
           "The magnetopause sits where the magnetic pressure balances the ram pressure of the wind: about 10 Earth radii sunward in a quiet wind, and inside geostationary orbit during a strong storm. On the night side the field is drawn out into a magnetotail hundreds of Earth radii long.",
           "The particles that do get in are guided along the field lines down to the poles, where they light up the auroral oval — the visible sign that the shield is working. What still reaches the atmosphere is stopped by the second layer of the shield.",
-          "Switch the field off and the second layer is on its own: the wind carries the air away at a rate set by the particles it throws – density times speed cubed. With today's quiet wind that takes far longer than the Sun will live, but a strong wind does it in tens of millions of years: the greenhouse goes, the oceans freeze over, and once the pressure drops below the triple point of water the ice sublimates to the poles and leaves a dry, rusting, Mars-like Earth."
+          "Switch the field off and the second layer is on its own: the wind carries the air away at a rate set by the particles it throws – density times speed cubed. Take the air away altogether and the oceans boil, freeze over and sublimate to the poles while the ground takes the Moon's radiation. But Earth is big and volcanically alive: its volcanoes rebuild a CO₂ atmosphere in about a million years, faster than any wind on the sliders can strip it, and the ice thaws again. Mars, small and dead, never got that second chance. What the field still decides on an airless Earth is the radiation at the ground, whether the wind sputters the surface, and whether nitrogen ever comes back."
         ]
       },
       "physics": {
@@ -761,25 +767,28 @@
         "escapeFormula": "Ṃ = ε · ½ρv³ · πR² / (GM/R),   ε = 0.25 %",
         "escapeNote": "The kinetic-energy flux of the wind that the planet intercepts pays for lifting gas out of the gravity well. ε is set so that the quiet wind gives 1.7 kg/s – the ≈ 1–2 kg/s measured today at Venus, Earth and Mars alike (Gunell et al. 2018) – which strips the 5.1 × 10¹⁸ kg of air in ≈ 95 billion years. The rate grows as n·v³: at 100 cm⁻³ and 2000 km/s it is 4 tonnes per second and 38 million years.",
         "greenhouseLabel": "Greenhouse of a thinning atmosphere",
-        "greenhouseFormula": "T_s⁴ = T_e⁴ · (1 + ¾τ),   τ = 0.85 · (P/P₀)^½",
-        "greenhouseNote": "A grey atmosphere: T_e = 255 K is what the Sun alone provides, the optical depth lifts the surface to 288 K today. τ ∝ √P stands in for the logarithmic CO₂ forcing and the pressure broadening of the absorption lines (doubling N₂ warms by ≈ 4 K, Goldblatt et al. 2009): half the air costs ≈ 8 K before the ice feeds back.",
+        "greenhouseFormula": "T_s⁴ = T_e⁴ · (1 + ¾τ),   τ = 0.48·(P/P₀)^½ + 0.0975·ln(1 + pCO₂/0.01 hPa)·(P/P₀)^¼",
+        "greenhouseNote": "A grey atmosphere: T_e = 255 K is what the Sun alone provides, the optical depth lifts the surface to 288 K today. The first term stands for water vapour, clouds and pressure broadening (doubling N₂ warms by ≈ 4 K, Goldblatt et al. 2009), the second for CO₂ – ≈ 3 K per doubling with its water-vapour feedback, fading in thin air where nothing broadens its lines. A Mars-like 6 hPa of CO₂ gives ≈ +9 K, a bar of it ≈ +60 K.",
         "iceLineLabel": "Ice line and ice–albedo feedback",
         "iceLineFormula": "T(φ) = T_m − 28 K · (3 sin²φ − 1)/2,   ice where T < −10 °C",
-        "iceLineNote": "Budyko's one-dimensional climate: the ice reaches the latitude where the annual mean is −10 °C, and every frozen zone raises the planet's albedo from 0.29 towards 0.61, which cools it further. Today that gives 74°; with 60 % of the air the ice stands at 53°, and below ≈ 35 % the feedback runs away into a snowball Earth at ≈ −38 °C.",
+        "iceLineNote": "Budyko's one-dimensional climate: the ice reaches the latitude where the annual mean is −10 °C, and every frozen zone raises the planet's albedo from 0.29 towards 0.61, which cools it further. Today that gives 74°; with 60 % of the air the ice stands at 53°, below ≈ 35 % the feedback runs away into a snowball Earth at ≈ −38 °C – and a snowball, once white, needs ≈ 0.15–0.2 bar of CO₂ before it thaws (Pierrehumbert 2004).",
         "sublimationLabel": "Below the triple point",
         "sublimationFormula": "P < 6.1 hPa  →  ice ⇌ vapour, no liquid",
-        "sublimationNote": "Under 6.1 hPa water cannot be liquid. Where the Sun warms the frozen ocean it sublimates and the vapour freezes out again at the cold poles, as on Mars – millimetres to metres a year, so within a million years the tropics are dry basins and the water sits in polar caps down to ≈ 55°. Vapour that reaches the exosphere is split by UV; the hydrogen escapes, the oxygen rusts the bare surface. The ocean itself goes only under the strongest wind, and then over ≈ 10 billion years."
+        "sublimationNote": "Under 6.1 hPa water cannot be liquid. Where the Sun warms the frozen ocean it sublimates and the vapour freezes out again at the cold poles, as on Mars – millimetres to metres a year, so within 100 000 years the tropics are dry basins and the water sits in polar caps down to ≈ 55°. Vapour that reaches the exosphere is split by UV; the hydrogen escapes, the oxygen rusts the bare surface – three times faster where the solar wind sputters the ground as well, i.e. without the field. The ocean itself goes only under the strongest wind, over ≈ 10 billion years.",
+        "volcanismLabel": "Volcanoes against weathering",
+        "volcanismFormula": "dCO₂/dt = V − W − S,   W = V · e^((T−288 K)/13.7 K) · (pCO₂/pCO₂₀)^0.3",
+        "volcanismNote": "Volcanoes outgas ≈ 10¹² kg of CO₂ a year (≈ 32 t/s), and silicate weathering – rain on rock – consumes it faster the warmer and the more CO₂-rich the air is (Walker, Hays & Kasting 1981). That thermostat holds today's balance; it stops on a frozen or airless world, so an Earth robbed of its air rebuilds a CO₂ atmosphere in about a million years, while a dead planet – Mars – never does. Nitrogen returns a thousand times more slowly. The wind's 4 t/s at the strongest setting cannot outrun the volcanoes; the ocean's carbon damps changes about fifteen-fold while it is liquid.",
+        "radiationLabel": "Cosmic rays at the ground",
+        "radiationFormula": "D ≈ 500 mSv/yr · e^(−m/140 g cm⁻²) · (0.6 with the field)",
+        "radiationNote": "With nothing above you the ground takes the Moon's galactic-cosmic-ray dose, ≈ 1.4 mSv a day (Chang'e-4, LRO). Today's 1033 g/cm² of air cut that to ≈ 0.3 mSv a year; the geomagnetic cutoff removes ≈ 40 % more at low latitudes and nothing at the poles. The field's clearest job on an airless Earth is against solar storms: it steers their particles into the polar caps, without it a strong one delivers a lethal dose everywhere."
       },
-      "hint": "Move the sliders, launch a CME – or switch the field off and let the clock run",
+      "hint": "Move the sliders, launch a CME – or switch the field off, take the air away and let the clock run",
       "credit": "Earth textures: Solar System Scope (CC BY 4.0)",
       "world": {
-        "title": "The unshielded Earth",
+        "title": "What becomes of Earth",
         "atmosphere": "Atmosphere left",
         "elapsed": "Elapsed",
         "pressure": "Surface pressure",
-        "rate": "Stripping rate",
-        "remaining": "Rest of the air gone in",
-        "airGone": "gone",
         "temp": "Temperature",
         "tempMean": "{mean} mean",
         "tempAirless": "{mean} mean · noon {noon}, night {night}",
@@ -798,17 +807,35 @@
         "oceanMigrating": "ice sublimating towards the poles",
         "oceanCaps": "locked in the polar caps",
         "waterLost": "{n} % lost to space",
-        "halted": "Loss halted – the air does not come back",
+        "halted": "Clock stopped – nothing is changing any more",
         "beyondSun": "beyond the Sun's remaining life",
-        "schematic": "The unshielded run is a teaching model: energy-limited stripping calibrated to the ≈ 1–2 kg/s measured today at Venus, Earth and Mars; a grey greenhouse coupled to the Budyko ice line; cap extent, migration time and reddening are order-of-magnitude choices. The shell is drawn as the induced ionosphere of an unmagnetised planet – pressed down on the dayside, plasma clouds torn off the flanks, an ion tail downwind, as at Venus and Mars – and its visible top drops one scale height per e-folding of lost mass. The Sun is held constant, although it would leave the main sequence after 5 billion years.",
+        "schematic": "A teaching model: energy-limited stripping calibrated to the ≈ 1–2 kg/s measured today at Venus, Earth and Mars; a grey greenhouse with a CO₂ term coupled to the Budyko ice line; volcanic outgassing at ≈ 32 t/s against the weathering thermostat; cap extent, migration time, space-weathering rates and the radiation dose are order-of-magnitude choices. The shell is drawn as the induced ionosphere of an unmagnetised planet – pressed down on the dayside, plasma clouds torn off the flanks, an ion tail downwind – and its visible top drops one scale height per e-folding of lost mass. The Sun is held constant, although it would leave the main sequence after 5 billion years.",
         "stage": {
           "intact": "Intact",
           "thinning": "Thinning · cooling",
           "iceAge": "Ice age",
           "snowball": "Snowball Earth",
           "sublimating": "Ice sublimating",
-          "airless": "Airless · Mars-like"
-        }
+          "airless": "Airless · Mars-like",
+          "decompression": "Air gone · oceans boiling",
+          "co2Frozen": "Thin CO₂ air · frozen",
+          "co2Cold": "Cold CO₂ world",
+          "co2World": "CO₂ greenhouse",
+          "rebuilt": "Air rebuilt · lifeless"
+        },
+        "co2Share": "CO₂ {n} %",
+        "strip": "Wind strips",
+        "outgas": "Volcanoes add",
+        "weather": "Weathering removes",
+        "net": "Air changes by",
+        "none": "—",
+        "balanced": "in balance",
+        "radiation": "Cosmic rays at the ground",
+        "stormsPolar": "solar storms hit only the polar caps",
+        "stormsEverywhere": "a strong solar storm is lethal everywhere",
+        "airToxic": "unbreathable · CO₂",
+        "oceanBoiling": "boiling at the surface, freezing over",
+        "oceanMelting": "caps melting back into the basins"
       }
     },
     "galacticZone": {

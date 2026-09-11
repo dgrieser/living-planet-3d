@@ -632,6 +632,11 @@ a:hover { color: #a9d9ff; }
 .lp-state--world-snowball { color: #eaf6ff; background: rgba(210, 236, 255, 0.2); border-color: rgba(210, 236, 255, 0.6); }
 .lp-state--world-sublimating { color: #ffd9b0; background: rgba(255, 170, 90, 0.18); border-color: rgba(255, 170, 90, 0.6); }
 .lp-state--world-airless { color: #ffc7b8; background: rgba(255, 107, 74, 0.2); border-color: rgba(255, 107, 74, 0.65); }
+.lp-state--world-decompression { color: #fff1e6; background: rgba(255, 150, 90, 0.28); border-color: rgba(255, 170, 110, 0.8); }
+.lp-state--world-co2Frozen { color: #e6e0ff; background: rgba(190, 180, 255, 0.18); border-color: rgba(190, 180, 255, 0.55); }
+.lp-state--world-co2Cold { color: #ffe1a3; background: rgba(255, 209, 102, 0.16); border-color: rgba(255, 209, 102, 0.55); }
+.lp-state--world-co2World { color: #ffd0a8; background: rgba(255, 170, 90, 0.2); border-color: rgba(255, 170, 90, 0.6); }
+.lp-state--world-rebuilt { color: #b8f5cf; background: rgba(90, 220, 140, 0.16); border-color: rgba(90, 220, 140, 0.55); }
 
 /* ---------- galactic-zone simulation ---------- */
 .lp-schematic-badge {

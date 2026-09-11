@@ -83,7 +83,8 @@
     "kiloparsec": "kpc",
     "hectopascal": "hPa",
     "kilogramsPerSecond": "kg/s",
-    "tonnesPerSecond": "t/s"
+    "tonnesPerSecond": "t/s",
+    "millisievertPerYear": "mSv/Jahr"
   },
   "sims": {
     "axialTilt": {
@@ -668,7 +669,10 @@
         "cameraTail": "Schweif",
         "timeLapse": "Zeitraffer",
         "timeLapseValue": "1 s = {n}",
-        "elapsed": "Zeit seit dem Abschalten"
+        "elapsed": "Zeit auf der Uhr",
+        "removeAir": "Atmosphäre entfernen",
+        "restoreAir": "Luft zurückgeben",
+        "volcanoes": "Vulkane gasen weiter aus"
       },
       "facts": {
         "pressure": "Staudruck",
@@ -703,10 +707,12 @@
           "incoming": "CME im Anflug",
           "impact": "Einschlag",
           "decay": "Klingt ab"
-        }
+        },
+        "noGlow": "keine Luft, die leuchten könnte"
       },
       "warn": {
-        "fieldOff": "Ohne Feld drückt der Wind die Ionosphäre auf der Tagseite nieder, reißt an ihren Flanken Plasmawolken ab und zieht sie in einen Ionenschweif – so geht die Luft verloren. Die Uhr läuft in Millionen Jahren pro Sekunde, und das Bild folgt der Physik: Die Luft wird dünn, der Planet kühlt aus und friert zu, und unter 6 hPa sublimiert das Eis zu den Polen. Mit dem heutigen ruhigen Wind dauerte das Abtragen rund 100 Milliarden Jahre – weit länger, als die Sonne lebt –, also Wind oder Zeitraffer aufdrehen. Verlorene Luft kommt nicht zurück, wenn das Feld wieder da ist."
+        "fieldOff": "Ohne Feld drückt der Wind die Ionosphäre auf der Tagseite nieder, reißt an ihren Flanken Plasmawolken ab und zieht sie in einen Ionenschweif – so geht die Luft verloren. Die Uhr unten läuft in Millionen Jahren pro Sekunde. Mit dem heutigen ruhigen Wind dauerte das Abtragen rund 100 Milliarden Jahre, und was ein starker Wind nimmt, ersetzen die Vulkane durch CO₂ – also Wind aufdrehen, Vulkane abschalten oder die Luft wegnehmen.",
+        "airRemoved": "Alles Gas ist auf einen Schlag weg: Die Ozeane kochen, bis binnen Minuten ein Eisdeckel sie stoppt, alles, was atmete, ist tot, der Himmel ist schwarz, und der Boden bekommt die kosmische Strahlendosis des Mondes. Dann entscheidet die Uhr. Solange die Vulkane weiterarbeiten, bauen sie in etwa einer Million Jahren eine CO₂-Atmosphäre wieder auf, und das Eis taut – die Erde ist groß und lebendig, deshalb ist sie kein Mars. Vulkane abschalten zeigt den Weg des toten Planeten, das Feld ein oder aus, was es noch schützt."
       },
       "legend": {
         "fieldLines": "Dipol-Feldlinien",
@@ -733,7 +739,7 @@
           "Magnetfeld und Atmosphäre der Erde bilden einen doppelten Schutzschild. Das Magnetfeld lenkt den Sonnenwind ab — einen Strom geladener Teilchen, der sonst die Atmosphäre abstreifen und die Oberfläche mit Strahlung bombardieren würde.",
           "Die Magnetopause liegt dort, wo der magnetische Druck den Staudruck des Sonnenwinds ausgleicht: bei ruhigem Wind etwa 10 Erdradien sonnenwärts, bei einem starken Sturm innerhalb der geostationären Bahn. Auf der Nachtseite wird das Feld zu einem Magnetschweif von mehreren hundert Erdradien Länge ausgezogen.",
           "Die Teilchen, die dennoch eindringen, werden entlang der Feldlinien zu den Polen geführt und lassen dort das Polarlichtoval leuchten — das sichtbare Zeichen, dass der Schild arbeitet. Was die Atmosphäre erreicht, wird von der zweiten Schicht des Schilds gestoppt.",
-          "Schaltet man das Feld ab, ist die zweite Schicht auf sich gestellt: Der Wind trägt die Luft mit einer Rate fort, die die geworfenen Teilchen bestimmen – Dichte mal Geschwindigkeit hoch drei. Mit dem heutigen ruhigen Wind dauert das weit länger, als die Sonne lebt, ein starker Wind aber schafft es in zig Millionen Jahren: Das Treibhaus verschwindet, die Ozeane frieren zu, und sobald der Druck unter den Tripelpunkt des Wassers fällt, sublimiert das Eis zu den Polen und hinterlässt eine trockene, rostende, marsähnliche Erde."
+          "Schaltet man das Feld ab, ist die zweite Schicht auf sich gestellt: Der Wind trägt die Luft mit einer Rate fort, die die geworfenen Teilchen bestimmen – Dichte mal Geschwindigkeit hoch drei. Nimmt man die Luft ganz weg, kochen die Ozeane, frieren zu und sublimieren zu den Polen, während der Boden die Strahlung des Mondes bekommt. Doch die Erde ist groß und vulkanisch lebendig: Ihre Vulkane bauen in etwa einer Million Jahren eine CO₂-Atmosphäre wieder auf, schneller, als jeder Wind auf den Reglern sie abtragen kann, und das Eis taut wieder. Der Mars, klein und tot, bekam diese zweite Chance nie. Was das Feld auf einer luftleeren Erde noch entscheidet: die Strahlung am Boden, ob der Wind die Oberfläche zerstäubt, und ob der Stickstoff je zurückkommt."
         ]
       },
       "physics": {
@@ -761,25 +767,28 @@
         "escapeFormula": "Ṃ = ε · ½ρv³ · πR² / (GM/R),   ε = 0,25 %",
         "escapeNote": "Der kinetische Energiefluss des Windes, den der Planet auffängt, bezahlt das Heben von Gas aus dem Schwerefeld. ε ist so gewählt, dass der ruhige Wind 1,7 kg/s liefert – die ≈ 1–2 kg/s, die heute an Venus, Erde und Mars gleichermaßen gemessen werden (Gunell et al. 2018) – und damit die 5,1 × 10¹⁸ kg Luft in ≈ 95 Milliarden Jahren abträgt. Die Rate wächst mit n·v³: bei 100 cm⁻³ und 2000 km/s sind es 4 Tonnen pro Sekunde und 38 Millionen Jahre.",
         "greenhouseLabel": "Treibhaus einer dünner werdenden Atmosphäre",
-        "greenhouseFormula": "T_s⁴ = T_e⁴ · (1 + ¾τ),   τ = 0,85 · (P/P₀)^½",
-        "greenhouseNote": "Eine graue Atmosphäre: T_e = 255 K liefert die Sonne allein, die optische Tiefe hebt die Oberfläche heute auf 288 K. τ ∝ √P steht für den logarithmischen CO₂-Antrieb und die Druckverbreiterung der Absorptionslinien (doppelt so viel N₂ wärmt um ≈ 4 K, Goldblatt et al. 2009): Die halbe Luft kostet ≈ 8 K, bevor das Eis zurückkoppelt.",
+        "greenhouseFormula": "T_s⁴ = T_e⁴ · (1 + ¾τ),   τ = 0,48·(P/P₀)^½ + 0,0975·ln(1 + pCO₂/0,01 hPa)·(P/P₀)^¼",
+        "greenhouseNote": "Eine graue Atmosphäre: T_e = 255 K liefert die Sonne allein, die optische Tiefe hebt die Oberfläche heute auf 288 K. Der erste Term steht für Wasserdampf, Wolken und Druckverbreiterung (doppelt so viel N₂ wärmt um ≈ 4 K, Goldblatt et al. 2009), der zweite für CO₂ – ≈ 3 K pro Verdopplung samt Wasserdampf-Rückkopplung, in dünner Luft schwächer, weil nichts seine Linien verbreitert. Marsähnliche 6 hPa CO₂ geben ≈ +9 K, ein Bar davon ≈ +60 K.",
         "iceLineLabel": "Eisgrenze und Eis-Albedo-Rückkopplung",
         "iceLineFormula": "T(φ) = T_m − 28 K · (3 sin²φ − 1)/2,   Eis wo T < −10 °C",
-        "iceLineNote": "Budykos eindimensionales Klima: Das Eis reicht bis zu der Breite, in der das Jahresmittel −10 °C beträgt, und jede vereiste Zone hebt die Albedo des Planeten von 0,29 Richtung 0,61, was ihn weiter kühlt. Heute ergibt das 74°; mit 60 % der Luft steht das Eis bei 53°, und unter ≈ 35 % läuft die Rückkopplung davon – in eine Schneeball-Erde bei ≈ −38 °C.",
+        "iceLineNote": "Budykos eindimensionales Klima: Das Eis reicht bis zu der Breite, in der das Jahresmittel −10 °C beträgt, und jede vereiste Zone hebt die Albedo des Planeten von 0,29 Richtung 0,61, was ihn weiter kühlt. Heute ergibt das 74°; mit 60 % der Luft steht das Eis bei 53°, unter ≈ 35 % läuft die Rückkopplung davon – in eine Schneeball-Erde bei ≈ −38 °C –, und ein Schneeball braucht, einmal weiß, ≈ 0,15–0,2 bar CO₂, bevor er wieder taut (Pierrehumbert 2004).",
         "sublimationLabel": "Unter dem Tripelpunkt",
         "sublimationFormula": "P < 6,1 hPa  →  Eis ⇌ Dampf, nichts Flüssiges",
-        "sublimationNote": "Unter 6,1 hPa kann Wasser nicht flüssig sein. Wo die Sonne den zugefrorenen Ozean erwärmt, sublimiert er, und der Dampf friert an den kalten Polen wieder aus, wie auf dem Mars – Millimeter bis Meter pro Jahr, sodass die Tropen binnen einer Million Jahre trockene Becken sind und das Wasser in Polkappen bis ≈ 55° liegt. Dampf, der die Exosphäre erreicht, wird vom UV gespalten; der Wasserstoff entweicht, der Sauerstoff lässt die nackte Oberfläche rosten. Der Ozean selbst geht nur beim stärksten Wind verloren, und dann über ≈ 10 Milliarden Jahre."
+        "sublimationNote": "Unter 6,1 hPa kann Wasser nicht flüssig sein. Wo die Sonne den zugefrorenen Ozean erwärmt, sublimiert er, und der Dampf friert an den kalten Polen wieder aus, wie auf dem Mars – Millimeter bis Meter pro Jahr, sodass die Tropen binnen 100 000 Jahren trockene Becken sind und das Wasser in Polkappen bis ≈ 55° liegt. Dampf, der die Exosphäre erreicht, wird vom UV gespalten; der Wasserstoff entweicht, der Sauerstoff lässt die nackte Oberfläche rosten – dreimal schneller, wo auch der Sonnenwind den Boden zerstäubt, also ohne Feld. Der Ozean selbst geht nur beim stärksten Wind verloren, über ≈ 10 Milliarden Jahre.",
+        "volcanismLabel": "Vulkane gegen Verwitterung",
+        "volcanismFormula": "dCO₂/dt = V − W − S,   W = V · e^((T−288 K)/13,7 K) · (pCO₂/pCO₂₀)^0,3",
+        "volcanismNote": "Vulkane gasen ≈ 10¹² kg CO₂ pro Jahr aus (≈ 32 t/s), und die Silikatverwitterung – Regen auf Gestein – verbraucht es umso schneller, je wärmer und CO₂-reicher die Luft ist (Walker, Hays & Kasting 1981). Dieser Thermostat hält heute das Gleichgewicht; auf einer gefrorenen oder luftleeren Welt steht er still, deshalb baut eine ihrer Luft beraubte Erde in etwa einer Million Jahren eine CO₂-Atmosphäre wieder auf, ein toter Planet – der Mars – nie. Stickstoff kommt tausendmal langsamer zurück. Die 4 t/s des Windes bei stärkster Einstellung können die Vulkane nicht überholen; der Kohlenstoff des Ozeans dämpft Änderungen etwa fünfzehnfach, solange er flüssig ist.",
+        "radiationLabel": "Kosmische Strahlung am Boden",
+        "radiationFormula": "D ≈ 500 mSv/Jahr · e^(−m/140 g cm⁻²) · (0,6 mit Feld)",
+        "radiationNote": "Ohne etwas über sich bekommt der Boden die galaktische kosmische Strahlendosis des Mondes, ≈ 1,4 mSv pro Tag (Chang'e-4, LRO). Die heutigen 1033 g/cm² Luft senken das auf ≈ 0,3 mSv pro Jahr; der geomagnetische Cutoff nimmt in niedrigen Breiten ≈ 40 % mehr weg, an den Polen nichts. Die klarste Aufgabe des Feldes auf einer luftleeren Erde gilt Sonnenstürmen: Es lenkt ihre Teilchen in die Polkappen, ohne Feld liefert ein starker Sturm überall eine tödliche Dosis."
       },
-      "hint": "Regler bewegen, CME auslösen – oder das Feld abschalten und die Uhr laufen lassen",
+      "hint": "Regler bewegen, CME auslösen – oder das Feld abschalten, die Luft wegnehmen und die Uhr laufen lassen",
       "credit": "Erdtexturen: Solar System Scope (CC BY 4.0)",
       "world": {
-        "title": "Die ungeschützte Erde",
+        "title": "Was aus der Erde wird",
         "atmosphere": "Verbleibende Atmosphäre",
         "elapsed": "Vergangen",
         "pressure": "Bodendruck",
-        "rate": "Abtragungsrate",
-        "remaining": "Rest der Luft weg in",
-        "airGone": "weg",
         "temp": "Temperatur",
         "tempMean": "{mean} im Mittel",
         "tempAirless": "{mean} im Mittel · mittags {noon}, nachts {night}",
@@ -798,17 +807,35 @@
         "oceanMigrating": "Eis sublimiert zu den Polen",
         "oceanCaps": "in den Polkappen gebunden",
         "waterLost": "{n} % ins All verloren",
-        "halted": "Verlust gestoppt – die Luft kommt nicht zurück",
+        "halted": "Uhr steht – nichts ändert sich mehr",
         "beyondSun": "jenseits der Restlebensdauer der Sonne",
-        "schematic": "Der ungeschützte Lauf ist ein Lehrmodell: energielimitiertes Abtragen, geeicht auf die heute an Venus, Erde und Mars gemessenen ≈ 1–2 kg/s; eine graue Treibhausatmosphäre gekoppelt an die Budyko-Eisgrenze; Kappenausdehnung, Wanderungsdauer und Rostfärbung sind Größenordnungsabschätzungen. Die Hülle ist als induzierte Ionosphäre eines unmagnetisierten Planeten gezeichnet – auf der Tagseite niedergedrückt, an den Flanken abgerissene Plasmawolken, ein Ionenschweif im Lee, wie an Venus und Mars –, und ihre sichtbare Obergrenze sinkt pro e-Faltung verlorener Masse um eine Skalenhöhe. Die Sonne bleibt konstant, obwohl sie nach 5 Milliarden Jahren die Hauptreihe verließe.",
+        "schematic": "Ein Lehrmodell: energielimitiertes Abtragen, geeicht auf die heute an Venus, Erde und Mars gemessenen ≈ 1–2 kg/s; eine graue Treibhausatmosphäre mit CO₂-Term, gekoppelt an die Budyko-Eisgrenze; vulkanisches Ausgasen mit ≈ 32 t/s gegen den Verwitterungs-Thermostaten; Kappenausdehnung, Wanderungsdauer, Weltraumverwitterung und Strahlendosis sind Größenordnungsabschätzungen. Die Hülle ist als induzierte Ionosphäre eines unmagnetisierten Planeten gezeichnet – auf der Tagseite niedergedrückt, an den Flanken abgerissene Plasmawolken, ein Ionenschweif im Lee –, und ihre sichtbare Obergrenze sinkt pro e-Faltung verlorener Masse um eine Skalenhöhe. Die Sonne bleibt konstant, obwohl sie nach 5 Milliarden Jahren die Hauptreihe verließe.",
         "stage": {
           "intact": "Intakt",
           "thinning": "Dünner · kühlt ab",
           "iceAge": "Eiszeit",
           "snowball": "Schneeball-Erde",
           "sublimating": "Eis sublimiert",
-          "airless": "Luftleer · marsähnlich"
-        }
+          "airless": "Luftleer · marsähnlich",
+          "decompression": "Luft weg · Ozeane kochen",
+          "co2Frozen": "Dünne CO₂-Luft · gefroren",
+          "co2Cold": "Kalte CO₂-Welt",
+          "co2World": "CO₂-Treibhaus",
+          "rebuilt": "Luft neu aufgebaut · leblos"
+        },
+        "co2Share": "CO₂ {n} %",
+        "strip": "Wind trägt ab",
+        "outgas": "Vulkane liefern",
+        "weather": "Verwitterung entzieht",
+        "net": "Luft ändert sich um",
+        "none": "—",
+        "balanced": "im Gleichgewicht",
+        "radiation": "Kosmische Strahlung am Boden",
+        "stormsPolar": "Sonnenstürme treffen nur die Polkappen",
+        "stormsEverywhere": "ein starker Sonnensturm ist überall tödlich",
+        "airToxic": "nicht atembar · CO₂",
+        "oceanBoiling": "kochen an der Oberfläche, frieren zu",
+        "oceanMelting": "Kappen schmelzen zurück in die Becken"
       }
     },
     "galacticZone": {

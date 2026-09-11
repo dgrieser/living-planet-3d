@@ -17,22 +17,25 @@
  *    per-frame CPU cost is a few uniform writes.
  *  - The magnetopause and bow-shock paraboloids are also evaluated in a vertex
  *    shader from (u, v) parameters, so changing the wind never rebuilds geometry.
- *  - With the field switched off a clock starts running in millions of years per
- *    second: the wind strips the atmosphere at the energy-limited rate from
- *    `physics.unshieldedState`, the planet cools and freezes over as the greenhouse
- *    goes, and below the triple point the ice sublimates to the poles and leaves a
- *    dry, Mars-like Earth. The Earth shader paints all of that from a handful of
- *    eased uniforms; the physics never touches pixels. The atmosphere shell becomes
- *    the induced ionosphere of an unmagnetised planet: pressed down on the dayside,
- *    plasma clouds peeled off the flanks, and an ion tail downwind. Its visible top
- *    drops one scale height per e-folding of lost mass, so the shell thins and
- *    finally collapses.
+ *  - Switching the field off, removing the atmosphere or switching the volcanoes off
+ *    starts a clock in millions of years per second. `physics.stepWorld` then runs
+ *    the budget of the air – stripped by the wind, refilled with CO₂ by volcanoes,
+ *    drawn down by weathering – and the climate, water and surface that follow from
+ *    it: cooling and a snowball as the greenhouse goes, ice sublimating to the poles
+ *    and a rusting, Mars-like ground below the triple point, and – on a volcanically
+ *    alive Earth – a rebuilt CO₂ atmosphere that thaws the world again. The Earth
+ *    shader paints all of that from a handful of eased uniforms; the physics never
+ *    touches pixels. The atmosphere shell becomes the induced ionosphere of an
+ *    unmagnetised planet: pressed down on the dayside, plasma clouds peeled off the
+ *    flanks, and an ion tail downwind; its visible top drops one scale height per
+ *    e-folding of lost mass. With no air at all the wind reaches the ground and
+ *    leaves a wake behind the planet, as behind the Moon.
  *
  * All quantitative work lives in ./physics.js; this module only maps it to pixels.
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createPanelShift, createCollapsibleSection, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createSlider, createToggle, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as P from './physics.js';
@@ -100,8 +103,12 @@ const DEFAULTS = Object.freeze({
   density: P.DENSITY_RANGE.default,
   speed: P.SPEED_RANGE.default,
   fieldOn: true,
-  timeLapse: P.CLOCK.timeLapse.defaultMyrPerS, // Myr of the unshielded clock per second of scene time
+  timeLapse: P.CLOCK.timeLapse.defaultMyrPerS, // Myr of the geological clock per second of scene time
+  airRemoved: false, // the thought experiment: take every last bit of gas away
+  volcanoes: true, // Earth is volcanically alive – switch off to see the dead-planet (Mars) path
 });
+/** The boiling oceans right after the air is taken: a scene-time flash that fades over this many seconds. */
+const STEAM_FADE = 2.5;
 
 /** The picture follows the model with this time constant (s), so a scrubbed clock does not pop. */
 const VISUAL_EASE = 0.45;
@@ -148,13 +155,17 @@ export default function mount(container, meta) {
   let cme = null; // { t, x, impacted, sinceImpact }
   let staticStorm = false; // reduced-motion fallback for the CME button
   let model = null;
-  // The unshielded Earth's clock: years since the switch, mass carried off, years below the triple point.
-  let unshielded = { elapsedYr: 0, lostKg: 0, airlessYr: 0 };
+  // The world on the geological clock: the air budget, the water, the ground – see physics.stepWorld.
+  let world = P.todayWorld();
+  let steam = 0; // the oceans flashing to vapour when the air goes (scene time)
   let scrubPointer = false; // the clock slider is being dragged – the running clock must not fight it
   let scrubKeyAt = -Infinity;
   // What the Earth shader currently shows; eased towards the model every frame.
-  const vis = { atm: 1, iceEdge: NO_ICE_EDGE, deep: 0, veg: 0, lights: 1, migrate: 0, capEdge: 1, rust: 0 };
-  const steadyRate = () => P.escapeRateKgS(state.density, state.speed);
+  const vis = { atm: 1, iceEdge: NO_ICE_EDGE, deep: 0, veg: 0, lights: 1, landSnow: 1, migrate: 0, capEdge: 1, rust: 0, haze: 0 };
+  /** The settings the budget runs under. */
+  const settings = () => ({ density: state.density, speed: state.speed, fieldOn: state.fieldOn, volcanoes: state.volcanoes });
+  /** Today's Earth with its shield is a steady state; anything else has a history worth running. */
+  const clockRunning = () => !state.fieldOn || state.airRemoved || !state.volcanoes;
 
   const viewport = el('div', 'lp-sim__viewport');
   container.append(viewport);
@@ -214,9 +225,12 @@ export default function mount(container, meta) {
       uDeep: { value: 0 },
       uVeg: { value: 0 },
       uLights: { value: 1 },
+      uLandSnow: { value: 1 },
       uMigrate: { value: 0 },
       uCapEdge: { value: 1 },
       uRust: { value: 0 },
+      uHaze: { value: 0 },
+      uSteam: { value: 0 },
       uTime: { value: 0 },
     },
     vertexShader: EARTH_VERTEX,
@@ -427,6 +441,7 @@ export default function mount(container, meta) {
   for (const l of Object.values(labels)) scene.add(l.sprite);
 
   const tmpUp = new THREE.Vector3();
+  const hazeColor = new THREE.Color(0xd9b48f);
 
   // =============================================================================================
   // derived model
@@ -440,8 +455,8 @@ export default function mount(container, meta) {
     else if (cme) phase = !cme.impacted ? 'incoming' : cme.sinceImpact < P.CME.riseSeconds + P.CME.holdSeconds ? 'impact' : 'decay';
     return {
       ...active,
-      // the stripping integrates the steady wind: a CME sheath lasts a day, which is nothing on this clock
-      world: P.unshieldedState(unshielded, state.density, state.speed),
+      // the budget integrates the steady wind: a CME sheath lasts a day, which is nothing on this clock
+      world: P.worldState(world, settings()),
       envelope,
       phase,
       cmeActive: phase !== 'none',
@@ -477,7 +492,8 @@ export default function mount(container, meta) {
     auroraSouth.visible = auroraOn;
     auroraMaterial.uniforms.uColat.value = m.aurora.centreColat;
     auroraMaterial.uniforms.uWidth.value = Math.max(m.aurora.halfWidth, 0.045);
-    auroraMaterial.uniforms.uIntensity.value = m.auroraIntensity * (1 + 0.55 * m.envelope);
+    // the oval is the air glowing: no air, no aurora – whatever the field does
+    auroraMaterial.uniforms.uIntensity.value = m.auroraIntensity * (1 + 0.55 * m.envelope) * P.smoothstep(0, 0.02, vis.atm);
     auroraMaterial.uniforms.uTime.value = time;
 
     // the planet itself: what is left of the air, and what that did to the surface
@@ -487,9 +503,12 @@ export default function mount(container, meta) {
     eu.uDeep.value = vis.deep;
     eu.uVeg.value = vis.veg;
     eu.uLights.value = vis.lights;
+    eu.uLandSnow.value = vis.landSnow;
     eu.uMigrate.value = vis.migrate;
     eu.uCapEdge.value = vis.capEdge;
     eu.uRust.value = vis.rust;
+    eu.uHaze.value = vis.haze;
+    eu.uSteam.value = steam;
     eu.uTime.value = time;
     // The shell. Its visible top follows the barometric law – one scale height lower per e-folding
     // of lost mass, reaching the ground at the triple point – so it thins slowly at first and
@@ -505,6 +524,8 @@ export default function mount(container, meta) {
     const au = atmosphereMaterial.uniforms;
     au.uErosion.value = shield ? 0 : 1;
     au.uOpacity.value = Math.pow(vis.atm, 0.6);
+    // a CO₂ sky scatters paler and warmer than ours
+    au.uColor.value.set(COLORS.atmosphere).lerp(hazeColor, vis.haze * 0.7);
     au.uHeight.value = height;
     au.uTime.value = time;
     if (shield) {
@@ -536,6 +557,7 @@ export default function mount(container, meta) {
     }
     wind.uniforms.uPhase.value = windPhase;
     wind.uniforms.uOpacity.value = clamp(0.4 + 0.5 * Math.min(m.density / 30, 1), 0.4, 0.9);
+    wind.uniforms.uBoost.value = shield ? 1 : 1.3; // with nothing to light the sheath, the stream itself has to show
     wind.points.visible = m.density > 0;
 
     cmeCloud.uniforms.uCmeX.value = m.cmeX;
@@ -583,17 +605,22 @@ export default function mount(container, meta) {
    */
   function visualTargets(w) {
     const iceShare = clamp(w.climate.iceSin / P.TODAY_ICE_SIN, 0, 1);
+    const dead = w.lifeGone ? 1 : 0;
     return {
-      atm: w.fraction,
+      atm: Math.min(w.fraction, 1),
       iceEdge: -0.22 + (NO_ICE_EDGE + 0.22) * iceShare,
       deep: clamp((P.CLIMATE.iceThresholdC - w.climate.meanC) / 35, 0, 1),
-      // plants starve of CO₂ as the air goes, and freeze before that if the cold comes first
-      veg: Math.max(P.smoothstep(0.65, 0.3, w.fraction), P.smoothstep(8, -5, w.climate.meanC)),
+      // plants starve of CO₂ as the air goes, freeze before that if the cold comes first – and never
+      // come back once the world has been sterilised
+      veg: Math.max(P.smoothstep(0.65, 0.3, w.fraction), P.smoothstep(8, -5, w.climate.meanC), dead),
       // the lights go out between "Everest base camp" and "the death zone", or when the world freezes
-      lights: P.smoothstep(0.32, 0.6, w.fraction) * P.smoothstep(-22, -6, w.climate.meanC),
+      lights: P.smoothstep(0.32, 0.6, w.fraction) * P.smoothstep(-22, -6, w.climate.meanC) * (1 - dead),
+      // snow needs weather: an airless freeze ices the seas over but leaves the land bare, save for frost
+      landSnow: w.airless ? 0.15 : 1,
       migrate: w.migration,
       capEdge: Math.sin(w.capLatDeg * DEG),
       rust: w.rust,
+      haze: w.co2Fraction,
     };
   }
   /** Ease the picture towards the model; `dt = null` snaps (start-up, reset, reduced motion). */
@@ -667,11 +694,12 @@ export default function mount(container, meta) {
         }
       }
     }
-    if (!state.fieldOn) {
-      // the unshielded clock: Myr per second of scene time, stripping at the steady wind's rate
-      unshielded = P.advanceUnshielded(unshielded, steadyRate(), dt * state.timeLapse * 1e6);
+    if (clockRunning()) {
+      // the geological clock: Myr per second of scene time, the budget run under the current settings
+      world = P.stepWorld(world, settings(), dt * state.timeLapse * 1e6);
       syncClockSlider();
     }
+    steam *= Math.exp(-dt / STEAM_FADE);
     model = derive();
     syncVisuals(dt);
     // integrate the flow: the speed sets how fast, the sign never changes
@@ -708,22 +736,43 @@ export default function mount(container, meta) {
     syncFieldButton();
     refresh();
   }
+  /** Take the air away – or hand today's back; the ground keeps whatever the run did to it. */
+  function setAirRemoved(removed) {
+    if (state.airRemoved === removed) return;
+    state.airRemoved = removed;
+    world = removed ? P.removeAtmosphere(world) : P.restoreAtmosphere(world);
+    if (removed) {
+      steam = 1;
+      // this story plays out in thousands to millions of years, so the clock slows down for it
+      setTimeLapse(P.CLOCK.timeLapse.removedMyrPerS);
+    }
+    syncAirButton();
+    syncFieldButton();
+    refresh();
+  }
+  function setVolcanoes(on) {
+    if (state.volcanoes === on) return;
+    state.volcanoes = on;
+    volcanoToggle.setChecked(on, { silent: true });
+    syncFieldButton();
+    refresh();
+  }
   function setTimeLapse(myrPerS, { fromSlider = false } = {}) {
     const { minMyrPerS, maxMyrPerS } = P.CLOCK.timeLapse;
     state.timeLapse = clamp(myrPerS, minMyrPerS, maxMyrPerS);
     if (!fromSlider) timeLapseSlider.setValue(Math.log10(state.timeLapse), { silent: true });
     updateReadouts(true);
   }
-  /** Scrub the clock: the state is what a constant wind (the one set now) would have done in that time. */
+  /** Scrub the clock: the world is re-run from today under the settings set now, held constant. */
   function setElapsed(yr, { fromSlider = false } = {}) {
-    unshielded = P.historyAtConstantWind(steadyRate(), yr);
+    world = P.historyAt(settings(), yr, { airRemoved: state.airRemoved });
     if (!fromSlider) syncClockSlider(true);
     refresh();
   }
   function syncClockSlider(force = false) {
     const scrubbing = scrubPointer || performance.now() - scrubKeyAt < 1500;
     if (scrubbing && !force) return;
-    const u = sliderFromClock(unshielded.elapsedYr);
+    const u = sliderFromClock(world.elapsedYr);
     if (u !== clockSlider.value) clockSlider.setValue(u, { silent: true });
   }
   function launchCme() {
@@ -756,6 +805,11 @@ export default function mount(container, meta) {
   const fieldRow = el('div', 'lp-button-row lp-button-row--full');
   fieldRow.append(fieldButton.el);
   const fieldOffNotice = createNotice({ textKey: `${KEYS}.warn.fieldOff`, tone: 'warn' });
+  const airButton = createButton({ labelKey: `${KEYS}.controls.removeAir`, icon: '🌫', slim: true, onClick: () => setAirRemoved(!state.airRemoved) });
+  const airRow = el('div', 'lp-button-row lp-button-row--full');
+  airRow.append(airButton.el);
+  const airNotice = createNotice({ textKey: `${KEYS}.warn.airRemoved`, tone: 'warn' });
+  const volcanoToggle = createToggle({ labelKey: `${KEYS}.controls.volcanoes`, checked: state.volcanoes, onChange: (v) => setVolcanoes(v) });
   const densitySlider = createSlider({
     labelKey: `${KEYS}.controls.density`,
     unitKey: 'units.perCubicCentimeter',
@@ -889,9 +943,12 @@ export default function mount(container, meta) {
   const worldFacts = createFacts([
     ['elapsed', `${KEYS}.world.elapsed`],
     ['pressure', `${KEYS}.world.pressure`],
-    ['rate', `${KEYS}.world.rate`],
-    ['remaining', `${KEYS}.world.remaining`],
+    ['strip', `${KEYS}.world.strip`],
+    ['outgas', `${KEYS}.world.outgas`],
+    ['weather', `${KEYS}.world.weather`],
+    ['net', `${KEYS}.world.net`],
     ['temp', `${KEYS}.world.temp`],
+    ['radiation', `${KEYS}.world.radiation`],
     ['air', `${KEYS}.world.air`],
     ['ice', `${KEYS}.world.ice`],
     ['ocean', `${KEYS}.world.ocean`],
@@ -901,7 +958,7 @@ export default function mount(container, meta) {
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
-    fieldRow, fieldOffNotice, clockControls, densitySlider, speedSlider, cmeRow, moreControls,
+    fieldRow, fieldOffNotice, airRow, airNotice, clockControls, densitySlider, speedSlider, volcanoToggle.el, cmeRow, moreControls,
     worldSection,
     bindText(el('p', 'lp-subheading'), `${KEYS}.storm.title`), stormReadout, stormFacts,
     legend, infoCard, physicsCard,
@@ -924,16 +981,25 @@ export default function mount(container, meta) {
     fieldButton.el.classList.toggle('lp-button--primary', !state.fieldOn);
     fieldButton.el.classList.toggle('lp-button--ghost', state.fieldOn);
     fieldOffNotice.el.hidden = state.fieldOn;
-    clockControls.hidden = state.fieldOn;
     syncWorldVisibility();
     toggles.showFieldLines.el.hidden = !state.fieldOn;
     toggles.showBoundaries.el.hidden = !state.fieldOn;
     toggles.showAurora.el.hidden = !state.fieldOn;
   }
 
-  /** The unshielded readout stays while there is damage to show, even after the field is back on. */
+  function syncAirButton() {
+    airButton.setIcon(state.airRemoved ? '↩' : '🌫');
+    airButton.setLabel(state.airRemoved ? `${KEYS}.controls.restoreAir` : `${KEYS}.controls.removeAir`);
+    airButton.el.classList.toggle('lp-button--primary', state.airRemoved);
+    airButton.el.classList.toggle('lp-button--ghost', !state.airRemoved);
+    airNotice.el.hidden = !state.airRemoved;
+  }
+
+  /** The clock and the readout stay while there is a history to show, even after the switches are back. */
   function syncWorldVisibility() {
-    worldSection.hidden = state.fieldOn && unshielded.lostKg <= 0;
+    const history = clockRunning() || world.elapsedYr > 0;
+    clockControls.hidden = !history;
+    worldSection.hidden = !history;
   }
 
   function syncCmeButton() {
@@ -951,11 +1017,14 @@ export default function mount(container, meta) {
     windPhase = 0;
     erosionPhase = 0;
     earthSpin.rotation.y = 0;
-    unshielded = { elapsedYr: 0, lostKg: 0, airlessYr: 0 };
+    world = P.todayWorld();
+    steam = 0;
     densitySlider.setValue(state.density, { silent: true });
     speedSlider.setValue(state.speed, { silent: true });
     timeLapseSlider.setValue(Math.log10(state.timeLapse), { silent: true });
+    volcanoToggle.setChecked(state.volcanoes, { silent: true });
     syncClockSlider(true);
+    syncAirButton();
     syncFieldButton();
     syncCmeButton();
     setCamera('side');
@@ -981,12 +1050,17 @@ export default function mount(container, meta) {
       m.speed.toFixed(0),
       m.density.toFixed(0),
       w.stage,
-      w.fraction.toFixed(3),
+      w.pressureHPa.toPrecision(3),
+      w.co2Fraction.toFixed(2),
       w.elapsedYr.toPrecision(3),
       w.meanC.toFixed(0),
       w.water.toFixed(3),
       w.capLatDeg.toFixed(0),
+      w.doseMSvYr.toPrecision(2),
+      w.weatherKgS.toPrecision(2),
       w.beyondSun,
+      state.volcanoes,
+      state.airRemoved,
     ].join('|');
     if (!force && key === lastReadoutKey) return;
     lastReadoutKey = key;
@@ -1003,7 +1077,7 @@ export default function mount(container, meta) {
       stormKpValue.textContent = `Kp ${fmt(m.kp, 1, 1)}`;
       stormPill.textContent = t(`${KEYS}.storm.level.${m.level}`);
       stormPill.className = `lp-state lp-state--kp-${m.level}`;
-      stormFacts.set('aurora', `${fmt(m.aurora.equatorwardLatDeg, 1, 1)}° ${t(`${KEYS}.storm.latitude`)}`);
+      stormFacts.set('aurora', w.fraction < 0.02 ? t(`${KEYS}.storm.noGlow`) : `${fmt(m.aurora.equatorwardLatDeg, 1, 1)}° ${t(`${KEYS}.storm.latitude`)}`);
       stormFacts.set('geosync', t(`${KEYS}.storm.${m.geosyncExposed ? 'geosyncExposed' : 'geosyncSafe'}`));
     } else {
       stormKpValue.textContent = '—';
@@ -1025,16 +1099,19 @@ export default function mount(container, meta) {
     worldValue.textContent = `${fmt(pct, pct < 1 ? 2 : pct < 10 ? 1 : 0)} %`;
     worldPill.textContent = t(`${K}.stage.${w.stage}`);
     worldPill.className = `lp-state lp-state--world-${w.stage}`;
-    const note = state.fieldOn ? 'halted' : w.beyondSun ? 'beyondSun' : null;
+    const note = !clockRunning() ? 'halted' : w.beyondSun ? 'beyondSun' : null;
     worldNote.hidden = !note;
     if (note) worldNote.textContent = t(`${K}.${note}`);
     worldReadout.classList.toggle('is-airless', w.airless);
 
     worldFacts.set('elapsed', formatYears(w.elapsedYr));
-    worldFacts.set('pressure', w.pressureHPa < 1 ? `${fmt(w.pressureHPa * 100, 1)} Pa` : `${fmt(w.pressureHPa, w.pressureHPa < 10 ? 1 : 0)} ${t('units.hectopascal')}`);
-    // with the field back on nothing is being stripped, so the rate rows go blank
-    worldFacts.set('rate', state.fieldOn ? '—' : formatRate(w.rateKgS));
-    worldFacts.set('remaining', w.airless ? t(`${K}.airGone`) : state.fieldOn ? '—' : w.remainingYr > P.CLOCK.maxYr ? `> ${formatYears(P.CLOCK.maxYr)}` : formatYears(w.remainingYr));
+    const pressure = w.pressureHPa < 1 ? `${fmt(w.pressureHPa * 100, 1)} Pa` : `${fmt(w.pressureHPa, w.pressureHPa < 10 ? 1 : 0)} ${t('units.hectopascal')}`;
+    worldFacts.set('pressure', w.co2Fraction >= 0.005 ? `${pressure} · ${t(`${K}.co2Share`, { n: fmt(w.co2Fraction * 100, w.co2Fraction < 0.1 ? 1 : 0) })}` : pressure);
+    // the three flows that make the budget – blank where nothing flows
+    worldFacts.set('strip', state.fieldOn ? t(`${K}.none`) : formatRate(w.stripKgS));
+    worldFacts.set('outgas', state.volcanoes ? formatRate(w.outgasKgS) : t(`${K}.none`));
+    worldFacts.set('weather', w.weatherKgS > 0.05 ? formatRate(w.weatherKgS) : t(`${K}.none`));
+    worldFacts.set('net', Math.abs(w.netKgS) < 0.05 ? t(`${K}.balanced`) : `${w.netKgS > 0 ? '+' : '−'}${formatRate(Math.abs(w.netKgS))}`);
     const degC = (k) => `${fmt(k - 273.15, 0)} ${t('units.celsius')}`;
     worldFacts.set(
       'temp',
@@ -1042,15 +1119,20 @@ export default function mount(container, meta) {
         ? t(`${K}.tempAirless`, { mean: degC(w.meanK), noon: degC(w.bare.noonK), night: degC(w.bare.nightK) })
         : t(`${K}.tempMean`, { mean: degC(w.meanK) }),
     );
+    const dose = w.doseMSvYr < 10 ? fmt(w.doseMSvYr, w.doseMSvYr < 1 ? 2 : 1) : fmt(w.doseMSvYr, 0);
+    const storms = w.fraction < 0.1 ? ` · ${t(`${K}.${state.fieldOn ? 'stormsPolar' : 'stormsEverywhere'}`)}` : '';
+    worldFacts.set('radiation', `${dose} ${t('units.millisievertPerYear')}${storms}`);
     const altitude = fmt(Math.min(w.altitudeM, 99999), 0);
-    worldFacts.set('air', w.breathability === 'none' ? t(`${K}.airNone`) : t(`${K}.air${w.breathability[0].toUpperCase()}${w.breathability.slice(1)}`, { alt: altitude }));
-    if (w.airless) worldFacts.set('ice', t(`${K}.caps`, { lat: fmt(w.capLatDeg, 0) }));
-    else if (w.climate.snowball) worldFacts.set('ice', t(`${K}.frozenOver`));
+    const airKey = `${K}.air${w.breathability[0].toUpperCase()}${w.breathability.slice(1)}`;
+    worldFacts.set('air', w.breathability === 'none' || w.breathability === 'toxic' ? t(airKey) : t(airKey, { alt: altitude }));
+    if (w.migration > 0.5) worldFacts.set('ice', t(`${K}.caps`, { lat: fmt(w.capLatDeg, 0) }));
+    else if (w.airless || w.climate.snowball) worldFacts.set('ice', t(`${K}.frozenOver`));
     else worldFacts.set('ice', t(`${K}.iceTo`, { lat: fmt(w.climate.iceLineLatDeg, 0) }));
     let ocean;
-    if (!w.airless) ocean = t(`${K}.${w.climate.snowball ? 'oceanFrozen' : 'oceanLiquid'}`);
-    else if (w.migration < 0.999) ocean = t(`${K}.oceanMigrating`);
-    else ocean = t(`${K}.oceanCaps`);
+    if (w.stage === 'decompression') ocean = t(`${K}.oceanBoiling`);
+    else if (w.migration > 0.5) ocean = t(w.airless ? `${K}.oceanCaps` : `${K}.oceanMelting`);
+    else if (w.airless) ocean = t(`${K}.oceanMigrating`);
+    else ocean = t(`${K}.${w.climate.snowball ? 'oceanFrozen' : 'oceanLiquid'}`);
     const lost = (1 - w.water) * 100;
     if (lost >= 0.05) ocean += ` · ${t(`${K}.waterLost`, { n: fmt(lost, lost < 10 ? 1 : 0) })}`;
     worldFacts.set('ocean', ocean);
@@ -1073,6 +1155,7 @@ export default function mount(container, meta) {
       timeLapseSlider.setValue(timeLapseSlider.value, { silent: true });
       clockSlider.setValue(clockSlider.value, { silent: true });
       syncFieldButton();
+      syncAirButton();
       syncCmeButton();
       physicsCard.render();
       updateReadouts(true);
@@ -1085,6 +1168,7 @@ export default function mount(container, meta) {
   model = derive();
   syncVisuals(null);
   rebuildFieldLines({ ...model.env });
+  syncAirButton();
   syncFieldButton();
   syncCmeButton();
   syncCameraButtons();
@@ -1111,8 +1195,8 @@ export default function mount(container, meta) {
       get erosionPhase() {
         return erosionPhase;
       },
-      get unshielded() {
-        return unshielded;
+      get world() {
+        return world;
       },
       get visuals() {
         return vis;
@@ -1120,6 +1204,8 @@ export default function mount(container, meta) {
       setDensity,
       setSpeed,
       setFieldOn,
+      setAirRemoved,
+      setVolcanoes,
       setTimeLapse,
       setElapsed,
       launchCme,
@@ -1335,7 +1421,7 @@ function createPhysicsCard() {
   summary.append(bindText(el('span', 'lp-info__title'), `${KEYS}.physics.title`));
   const body = el('div', 'lp-info__body');
   details.append(summary, body);
-  const entries = ['pressure', 'standoff', 'shue', 'shock', 'kp', 'aurora', 'escape', 'greenhouse', 'iceLine', 'sublimation'];
+  const entries = ['pressure', 'standoff', 'shue', 'shock', 'kp', 'aurora', 'escape', 'volcanism', 'greenhouse', 'iceLine', 'sublimation', 'radiation'];
   function render() {
     body.replaceChildren();
     // the caveats behind the on-canvas storm index, the CME's scene timing and the unshielded run
@@ -1534,9 +1620,12 @@ const EARTH_FRAGMENT = /* glsl */ `
   uniform float uDeep;     // 0…1 how far below −10 °C the world is – thicker, bluer ice
   uniform float uVeg;      // 0 living vegetation … 1 dead
   uniform float uLights;   // city lights 0…1
+  uniform float uLandSnow; // 1 snow covers the frozen land, 0.15 only frost – an airless freeze has no weather
   uniform float uMigrate;  // 0…1 low-latitude ice sublimated away to the poles
   uniform float uCapEdge;  // sin(latitude) where the polar caps begin once the air is gone
   uniform float uRust;     // 0…1 oxidised and space-weathered bare surface
+  uniform float uHaze;     // 0…1 CO₂ share of the air – its sky scatters paler and warmer
+  uniform float uSteam;    // the oceans flashing to vapour the moment the air is gone
   uniform float uTime;
   varying vec2 vUv;
   varying vec3 vWorldPos;
@@ -1574,7 +1663,7 @@ const EARTH_FRAGMENT = /* glsl */ `
 
     // 1. the living world, and its vegetation dying back to bare soil
     vec3 soil = mix(SOIL_DARK, SOIL_PALE, smoothstep(0.3, 0.75, detail));
-    vec3 ground = mix(tex, soil, uVeg * land * (0.25 + 0.75 * green));
+    vec3 ground = mix(tex, soil, uVeg * land * (0.45 + 0.55 * green));
 
     // 2. ice: sea ice criss-crossed by leads, snow on the land, growing from the poles behind a
     //    front the noise makes ragged; young ice lets the water darken it, a deep freeze buries all
@@ -1587,7 +1676,7 @@ const EARTH_FRAGMENT = /* glsl */ `
       vec3 seaIce = mix(SEA_ICE, SEA_ICE_DARK, smoothstep(0.4, 0.7, fbm(p * 3.5 + vec3(9.0), 3)) * 0.6);
       float pack = mix(0.78, 1.0, uDeep) * (1.0 - leads * 0.85);
       vec3 icedSea = mix(mix(ground, LEAD, leads * 0.5), seaIce, pack);
-      float cover = clamp(mix(0.55, 1.0, uDeep) + (relief - 0.5) * 0.35, 0.0, 1.0);
+      float cover = clamp(mix(0.55, 1.0, uDeep) + (relief - 0.5) * 0.35, 0.0, 1.0) * uLandSnow;
       vec3 snowy = mix(ground, mix(ICE_SHADE, ICE, 0.45 + 0.55 * relief), cover);
       frozen = mix(mix(icedSea, snowy, land), vec3(0.62, 0.74, 0.92), uDeep * 0.25);
     }
@@ -1624,6 +1713,12 @@ const EARTH_FRAGMENT = /* glsl */ `
     vec3 nightColor = surf * mix(vec3(0.012, 0.012, 0.014), vec3(0.030, 0.040, 0.075), uAtm);
     vec3 color = mix(nightColor, dayColor, day);
 
+    // the first minutes without air: the warm oceans boil at the surface until an ice lid stops them
+    if (uSteam > 0.001) {
+      float puff = smoothstep(0.42, 0.7, fbm(p * 4.5 + vec3(uTime * 0.45, uTime * 0.3, 0.0), 3));
+      color += vec3(0.9, 0.92, 0.95) * puff * uSteam * (1.0 - land) * (0.25 + 0.75 * day);
+    }
+
     // city lights, fading in across the terminator – and going out as the air goes
     color += texture2D(uNightMap, vUv).rgb * (1.0 - day) * 1.6 * uLights;
 
@@ -1635,7 +1730,7 @@ const EARTH_FRAGMENT = /* glsl */ `
 
     // thin atmospheric rim – gone with the air
     float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
-    color += vec3(0.25, 0.5, 1.0) * rim * (0.15 + 0.5 * day) * uAtm;
+    color += mix(vec3(0.25, 0.5, 1.0), vec3(0.85, 0.66, 0.5), uHaze) * rim * (0.15 + 0.5 * day) * uAtm;
 
     gl_FragColor = vec4(color, 1.0);
     #include <tonemapping_fragment>
@@ -1810,6 +1905,7 @@ const PARTICLE_VERTEX = /* glsl */ `
 
   void main() {
     vec3 p;
+    bool absorbed = false;
     vColor = uColdColor;
     vAlpha = uOpacity;
     vSheath = 0.0;
@@ -1841,6 +1937,13 @@ const PARTICLE_VERTEX = /* glsl */ `
       if (uFieldOn > 0.5) {
         float rb = mpRadius(x - uOffset * uR0);
         rho = sqrt(aRho * aRho + rb * rb);
+      } else {
+        // No shield: whatever is aimed at the planet hits it on the dayside and is gone. Behind the
+        // planet the wind leaves an empty wake that the flow closes again over a dozen radii, as it
+        // does behind the Moon.
+        if (aRho < uAtmR && x < 0.0) absorbed = true;
+        float fill = smoothstep(0.0, 14.0, -x);
+        rho = max(rho - fill * smoothstep(3.0, 1.0, rho), 0.0);
       }
       // magnetosheath = inside the bow shock, outside the magnetopause, not far down the tail
       float bs = bsRadius(x);
@@ -1856,14 +1959,15 @@ const PARTICLE_VERTEX = /* glsl */ `
       // the shocked, compressed flow that drapes over the magnetopause is what should catch the eye
       vAlpha = uOpacity * edgeFade * (0.42 + 1.3 * sheath);
       if (uFieldOn < 0.5) {
-        // no shield: brighten just before the particle hits the atmosphere
+        // no shield: the stream stays visible all the way in and flares as it hits the air – or,
+        // with none left, the ground itself
         float hit = smoothstep(4.0, uAtmR, length(p));
-        vColor = mix(vColor, uHotColor, hit);
-        vAlpha *= 0.6 + 1.6 * hit;
+        vColor = mix(mix(vColor, vec3(0.85, 0.92, 1.0), 0.45), uHotColor, hit);
+        vAlpha *= 1.6 + 2.4 * hit;
       }
     }
     float rr = length(p);
-    if (rr < uAtmR) {
+    if (rr < uAtmR || absorbed) {
       // absorbed – hide until the particle is recycled upstream
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
       gl_PointSize = 0.0;
