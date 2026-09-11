@@ -72,8 +72,8 @@ const CAMERA_MODES = Object.freeze(['fit', 'follow', 'free']);
  * back to the visitor ('free'), so the header button shows no view as active afterwards.
  */
 const CAMERA_VIEWS = Object.freeze([
-  { id: 'fit', labelKey: `${KEYS}.view.frameZone` },
   { id: 'follow', labelKey: `${KEYS}.view.followPlanet` },
+  { id: 'fit', labelKey: `${KEYS}.view.frameZone` },
   { id: 'overview', labelKey: `${KEYS}.view.overview` },
 ]);
 const FIT_TOLERANCE = 1.06; // how far the framing may drift before the fit mode re-frames
@@ -133,9 +133,10 @@ const VIEW_DEFAULTS = Object.freeze({
   showGrid: false,
   tempUnit: 'celsius', // 'both' | 'kelvin' | 'celsius' – for the star and the planet alike
   starScale: STAR_SCALE_RANGE.default, // how far the star's disc is drawn larger than life (display only)
-  // 'fit' keeps the star, the planet and the zone framed by themselves, 'follow' rides along
-  // with the planet, 'free' leaves the camera to the visitor
-  cameraMode: 'fit',
+  // 'follow' rides along with the planet – the close-up the simulation opens on, since the
+  // planet is what changes; 'fit' keeps the star, the planet and the zone framed by themselves,
+  // 'free' leaves the camera to the visitor
+  cameraMode: 'follow',
 });
 
 const { clamp } = HZ;
@@ -1286,8 +1287,8 @@ export default function mount(container, meta) {
   const speedNote = bindText(el('p', 'lp-section__note'), `${KEYS}.view.speedNote`);
   const cameraRow = el('div', 'lp-presets lp-presets--3 lp-presets--compact', { role: 'group' });
   bindAttr(cameraRow, { 'aria-label': `${KEYS}.view.camera` });
-  // "Frame zone" and "Planet" are modes, not one-offs: the first keeps the star, the planet and
-  // the zone framed, the second rides along with the planet. "Overview" hands the camera back.
+  // "Planet" and "Frame zone" are modes, not one-offs: the first rides along with the planet,
+  // the second keeps the star, the planet and the zone framed. "Overview" hands the camera back.
   const frameBtn = createButton({
     labelKey: `${KEYS}.view.frameZone`,
     ariaKey: `${KEYS}.view.frameZoneAria`,
@@ -1310,7 +1311,7 @@ export default function mount(container, meta) {
     icon: '⤢',
     onClick: () => selectCameraView('overview'),
   });
-  for (const btn of [frameBtn, followBtn, overviewBtn]) {
+  for (const btn of [followBtn, frameBtn, overviewBtn]) {
     btn.el.classList.add('lp-presets__btn');
     cameraRow.append(btn.el);
   }
@@ -1451,7 +1452,9 @@ export default function mount(container, meta) {
   refresh();
   syncStarSliders();
   updateReadouts(true);
-  // start in whatever camera mode the visitor left behind, already framed
+  // start in whatever camera mode the visitor left behind, already framed – field of view included,
+  // since the close-up takes a wider one than the rest of the scene
+  setFieldOfView(state.cameraMode === 'follow' ? PLANET_VIEW.fov : defaultFov);
   if (state.cameraMode === 'follow') tweenCamera(planetView, 0);
   else fitView(0);
   sim.start();

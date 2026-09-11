@@ -124,6 +124,10 @@ Every simulation's panel header carries two icon-only buttons next to the collap
 the overall reset (the circle arrow) and the camera – and both are there whether the panel is
 open or collapsed, so neither is ever more than one press away.
 
+All three share one look (`.lp-panel__action`): the same border and the same muted glyph, in
+every state, so the row reads as a row and no button shouts over its neighbours. Hover is the
+one thing that sets a button apart, and only while the pointer is on it.
+
 The **reset** is the one button that puts *everything* back: the simulation's parameters and
 the remembered display settings alike. It is wired up with one option, and the simulation's
 own reset function does the work:
@@ -135,11 +139,12 @@ const panel = createPanel({ onToggle: () => viewShift.sync(), onReset: reset, ca
 The **camera** button steps through the views. It
 is there whether the panel is open or collapsed – so the views stay one press away while the
 panel is out of the way. Each press steps to the next view in the simulation's list and the
-header names it for about two seconds, in place of the "Controls" title, before fading back.
-The panel keeps no camera state of its own: the simulation reports every change – its own
-preset row, a click in the scene, a reset – so the button stays in step, and a view the
-visitor set up by hand simply leaves no view marked as active, with the next press carrying
-on from the last preset. One list per simulation wires it up:
+header names it for about two seconds, in place of the "Controls" title, before fading back –
+which is the only feedback it gives, since none of the three buttons carries a state of its
+own (see below). The panel keeps no camera state either: the simulation reports every change –
+its own preset row, a click in the scene, a reset – so the cycle stays in step, and a view the
+visitor set up by hand simply leaves it where the last preset left it, with the next press
+carrying on from there. One list per simulation wires it up:
 
 ```js
 const CAMERA_VIEWS = Object.freeze([
@@ -189,7 +194,7 @@ disposers.push(viewShift.dispose);
 | `moon-tides` | The Moon & the tides | Two linked views: (A) ocean shell displaced by the equilibrium tide of Moon + optional Sun (spring/neap), adjustable Moon distance 0.5–2× with 1/r³ bulge scaling, rotating Earth with a tide-gauge strip chart; (B) precessing, gently nodding axis with the Moon vs. a clearly flagged schematic chaotic wobble (0–60°) after "Remove Moon". Bilingual moon-size comparison table. |
 | `magnetosphere` | Earth's magnetosphere | Earth with the shader day/night terminator and city lights of the other simulations, dipole field lines (56 curves, L = 2–10) confined below the Shue magnetopause on the dayside and stretched into a magnetotail on the night side, 10 000 GPU solar-wind particles deflecting around the boundary, translucent bow-shock and magnetopause paraboloids, emissive auroral ovals whose radius follows the Kp-style index, density (0–100 cm⁻³) and speed (0–2000 km/s) sliders, "Launch CME" event with a space-weather readout in the panel (Kp, storm phase, boundary distances, aurora reach, geostationary exposure), a "magnetic field off" mode and a "remove the atmosphere" button that run a geological clock (10 kyr–1 Gyr per second, scrubbable) over the air budget: the wind strips at an energy-limited rate ∝ n·v³, volcanoes add CO₂ against the weathering thermostat (switchable, for the dead-planet path), the climate cools and freezes over as the greenhouse goes and thaws again once enough CO₂ has built up, below the triple point the oceans boil, freeze and sublimate to the poles while the ground rusts and takes the Moon's radiation – with a readout of pressure and composition, the three flows, temperature, cosmic-ray dose, ice and ocean state. |
 | `galactic-zone` | The galactic habitable zone | Schematic barred spiral Milky Way from 50 000 GPU points (bar + bulge, four logarithmic arms, Orion spur, HII regions, exponential disc) under a haze of unresolved starlight, with dust lanes as Beer–Lambert extinction on the concave arm edges, a warm nucleus glow and 150 globular clusters in the halo; translucent green habitable annulus (13 000–33 000 ly, configurable), red "hostile core" and blue-grey metal-poor overlays with bilingual hover tooltips, pulsing Sun marker at 27 000 ly with a camera flight from the overview into the Sun's neighbourhood (click the Sun or the galactic centre to fly to either view), what-if radius slider with zone status / period / supernova-hazard / heavy-element readouts and a "Conditions in the solar system" box that explains in prose, against today's Earth as the reference, the odds of ozone-damaging supernovae and comet-shower passages, whether the Sun would cross spiral arms here, and what a solar system born here would have got in terms of a Jupiter and radiogenic heat, 230 Myr orbit timeline with play button, arm labels, clearly flagged as schematic. |
-| `habitable-zone` | The habitable zone | Adjustable star set by its two physical properties – effective temperature (2600–7200 K) and radius, with the luminosity following from `L = R²T⁴`, so it can be pulled off the main sequence into a subgiant or a giant – with M/K/G/F presets, a colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged up and down (mouse or touch) for its type, carrying temperature, size and brightness together along the main sequence, with a slider to inflate it off that sequence into a subgiant or giant; draggable planet (0.1–5 AU, grabbed by its offset and eased towards the pointer) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into a lava world — and morphs as a climate does, the ice closing in from the poles and the scorched ground spreading from the equator behind a ragged front with steam where the oceans boil, ending in a crust of drifting plates over convecting lava seas with flaring vents; live Kopparapu zone (T_eff-dependent flux limits, so the zone is not a plain √L scaling) with a master toggle and flat-annulus / 3D-shell sub-toggles, three camera modes on one row — "frame zone" keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), "planet" rides along with the planet for a close-up with the star in the distance behind it, "overview" hands the camera back — Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
+| `habitable-zone` | The habitable zone | Adjustable star set by its two physical properties – effective temperature (2600–7200 K) and radius, with the luminosity following from `L = R²T⁴`, so it can be pulled off the main sequence into a subgiant or a giant – with M/K/G/F presets, a colour-accurate photosphere (granulation, sunspots, faculae, limb darkening, flares on M dwarfs) and an animated corona, dragged up and down (mouse or touch) for its type, carrying temperature, size and brightness together along the main sequence, with a slider to inflate it off that sequence into a subgiant or giant; draggable planet (0.1–5 AU, grabbed by its offset and eased towards the pointer) that spins and morphs from T_eq between a snowball (sea ice with refrozen leads, snow-covered continents, blowing snow), the real Earth (day map + city lights on the night side, as in axial-tilt) and a Venus-like cloud world that burns off into a lava world — and morphs as a climate does, the ice closing in from the poles and the scorched ground spreading from the equator behind a ragged front with steam where the oceans boil, ending in a crust of drifting plates over convecting lava seas with flaring vents; live Kopparapu zone (T_eff-dependent flux limits, so the zone is not a plain √L scaling) with a master toggle and flat-annulus / 3D-shell sub-toggles, three camera modes on one row — "planet" (the one it opens on) rides along with the planet for a close-up with the star in the distance behind it, "frame zone" keeps star, planet and zone in view by itself (re-framing on pointer up / touch release), "overview" hands the camera back — Kelvin / °C / both unit switch for star and planet, evolution mode ageing a Sun-like star 0–10 Gyr, orbit grid, temperature labels, an overall speed slider (0–5×) that scales every animated element, bilingual physics card. |
 
 ### axial-tilt notes
 
@@ -352,8 +357,9 @@ disposers.push(viewShift.dispose);
   halo, and the planet's name and temperature labels, which mark it when it is only a speck. Only the
   invisible hit spheres stay generous, so both bodies remain easy to grab; the rings around them are a
   drag/hover cue and nothing else.
-- The camera has three modes (`cameraMode`, a remembered preference, `fit` by default), one per button on
-  the camera row; switching into one flies there, so pressing the button shows what it does.
+- The camera has three modes (`cameraMode`, a remembered preference, `follow` by default – the planet is
+  what the simulation is about, so it opens on the close-up of it), one per button on the camera row, in
+  that order; switching into one flies there, so pressing the button shows what it does.
 - **`fit` — "Frame zone".** The camera keeps the planet's orbit, the star's disc (plus a little corona) and
   – when it is shown – the outer zone edge in view, at `fitDistance()` for that radius and along whatever
   viewing direction the visitor has. It re-frames when a gesture *ends* – pointer up, touch released, a
