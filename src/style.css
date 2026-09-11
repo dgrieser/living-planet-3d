@@ -227,15 +227,16 @@ a:hover { color: #a9d9ff; }
 .lp-panel__header.is-announcing .lp-panel__announce { opacity: 1; }
 .lp-panel__header.is-announcing .lp-panel__title { opacity: 0; }
 .lp-panel__actions { display: flex; align-items: center; gap: 8px; flex: none; }
-/* steps through the simulation's camera views – reachable whether the panel is open or collapsed */
-.lp-panel__camera {
+/* the header's icon buttons – the overall reset and the camera views, both reachable
+   whether the panel is open or collapsed */
+.lp-panel__action {
   appearance: none; border: 1px solid var(--lp-border); background: transparent;
   width: 32px; height: 32px; border-radius: 50%; cursor: pointer; color: var(--lp-text-muted);
-  display: grid; place-items: center; padding: 0;
+  display: grid; place-items: center; padding: 0; flex: none;
 }
-.lp-panel__camera:hover { border-color: var(--lp-accent); color: var(--lp-text); }
+.lp-panel__action:hover { border-color: var(--lp-accent); color: var(--lp-text); }
 .lp-panel__camera.is-active { color: var(--lp-accent); border-color: rgba(124, 196, 255, 0.5); }
-.lp-panel__camera-icon { width: 17px; height: 17px; }
+.lp-panel__action-icon { width: 17px; height: 17px; }
 .lp-panel__toggle {
   appearance: none; border: 1px solid var(--lp-border); background: transparent;
   width: 32px; height: 32px; border-radius: 50%; cursor: pointer; color: var(--lp-text);
@@ -316,12 +317,14 @@ a:hover { color: #a9d9ff; }
 .lp-button--primary { background: var(--lp-accent); color: var(--lp-accent-contrast); border-color: transparent; }
 .lp-button--primary:hover { background: #9fd3ff; }
 .lp-button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.lp-button-row--full > .lp-button { flex: 1 1 100%; }
 /* three switches in one row: icon over a label that may wrap, so long names fit a narrow panel */
 .lp-button-row--split > .lp-button { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 3px; padding: 7px 6px; font-size: 0.78rem; white-space: normal; line-height: 1.2; text-align: center; }
 .lp-button--compact { width: 34px; height: 34px; padding: 0; gap: 0; flex: none; font-size: 1rem; }
 .lp-button--slim { padding: 6px 10px; font-size: 0.85rem; }
 .lp-button--compact .lp-button__icon { line-height: 1; }
+/* a line icon in place of a glyph (the resets) – on a compact button it is the whole button */
+.lp-button .lp-icon { width: 16px; height: 16px; flex: none; }
+.lp-button--compact .lp-icon { width: 17px; height: 17px; }
 
 /* a control with small inline actions on its right (slider + reset / play) */
 .lp-control-row { display: flex; align-items: flex-end; gap: 10px; padding-bottom: 8px; }
@@ -332,6 +335,9 @@ a:hover { color: #a9d9ff; }
 .lp-control-row .lp-slider__value { white-space: normal; text-align: right; }
 /* half the difference between the 34px action and the 28px track box, so the two share a centre line */
 .lp-control-row > .lp-button--compact { margin-bottom: -3px; }
+/* a control that hangs a tick row under its track (solar-orbit's speed): the action stays
+   level with the track instead of dropping to the bottom of the ticks */
+.lp-control-row--ticked > .lp-button--compact { margin-bottom: 12px; }
 
 /* collapsible group of secondary controls */
 .lp-collapse { border-top: 1px solid var(--lp-border); }

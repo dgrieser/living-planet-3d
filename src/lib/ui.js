@@ -19,6 +19,9 @@ export const ICONS = Object.freeze({
   home: '<path d="M3.4 11.3 12 4l8.6 7.3"/><path d="M5.9 10V20h12.2V10"/><path d="M9.9 20v-5.2h4.2V20"/>',
   camera: '<rect x="2.6" y="5.9" width="18.8" height="12.6" rx="2.2"/><path d="M8.4 5.9 9.9 3.3h4.2l1.5 2.6"/><circle cx="12" cy="12.2" r="3.4"/>',
   flask: '<path d="M8.6 3h6.8"/><path d="M9.9 3v6.2L4.2 17.8A1.7 1.7 0 0 0 5.6 20.5h12.8a1.7 1.7 0 0 0 1.4-2.7L14.1 9.2V3"/><path d="M7.2 15h9.6"/>',
+  // the circle arrow of every reset in the UI, drawn anticlockwise like the ↺ glyph it replaces:
+  // a ring with its gap in the upper left, and the arrowhead on the gap's lower end
+  reset: '<path d="M4.8 9.4A7.7 7.7 0 1 0 10 4.6"/><path d="m11.6 2.2-1.6 2.4 2.7 1.3"/>',
 });
 
 /** A 24-grid line icon from ICONS, ready to drop into a button. */
@@ -69,10 +72,16 @@ const ANNOUNCE_MS = 1900; // how long the header names the camera view that was 
  * The simulation keeps the button in step by calling `setCameraView()` whenever its
  * own camera changes (its preset row, a click in the scene, a reset).
  *
+ * With `onReset` it carries the simulation's overall reset next to them – the circle
+ * arrow, icon-only, and reachable while the panel is collapsed like the camera. It is
+ * the one button that puts *everything* back: the simulation's parameters and the
+ * remembered display settings alike (see `createViewToggles()`).
+ *
  * @param {{ titleKey?: string, collapsedByDefault?: boolean, onToggle?: (collapsed: boolean) => void,
+ *           onReset?: () => void,
  *           camera?: { views: Array<{ id: string, labelKey: string }>, onSelect: (id: string) => void } }} opts
  */
-export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onToggle, camera } = {}) {
+export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onToggle, onReset, camera } = {}) {
   const disposers = [];
   const panel = el('aside', 'lp-panel', { 'aria-labelledby': uid('panel-title') });
   const header = el('div', 'lp-panel__header');
@@ -106,9 +115,9 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onTo
     cameraBtn.classList.toggle('is-active', views.some((v) => v.id === activeView));
   }
   if (views.length) {
-    cameraBtn = el('button', 'lp-panel__camera', { type: 'button' });
+    cameraBtn = el('button', 'lp-panel__action lp-panel__camera', { type: 'button' });
     bindAttr(cameraBtn, { 'aria-label': 'panel.cameraNext', title: 'panel.cameraNext' });
-    cameraBtn.append(createIcon('camera', 'lp-panel__camera-icon'));
+    cameraBtn.append(createIcon('camera', 'lp-panel__action-icon'));
     cameraBtn.addEventListener('click', () => {
       cursor = (cursor + 1) % views.length;
       const view = views[cursor];
@@ -120,6 +129,15 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onTo
     actions.append(cameraBtn);
     syncCameraButton();
     disposers.push(() => clearTimeout(announceTimer));
+  }
+
+  // --- the header's reset button: everything back to the defaults -----------
+  if (onReset) {
+    const resetBtn = el('button', 'lp-panel__action lp-panel__reset', { type: 'button' });
+    bindAttr(resetBtn, { 'aria-label': 'panel.resetAll', title: 'panel.resetAll' });
+    resetBtn.append(createIcon('reset', 'lp-panel__action-icon'));
+    resetBtn.addEventListener('click', () => onReset());
+    actions.prepend(resetBtn); // ahead of the camera, so the chevron keeps the outer edge
   }
 
   actions.append(toggle);
@@ -461,15 +479,63 @@ export function createStateToggle({ labelKey, state, name, prefs, onChange }) {
 }
 
 /**
+ * The display toggles of one panel, kept together so the panel's overall reset can
+ * put them all back – the half of the state that `createViewPrefs()` remembers.
+ *
+ *   const view = createViewToggles({ state, prefs: viewPrefs, defaults: VIEW_DEFAULTS, onChange: refresh });
+ *   const toggles = { showRing: view.toggle('showRing', `${KEYS}.controls.ring`), … };
+ *   view.reset();   // every one of them back to its default: state, storage, checkbox, side effects
+ *
+ * `reset()` only touches what actually differs, and runs each changed toggle's own
+ * `onChange` afterwards – once the whole group is in its default state, so a handler
+ * that looks at its neighbours (two overlays that exclude each other) sees the truth.
+ *
+ * @param {{ state: object, prefs?: { set: Function }, defaults: object, onChange?: (v: boolean) => void }} opts
+ */
+export function createViewToggles({ state, prefs, defaults, onChange }) {
+  const entries = [];
+  return {
+    /** Same arguments as the sims' old local `viewToggle()` helper, plus the bookkeeping. */
+    toggle(name, labelKey, handler = onChange) {
+      const control = createStateToggle({ labelKey, state, name, prefs, onChange: handler });
+      entries.push({ name, control, handler });
+      return control;
+    },
+    reset() {
+      const changed = entries.filter(({ name }) => state[name] !== defaults[name]);
+      for (const { name, control } of changed) {
+        state[name] = defaults[name];
+        prefs?.set(name, state[name]);
+        control.setChecked(state[name], { silent: true });
+      }
+      for (const { name, handler } of changed) handler?.(state[name]);
+    },
+  };
+}
+
+/**
+ * The circle-arrow button that puts one control back to its default, sized to sit
+ * inline on a slider's right (`createControlRow()`). Pass `labelKey` when the sim can
+ * say something better than "Reset to default" – "back to today", "back to the Sun's orbit".
+ */
+export function createResetButton({ labelKey = 'panel.resetControl', onClick }) {
+  return createButton({ labelKey, iconName: 'reset', compact: true, onClick });
+}
+
+/**
  * Button. variant: 'primary' | 'ghost'
+ * `icon` is a glyph, `iconName` a stroked line icon from ICONS (e.g. 'reset') – the
+ * one the resets share, so every "back to the default" in the UI looks the same.
  * `compact` shrinks it to an icon-sized square and hides the label visually – the
  * label still names the button for screen readers and as its tooltip.
  * `slim` keeps the label but trims the button's height, for a full-width action.
  */
-export function createButton({ labelKey, ariaKey, onClick, variant = 'ghost', icon, compact = false, slim = false }) {
+export function createButton({ labelKey, ariaKey, onClick, variant = 'ghost', icon, iconName, compact = false, slim = false }) {
   const btn = el('button', `lp-button lp-button--${variant}${compact ? ' lp-button--compact' : ''}${slim ? ' lp-button--slim' : ''}`, { type: 'button' });
   let iconEl = null;
-  if (icon) {
+  if (iconName) {
+    btn.append(createIcon(iconName, 'lp-button__icon lp-icon'));
+  } else if (icon) {
     iconEl = el('span', 'lp-button__icon', { 'aria-hidden': 'true' });
     iconEl.textContent = icon;
     btn.append(iconEl);

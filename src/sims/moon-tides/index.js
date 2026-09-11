@@ -18,7 +18,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createToggle, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createToggle, createViewToggles, createButton, createResetButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as P from './physics.js';
@@ -555,9 +555,9 @@ export default function mount(container, meta) {
   // =============================================================================================
   // state setters
   // =============================================================================================
-  function setView(view) {
-    if (state.view === view) return;
-    state.view = view;
+  function setView(next) {
+    if (state.view === next) return;
+    state.view = next;
     syncViewButtons();
     tweenCamera(cameraFor());
     refresh();
@@ -613,6 +613,7 @@ export default function mount(container, meta) {
   const viewShift = createPanelShift({ sim, viewport });
   const panel = createPanel({
     onToggle: () => viewShift.sync(),
+    onReset: reset,
     camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
   });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
@@ -652,7 +653,8 @@ export default function mount(container, meta) {
     moonBtn.el.classList.toggle('lp-button--ghost', !state.moonPresent);
     moonRemovedNote.hidden = state.moonPresent;
   }
-  const moonRow = createControlRow(distanceSlider, moonBtn);
+  const distanceReset = createResetButton({ onClick: () => setDistance(DEFAULTS.distanceFactor) });
+  const moonRow = createControlRow(distanceSlider, distanceReset, moonBtn);
   const moonRemovedNote = bindText(el('p', 'lp-preset-note lp-preset-note--warn'), `${KEYS}.moonFacts.removed`);
 
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
@@ -668,6 +670,7 @@ export default function mount(container, meta) {
     format: (v) => `${fmt(Math.round(Math.pow(10, v) / 1000) * 1000, 0)}×`,
     onChange: (v) => setExaggeration(Math.round(Math.pow(10, v) / 1000) * 1000, { fromSlider: true }),
   });
+  const exaggerationRow = createControlRow(exaggerationSlider, createResetButton({ onClick: () => setExaggeration(DEFAULTS.exaggeration) }));
   const speedSlider = createSlider({
     labelKey: `${KEYS}.controls.speed`,
     min: Math.log10(P.TIDE_SPEED_RANGE_H_PER_S.min),
@@ -692,6 +695,7 @@ export default function mount(container, meta) {
     decimals: 0,
     onChange: (v) => setElongation(v, { fromSlider: true }),
   });
+  const elongationRow = createControlRow(elongationSlider, createResetButton({ onClick: () => setElongation(DEFAULT_ELONGATION / DEG) }));
   const phaseRow = el('div', 'lp-presets lp-presets--compact', { role: 'group' });
   bindAttr(phaseRow, { 'aria-label': `${KEYS}.controls.phases` });
   const phaseButtons = PHASE_PRESETS.map((preset) => {
@@ -710,7 +714,7 @@ export default function mount(container, meta) {
     }
   }
   const toScaleToggle = createToggle({ labelKey: `${KEYS}.controls.toScale`, checked: state.toScale, onChange: setToScale });
-  tidesControls.append(exaggerationSlider.el, createControlRow(speedSlider, playBtn).el, sunToggle.el, sunHint, elongationSlider.el, phaseRow, toScaleToggle.el);
+  tidesControls.append(exaggerationRow.el, createControlRow(speedSlider, playBtn).el, sunToggle.el, sunHint, elongationRow.el, phaseRow, toScaleToggle.el);
 
   // axis controls (view B)
   const axisControls = el('div', 'lp-group');
@@ -734,7 +738,8 @@ export default function mount(container, meta) {
       btn.el.setAttribute('aria-pressed', String(state.playing));
     }
   }
-  const viewToggle = (name, labelKey, onChange = refresh) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
+  const view = createViewToggles({ state, prefs: viewPrefs, defaults: VIEW_DEFAULTS, onChange: refresh });
+  const viewToggle = (name, labelKey, onChange = refresh) => view.toggle(name, labelKey, onChange);
   const axisToggles = {
     showTrace: viewToggle('showTrace', `${KEYS}.controls.trace`),
     showCone: viewToggle('showCone', `${KEYS}.controls.cone`),
@@ -757,13 +762,9 @@ export default function mount(container, meta) {
     panel.setCameraView(cameraMode, { announce });
   }
 
-  const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
-  const resetRow = el('div', 'lp-button-row lp-button-row--full');
-  resetRow.append(resetBtn.el);
-
   moreControls.add(tidesControls, axisControls);
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
-  moreControls.add(bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow, labelsToggle, resetRow);
+  moreControls.add(bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow, labelsToggle);
 
   // --- readouts: the Moon's numbers, then whichever view is showing --------------------------------
   const moonFacts = createFacts([
@@ -847,9 +848,14 @@ export default function mount(container, meta) {
   credit.append(creditLink);
   container.append(hint, credit);
 
+  /** The panel header's reset: the simulation's parameters and the display toggles alike.
+   *  Only which of the two stories is on show survives it. */
   function reset() {
-    const view = state.view;
-    Object.assign(state, DEFAULTS, { view });
+    const shownView = state.view;
+    Object.assign(state, DEFAULTS, { view: shownView });
+    view.reset();
+    setToScale(VIEW_DEFAULTS.toScale);
+    toScaleToggle.setChecked(state.toScale, { silent: true });
     tideTimeH = 0;
     elongation0 = DEFAULT_ELONGATION;
     axisTimeYr = 0;

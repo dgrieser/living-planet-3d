@@ -12,7 +12,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createPanelShift, createCollapsibleSection, createStateToggle, createButton, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createViewToggles, createResetButton, createButton, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
 import { planetPosition, orbitPath, orbitalPeriodDays, apsides, dateToJD, jdToDate, AU_KM, J2000_JD, DAYS_PER_YEAR, VALID_RANGE } from './kepler.js';
@@ -486,6 +486,7 @@ export default function mount(container, meta) {
   const viewShift = createPanelShift({ sim, viewport });
   const panel = createPanel({
     onToggle: () => viewShift.sync(),
+    onReset: resetAll,
     camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
   });
 
@@ -498,6 +499,16 @@ export default function mount(container, meta) {
       if (v > 0) dateControl.setOutOfRange(false);
     },
   });
+  const speedRow = createControlRow(speedControl, createResetButton({
+    onClick: () => {
+      speedControl.setValue(DEFAULTS.speedSlider, { silent: true });
+      state.speedSlider = DEFAULTS.speedSlider;
+      daysPerSecond = sliderToDaysPerSecond(state.speedSlider);
+      dateControl.setOutOfRange(false);
+    },
+  }));
+  // the tick row under the track must not drag the action down with it
+  speedRow.el.classList.add('lp-control-row--ticked');
 
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
   const dateControl = createDateControl({
@@ -516,38 +527,35 @@ export default function mount(container, meta) {
     for (const { id, el: btn } of cameraButtons) btn.setAttribute('aria-pressed', String(cameraMode === id));
     panel.setCameraView(cameraMode, { announce });
   }
-  const viewToggle = (name, labelKey, onChange) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
+  const view = createViewToggles({ state, prefs: viewPrefs, defaults: VIEW_DEFAULTS });
+  const viewToggle = (name, labelKey, onChange) => view.toggle(name, labelKey, onChange);
   const zoneToggle = viewToggle('showZone', `${KEYS}.controls.habitableZone`, () => applyView());
   const labelsToggle = viewToggle('showLabels', `${KEYS}.controls.labels`, () => applyView());
   const scaleToggle = viewToggle('trueScale', `${KEYS}.controls.trueScale`, () => { applyView(); if (state.follow) presets.followEarth(); });
   const eccentricToggle = viewToggle('showEccentric', `${KEYS}.controls.eccentricOrbit`, () => { applyView(); renderInfo(); });
 
-  const resetBtn = createButton({
-    labelKey: 'panel.reset',
-    icon: '↺',
-    onClick: () => {
-      Object.assign(state, DEFAULTS);
-      speedControl.setValue(state.speedSlider, { silent: true });
-      daysPerSecond = sliderToDaysPerSecond(state.speedSlider);
-      selectBody(null);
-      setJD(clamp(dateToJD(new Date()), VALID_RANGE.minJD, VALID_RANGE.maxJD), { fromInput: true });
-      applyView();
-      renderInfo();
-      setCamera('overview');
-    },
-  });
-  const resetRow = el('div', 'lp-button-row lp-button-row--full');
-  resetRow.append(resetBtn.el);
+  /** The panel header's reset: the simulation's parameters and the display toggles alike. */
+  function resetAll() {
+    Object.assign(state, DEFAULTS);
+    view.reset();
+    speedControl.setValue(state.speedSlider, { silent: true });
+    daysPerSecond = sliderToDaysPerSecond(state.speedSlider);
+    selectBody(null);
+    setJD(clamp(dateToJD(new Date()), VALID_RANGE.minJD, VALID_RANGE.maxJD), { fromInput: true });
+    applyView();
+    renderInfo();
+    setCamera('overview');
+  }
 
   moreControls.add(dateControl);
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow,
-    zoneToggle, labelsToggle, scaleToggle, eccentricToggle, resetRow,
+    zoneToggle, labelsToggle, scaleToggle, eccentricToggle,
   );
 
   const legend = createLegend();
-  panel.add(speedControl, moreControls, legend);
+  panel.add(speedRow, moreControls, legend);
 
   // info card (custom content: facts list + notes)
   const info = el('details', 'lp-info');

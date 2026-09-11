@@ -35,7 +35,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createPanelShift, createCollapsibleSection, createSlider, createToggle, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createToggle, createViewToggles, createButton, createResetButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as P from './physics.js';
@@ -802,6 +802,7 @@ export default function mount(container, meta) {
   const viewShift = createPanelShift({ sim, viewport });
   const panel = createPanel({
     onToggle: () => viewShift.sync(),
+    onReset: reset,
     camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
   });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
@@ -826,6 +827,7 @@ export default function mount(container, meta) {
     decimals: 0,
     onChange: (v) => setDensity(v, { fromSlider: true }),
   });
+  const densityRow = createControlRow(densitySlider, createResetButton({ onClick: () => setDensity(DEFAULTS.density) }));
   const speedSlider = createSlider({
     labelKey: `${KEYS}.controls.speed`,
     unitKey: 'units.kilometersPerSecond',
@@ -836,6 +838,7 @@ export default function mount(container, meta) {
     decimals: 0,
     onChange: (v) => setSpeed(v, { fromSlider: true }),
   });
+  const speedRow = createControlRow(speedSlider, createResetButton({ onClick: () => setSpeed(DEFAULTS.speed) }));
 
   // --- the unshielded clock: how fast it runs, and where it stands ---------------------------------
   const timeLapseSlider = createSlider({
@@ -847,6 +850,7 @@ export default function mount(container, meta) {
     format: (u) => t(`${KEYS}.controls.timeLapseValue`, { n: formatYears(Math.pow(10, u) * 1e6) }),
     onChange: (u) => setTimeLapse(Math.pow(10, u), { fromSlider: true }),
   });
+  const timeLapseRow = createControlRow(timeLapseSlider, createResetButton({ onClick: () => setTimeLapse(DEFAULTS.timeLapse) }));
   const clockSlider = createSlider({
     labelKey: `${KEYS}.controls.elapsed`,
     min: 0,
@@ -871,12 +875,16 @@ export default function mount(container, meta) {
   clockSlider.input.addEventListener('keydown', () => {
     scrubKeyAt = performance.now();
   });
+  // the clock has no play button of its own – it runs whenever the planet is left unshielded,
+  // so what its scrub bar needs is the way back: today, before any of this happened
+  const clockRow = createControlRow(clockSlider, createResetButton({ labelKey: `${KEYS}.controls.elapsedReset`, onClick: () => setElapsed(0) }));
   const clockControls = el('div', 'lp-clock');
-  clockControls.append(timeLapseSlider.el, clockSlider.el);
+  clockControls.append(timeLapseRow.el, clockRow.el);
 
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
 
-  const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
+  const view = createViewToggles({ state, prefs: viewPrefs, defaults: VIEW_DEFAULTS, onChange: refresh });
+  const viewToggle = (name, labelKey) => view.toggle(name, labelKey);
   const toggles = {
     showFieldLines: viewToggle('showFieldLines', `${KEYS}.controls.fieldLines`),
     showBoundaries: viewToggle('showBoundaries', `${KEYS}.controls.boundaries`),
@@ -896,14 +904,10 @@ export default function mount(container, meta) {
     panel.setCameraView(cameraMode, { announce });
   }
 
-  const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
-  const resetRow = el('div', 'lp-button-row lp-button-row--full');
-  resetRow.append(resetBtn.el);
-
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
-    densitySlider, speedSlider, volcanoToggle, clockControls, cameraRow,
-    toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora, labelsToggle, resetRow,
+    densityRow, speedRow, volcanoToggle, clockControls, cameraRow,
+    toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora, labelsToggle,
   );
 
   // --- readouts: the state of the shield and of the planet, then every number behind them ----------
@@ -1012,8 +1016,10 @@ export default function mount(container, meta) {
     cmeButton.el.setAttribute('aria-pressed', String(running));
   }
 
+  /** The panel header's reset: the simulation's parameters and the display toggles alike. */
   function reset() {
     Object.assign(state, DEFAULTS);
+    view.reset();
     cme = null;
     staticStorm = false;
     time = 0;
