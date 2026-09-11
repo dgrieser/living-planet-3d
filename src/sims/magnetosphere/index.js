@@ -804,8 +804,9 @@ export default function mount(container, meta) {
   // the two switches side by side, and one notice that says what the flipped ones do
   const fieldButton = createButton({ labelKey: `${KEYS}.controls.fieldOff`, icon: '🧲', slim: true, onClick: () => setFieldOn(!state.fieldOn) });
   const airButton = createButton({ labelKey: `${KEYS}.controls.removeAir`, icon: '🌫', slim: true, onClick: () => setAirRemoved(!state.airRemoved) });
-  const switchRow = el('div', 'lp-button-row lp-button-row--pair');
-  switchRow.append(fieldButton.el, airButton.el);
+  const cmeButton = createButton({ labelKey: `${KEYS}.controls.launchCme`, icon: '☀', variant: 'primary', slim: true, onClick: launchCme });
+  const switchRow = el('div', 'lp-button-row lp-button-row--split');
+  switchRow.append(fieldButton.el, airButton.el, cmeButton.el);
   const switchNotice = el('div', 'lp-notice lp-notice--warn', { role: 'status', hidden: true });
   const switchNoticeText = el('span');
   switchNotice.append(switchNoticeText);
@@ -868,10 +869,6 @@ export default function mount(container, meta) {
   const clockControls = el('div', 'lp-clock');
   clockControls.append(timeLapseSlider.el, clockSlider.el);
 
-  const cmeButton = createButton({ labelKey: `${KEYS}.controls.launchCme`, icon: '☀', variant: 'primary', slim: true, onClick: launchCme });
-  const cmeRow = el('div', 'lp-button-row lp-button-row--full');
-  cmeRow.append(cmeButton.el);
-
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
 
   const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
@@ -900,19 +897,26 @@ export default function mount(container, meta) {
 
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
-    cameraRow,
+    densitySlider, speedSlider, volcanoToggle, clockControls, cameraRow,
     toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora, labelsToggle, resetRow,
   );
 
-  // --- readouts: what that wind does to the magnetosphere -----------------------------------------
-  // the space-weather readout: the index the whole scene drives, then the numbers behind it
-  const stormReadout = el('div', 'lp-readout lp-readout--storm');
+  // --- readouts: the state of the shield and of the planet, then every number behind them ----------
+  // One box for the current conditions: the geomagnetic index the scene drives, and what is left of
+  // the air – both always on show, so the two switches can be compared at a glance.
+  const conditions = el('div', 'lp-readout lp-readout--conditions');
+  const stormRow = el('div', 'lp-conditions__row');
   const stormKpValue = el('div', 'lp-readout__value', { 'aria-live': 'off' });
   const stormPill = el('span', 'lp-state');
   const stormPhase = el('span', 'lp-state lp-state--phase', { hidden: true });
-  stormReadout.append(bindText(el('div', 'lp-readout__label'), `${KEYS}.storm.kp`), stormKpValue, stormPill, stormPhase);
-  // density and speed are the sliders right above, and the boundary rows already carry the standoff
-  const stormFacts = createFacts([
+  stormRow.append(bindText(el('div', 'lp-readout__label'), `${KEYS}.storm.kp`), stormKpValue, stormPill, stormPhase);
+  const worldRow = el('div', 'lp-conditions__row');
+  const worldValue = el('div', 'lp-readout__value', { 'aria-live': 'off' });
+  const worldPill = el('span', 'lp-state');
+  const worldNote = el('span', 'lp-state lp-state--phase', { hidden: true });
+  worldRow.append(bindText(el('div', 'lp-readout__label'), `${KEYS}.world.atmosphere`), worldValue, worldPill, worldNote);
+  conditions.append(stormRow, worldRow);
+  const facts = createFacts([
     ['pressure', `${KEYS}.facts.pressure`],
     ['ratio', `${KEYS}.facts.pressureRatio`],
     ['standoff', `${KEYS}.facts.standoff`],
@@ -920,6 +924,17 @@ export default function mount(container, meta) {
     ['transit', `${KEYS}.facts.transit`],
     ['aurora', `${KEYS}.storm.aurora`],
     ['geosync', `${KEYS}.storm.geosync`],
+    ['elapsed', `${KEYS}.world.elapsed`],
+    ['surfacePressure', `${KEYS}.world.pressure`],
+    ['strip', `${KEYS}.world.strip`],
+    ['outgas', `${KEYS}.world.outgas`],
+    ['weather', `${KEYS}.world.weather`],
+    ['net', `${KEYS}.world.net`],
+    ['temp', `${KEYS}.world.temp`],
+    ['radiation', `${KEYS}.world.radiation`],
+    ['air', `${KEYS}.world.air`],
+    ['ice', `${KEYS}.world.ice`],
+    ['ocean', `${KEYS}.world.ocean`],
   ]);
   const legend = createLegend([
     [`${KEYS}.legend.fieldLines`, COLORS.fieldInner],
@@ -933,34 +948,11 @@ export default function mount(container, meta) {
     [`${KEYS}.legend.erosion`, COLORS.erosion],
   ]);
 
-  // the unshielded Earth: how much air is left, what state the planet is in, and the numbers behind it
-  const worldSection = el('div', 'lp-world');
-  const worldReadout = el('div', 'lp-readout lp-readout--world');
-  const worldValue = el('div', 'lp-readout__value', { 'aria-live': 'off' });
-  const worldPill = el('span', 'lp-state');
-  const worldNote = el('span', 'lp-state lp-state--phase', { hidden: true });
-  worldReadout.append(bindText(el('div', 'lp-readout__label'), `${KEYS}.world.atmosphere`), worldValue, worldPill, worldNote);
-  const worldFacts = createFacts([
-    ['elapsed', `${KEYS}.world.elapsed`],
-    ['pressure', `${KEYS}.world.pressure`],
-    ['strip', `${KEYS}.world.strip`],
-    ['outgas', `${KEYS}.world.outgas`],
-    ['weather', `${KEYS}.world.weather`],
-    ['net', `${KEYS}.world.net`],
-    ['temp', `${KEYS}.world.temp`],
-    ['radiation', `${KEYS}.world.radiation`],
-    ['air', `${KEYS}.world.air`],
-    ['ice', `${KEYS}.world.ice`],
-    ['ocean', `${KEYS}.world.ocean`],
-  ]);
-  worldSection.append(bindText(el('p', 'lp-subheading'), `${KEYS}.world.title`), worldReadout, worldFacts.el);
-
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
-    switchRow, switchNotice, clockControls, densitySlider, speedSlider, volcanoToggle.el, cmeRow, moreControls,
-    worldSection,
-    bindText(el('p', 'lp-subheading'), `${KEYS}.storm.title`), stormReadout, stormFacts,
+    switchRow, switchNotice, moreControls,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.conditions.title`), conditions, facts,
     legend, infoCard, physicsCard,
   );
   container.append(panel.el);
@@ -1002,11 +994,9 @@ export default function mount(container, meta) {
     if (key) switchNoticeText.textContent = t(`${KEYS}.warn.${key}`);
   }
 
-  /** The clock and the readout stay while there is a history to show, even after the switches are back. */
+  /** The clock's sliders appear once there is a history to run or to scrub. */
   function syncWorldVisibility() {
-    const history = clockRunning() || world.elapsedYr > 0;
-    clockControls.hidden = !history;
-    worldSection.hidden = !history;
+    clockControls.hidden = !(clockRunning() || world.elapsedYr > 0);
   }
 
   function syncCmeButton() {
@@ -1073,54 +1063,54 @@ export default function mount(container, meta) {
     lastReadoutKey = key;
     updateWorldReadouts(w);
 
-    stormFacts.set('pressure', `${fmt(m.pressureNPa, m.pressureNPa < 10 ? 2 : 1, 1)} ${t('units.nanopascal')}`);
-    stormFacts.set('ratio', `${fmt(m.pressureRatio, m.pressureRatio < 10 ? 1 : 0, 1)}×`);
+    facts.set('pressure', `${fmt(m.pressureNPa, m.pressureNPa < 10 ? 2 : 1, 1)} ${t('units.nanopascal')}`);
+    facts.set('ratio', `${fmt(m.pressureRatio, m.pressureRatio < 10 ? 1 : 0, 1)}×`);
     const noBoundary = t(`${KEYS}.storm.noBoundary`);
-    stormFacts.set('standoff', state.fieldOn ? `${fmt(m.standoff, 1, 1)} ${t('units.earthRadii')} · ${fmt(m.standoffKm, 0)} ${t('units.kilometers')}` : noBoundary);
-    stormFacts.set('bowShock', state.fieldOn ? `${fmt(m.bowShock, 1, 1)} ${t('units.earthRadii')}` : noBoundary);
-    stormFacts.set('transit', formatDuration(m.transitHours));
+    facts.set('standoff', state.fieldOn ? `${fmt(m.standoff, 1, 1)} ${t('units.earthRadii')} · ${fmt(m.standoffKm, 0)} ${t('units.kilometers')}` : noBoundary);
+    facts.set('bowShock', state.fieldOn ? `${fmt(m.bowShock, 1, 1)} ${t('units.earthRadii')}` : noBoundary);
+    facts.set('transit', formatDuration(m.transitHours));
 
     if (state.fieldOn) {
       stormKpValue.textContent = `Kp ${fmt(m.kp, 1, 1)}`;
       stormPill.textContent = t(`${KEYS}.storm.level.${m.level}`);
       stormPill.className = `lp-state lp-state--kp-${m.level}`;
-      stormFacts.set('aurora', w.fraction < 0.02 ? t(`${KEYS}.storm.noGlow`) : `${fmt(m.aurora.equatorwardLatDeg, 1, 1)}° ${t(`${KEYS}.storm.latitude`)}`);
-      stormFacts.set('geosync', t(`${KEYS}.storm.${m.geosyncExposed ? 'geosyncExposed' : 'geosyncSafe'}`));
+      facts.set('aurora', w.fraction < 0.02 ? t(`${KEYS}.storm.noGlow`) : `${fmt(m.aurora.equatorwardLatDeg, 1, 1)}° ${t(`${KEYS}.storm.latitude`)}`);
+      facts.set('geosync', t(`${KEYS}.storm.${m.geosyncExposed ? 'geosyncExposed' : 'geosyncSafe'}`));
     } else {
       stormKpValue.textContent = '—';
       stormPill.textContent = t(`${KEYS}.storm.level.unshielded`);
       stormPill.className = 'lp-state lp-state--kp-unshielded';
-      stormFacts.set('aurora', t(`${KEYS}.storm.noOval`));
-      stormFacts.set('geosync', t(`${KEYS}.storm.geosyncExposed`));
+      facts.set('aurora', t(`${KEYS}.storm.noOval`));
+      facts.set('geosync', t(`${KEYS}.storm.geosyncExposed`));
     }
-    stormReadout.classList.toggle('is-storm', m.cmeActive || m.kp >= 4.5);
+    conditions.classList.toggle('is-storm', m.cmeActive || m.kp >= 4.5);
     stormPhase.hidden = m.phase === 'none';
     if (m.phase !== 'none') stormPhase.textContent = t(`${KEYS}.storm.phase.${m.phase}`);
   }
 
   function updateWorldReadouts(w) {
     syncWorldVisibility();
-    if (worldSection.hidden) return;
     const K = `${KEYS}.world`;
     const pct = w.fraction * 100;
     worldValue.textContent = `${fmt(pct, pct < 1 ? 2 : pct < 10 ? 1 : 0)} %`;
     worldPill.textContent = t(`${K}.stage.${w.stage}`);
     worldPill.className = `lp-state lp-state--world-${w.stage}`;
-    const note = !clockRunning() ? 'halted' : w.beyondSun ? 'beyondSun' : null;
+    // a stopped clock is only worth a word once it has run
+    const note = clockRunning() ? (w.beyondSun ? 'beyondSun' : null) : w.elapsedYr > 0 ? 'halted' : null;
     worldNote.hidden = !note;
     if (note) worldNote.textContent = t(`${K}.${note}`);
-    worldReadout.classList.toggle('is-airless', w.airless);
+    conditions.classList.toggle('is-airless', w.airless);
 
-    worldFacts.set('elapsed', formatYears(w.elapsedYr));
+    facts.set('elapsed', formatYears(w.elapsedYr));
     const pressure = w.pressureHPa < 1 ? `${fmt(w.pressureHPa * 100, 1)} Pa` : `${fmt(w.pressureHPa, w.pressureHPa < 10 ? 1 : 0)} ${t('units.hectopascal')}`;
-    worldFacts.set('pressure', w.co2Fraction >= 0.005 ? `${pressure} · ${t(`${K}.co2Share`, { n: fmt(w.co2Fraction * 100, w.co2Fraction < 0.1 ? 1 : 0) })}` : pressure);
+    facts.set('surfacePressure', w.co2Fraction >= 0.005 ? `${pressure} · ${t(`${K}.co2Share`, { n: fmt(w.co2Fraction * 100, w.co2Fraction < 0.1 ? 1 : 0) })}` : pressure);
     // the three flows that make the budget – blank where nothing flows
-    worldFacts.set('strip', state.fieldOn ? t(`${K}.none`) : formatRate(w.stripKgS));
-    worldFacts.set('outgas', state.volcanoes ? formatRate(w.outgasKgS) : t(`${K}.none`));
-    worldFacts.set('weather', w.weatherKgS > 0.05 ? formatRate(w.weatherKgS) : t(`${K}.none`));
-    worldFacts.set('net', Math.abs(w.netKgS) < 0.05 ? t(`${K}.balanced`) : `${w.netKgS > 0 ? '+' : '−'}${formatRate(Math.abs(w.netKgS))}`);
+    facts.set('strip', state.fieldOn ? t(`${K}.none`) : formatRate(w.stripKgS));
+    facts.set('outgas', state.volcanoes ? formatRate(w.outgasKgS) : t(`${K}.none`));
+    facts.set('weather', w.weatherKgS > 0.05 ? formatRate(w.weatherKgS) : t(`${K}.none`));
+    facts.set('net', Math.abs(w.netKgS) < 0.05 ? t(`${K}.balanced`) : `${w.netKgS > 0 ? '+' : '−'}${formatRate(Math.abs(w.netKgS))}`);
     const degC = (k) => `${fmt(k - 273.15, 0)} ${t('units.celsius')}`;
-    worldFacts.set(
+    facts.set(
       'temp',
       w.airless && w.migration > 0.5
         ? t(`${K}.tempAirless`, { mean: degC(w.meanK), noon: degC(w.bare.noonK), night: degC(w.bare.nightK) })
@@ -1128,13 +1118,13 @@ export default function mount(container, meta) {
     );
     const dose = w.doseMSvYr < 10 ? fmt(w.doseMSvYr, w.doseMSvYr < 1 ? 2 : 1) : fmt(w.doseMSvYr, 0);
     const storms = w.fraction < 0.1 ? ` · ${t(`${K}.${state.fieldOn ? 'stormsPolar' : 'stormsEverywhere'}`)}` : '';
-    worldFacts.set('radiation', `${dose} ${t('units.millisievertPerYear')}${storms}`);
+    facts.set('radiation', `${dose} ${t('units.millisievertPerYear')}${storms}`);
     const altitude = fmt(Math.min(w.altitudeM, 99999), 0);
     const airKey = `${K}.air${w.breathability[0].toUpperCase()}${w.breathability.slice(1)}`;
-    worldFacts.set('air', w.breathability === 'none' || w.breathability === 'toxic' ? t(airKey) : t(airKey, { alt: altitude }));
-    if (w.migration > 0.5) worldFacts.set('ice', t(`${K}.caps`, { lat: fmt(w.capLatDeg, 0) }));
-    else if (w.airless || w.climate.snowball) worldFacts.set('ice', t(`${K}.frozenOver`));
-    else worldFacts.set('ice', t(`${K}.iceTo`, { lat: fmt(w.climate.iceLineLatDeg, 0) }));
+    facts.set('air', w.breathability === 'none' || w.breathability === 'toxic' ? t(airKey) : t(airKey, { alt: altitude }));
+    if (w.migration > 0.5) facts.set('ice', t(`${K}.caps`, { lat: fmt(w.capLatDeg, 0) }));
+    else if (w.airless || w.climate.snowball) facts.set('ice', t(`${K}.frozenOver`));
+    else facts.set('ice', t(`${K}.iceTo`, { lat: fmt(w.climate.iceLineLatDeg, 0) }));
     let ocean;
     if (w.stage === 'decompression') ocean = t(`${K}.oceanBoiling`);
     else if (w.migration > 0.5) ocean = t(w.airless ? `${K}.oceanCaps` : `${K}.oceanMelting`);
@@ -1142,7 +1132,7 @@ export default function mount(container, meta) {
     else ocean = t(`${K}.${w.climate.snowball ? 'oceanFrozen' : 'oceanLiquid'}`);
     const lost = (1 - w.water) * 100;
     if (lost >= 0.05) ocean += ` · ${t(`${K}.waterLost`, { n: fmt(lost, lost < 10 ? 1 : 0) })}`;
-    worldFacts.set('ocean', ocean);
+    facts.set('ocean', ocean);
   }
 
   // --- language ---------------------------------------------------------------------------------

@@ -648,13 +648,13 @@
       "title": "Die Magnetosphäre der Erde",
       "description": "Beobachte, wie das Erdmagnetfeld den Sonnenwind ablenkt, löse einen koronalen Massenauswurf aus und schalte den Schutzschild ab.",
       "sections": {
-        "more": "Ansicht & Kamera",
+        "more": "Wind, Uhr & Ansicht",
         "view": "Ansicht"
       },
       "controls": {
         "density": "Dichte",
         "speed": "Geschwindigkeit",
-        "launchCme": "Koron. Massenauswurf auslösen",
+        "launchCme": "CME auslösen",
         "cmeRunning": "CME unterwegs …",
         "cmeHint": "Ein koronaler Massenauswurf erreicht die Magnetopause nach etwa drei Sekunden Szenenzeit; in Wirklichkeit dauert es 18 Stunden bis 4 Tage.",
         "fieldOff": "Magnetfeld aus",
@@ -670,7 +670,7 @@
         "timeLapse": "Zeitraffer",
         "timeLapseValue": "1 s = {n}",
         "elapsed": "Zeit auf der Uhr",
-        "removeAir": "Atmosphäre entfernen",
+        "removeAir": "Luft entfernen",
         "restoreAir": "Luft zurückgeben",
         "volcanoes": "Vulkane gasen weiter aus"
       },
@@ -683,7 +683,6 @@
         "days": "{n} Tage"
       },
       "storm": {
-        "title": "Weltraumwetter",
         "kp": "Geomagnetische Aktivität",
         "aurora": "Polarlicht erreicht",
         "latitude": "geomagnetische Breite",
@@ -786,7 +785,6 @@
       "hint": "Regler bewegen, CME auslösen – oder das Feld abschalten, die Luft wegnehmen und die Uhr laufen lassen",
       "credit": "Erdtexturen: Solar System Scope (CC BY 4.0)",
       "world": {
-        "title": "Was aus der Erde wird",
         "atmosphere": "Verbleibende Atmosphäre",
         "elapsed": "Vergangen",
         "pressure": "Bodendruck",
@@ -837,6 +835,9 @@
         "airToxic": "nicht atembar · CO₂",
         "oceanBoiling": "kochen an der Oberfläche, frieren zu",
         "oceanMelting": "Kappen schmelzen zurück in die Becken"
+      },
+      "conditions": {
+        "title": "Aktueller Zustand"
       }
     },
     "galacticZone": {

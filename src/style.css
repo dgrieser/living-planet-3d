@@ -317,7 +317,8 @@ a:hover { color: #a9d9ff; }
 .lp-button--primary:hover { background: #9fd3ff; }
 .lp-button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .lp-button-row--full > .lp-button { flex: 1 1 100%; }
-.lp-button-row--pair > .lp-button { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.2; text-align: center; }
+/* three switches in one row: icon over a label that may wrap, so long names fit a narrow panel */
+.lp-button-row--split > .lp-button { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 3px; padding: 7px 6px; font-size: 0.78rem; white-space: normal; line-height: 1.2; text-align: center; }
 .lp-button--compact { width: 34px; height: 34px; padding: 0; gap: 0; flex: none; font-size: 1rem; }
 .lp-button--slim { padding: 6px 10px; font-size: 0.85rem; }
 .lp-button--compact .lp-button__icon { line-height: 1; }
@@ -612,9 +613,13 @@ a:hover { color: #a9d9ff; }
 /* ---------- magnetosphere simulation ---------- */
 .lp-presets--3 { grid-template-columns: repeat(3, 1fr); }
 
-/* the space-weather readout sits in the panel; it tints while a storm runs */
-.lp-readout--storm { transition: border-color 200ms ease, background 200ms ease; }
-.lp-readout--storm.is-storm { border-color: rgba(255, 138, 128, 0.65); background: rgba(255, 138, 128, 0.09); }
+/* the current-conditions box: the geomagnetic row and the atmosphere row stacked; it tints while a
+   storm runs, and warms up once the air is gone */
+.lp-readout--conditions { flex-direction: column; align-items: stretch; gap: 0; transition: border-color 200ms ease, background 200ms ease; }
+.lp-conditions__row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.lp-conditions__row + .lp-conditions__row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--lp-border); }
+.lp-readout--conditions.is-storm { border-color: rgba(255, 138, 128, 0.65); background: rgba(255, 138, 128, 0.09); }
+.lp-readout--conditions.is-airless { border-color: rgba(255, 170, 110, 0.6); background: rgba(255, 150, 90, 0.08); }
 .lp-state--phase { padding: 4px 10px; font-size: 0.75rem; color: #ffc7b8; background: rgba(255, 107, 74, 0.18); border-color: rgba(255, 107, 74, 0.6); }
 
 .lp-state--kp-quiet { color: #cfe9ff; background: rgba(159, 216, 255, 0.16); border-color: rgba(159, 216, 255, 0.5); }
@@ -623,10 +628,8 @@ a:hover { color: #a9d9ff; }
 .lp-state--kp-g3, .lp-state--kp-g4, .lp-state--kp-g5 { color: #ffc7b8; background: rgba(255, 107, 74, 0.2); border-color: rgba(255, 107, 74, 0.65); }
 .lp-state--kp-unshielded { color: #ffc7b8; background: rgba(255, 107, 74, 0.2); border-color: rgba(255, 107, 74, 0.65); }
 
-/* the unshielded Earth: its clock under the field switch, and a readout that warms up once the air is gone */
-.lp-clock[hidden], .lp-world[hidden] { display: none; }
-.lp-readout--world { transition: border-color 200ms ease, background 200ms ease; }
-.lp-readout--world.is-airless { border-color: rgba(255, 170, 110, 0.6); background: rgba(255, 150, 90, 0.08); }
+/* the geological clock's two sliders, folded away with the other controls until there is a history */
+.lp-clock[hidden] { display: none; }
 .lp-state--world-intact { color: #cfe9ff; background: rgba(159, 216, 255, 0.16); border-color: rgba(159, 216, 255, 0.5); }
 .lp-state--world-thinning { color: #b8f5cf; background: rgba(90, 220, 140, 0.16); border-color: rgba(90, 220, 140, 0.55); }
 .lp-state--world-iceAge { color: #ffe1a3; background: rgba(255, 209, 102, 0.16); border-color: rgba(255, 209, 102, 0.55); }

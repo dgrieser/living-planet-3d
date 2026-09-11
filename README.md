@@ -462,10 +462,15 @@ disposers.push(viewShift.dispose);
   wind a CME pushes the nose to 5.9 R⊕ (inside geostationary orbit) and the index to Kp 5.6 (G2) within 0.6 s.
 - Kp-style index `Kp ≈ 1.5 + 3.3·log₁₀[√(n/5)·(v/400)²]`, capped at 9, bucketed into the NOAA G-scale; the oval's
   equatorward edge follows the NOAA viewline `λ ≈ 66.5° − 2.1·Kp`. Both are labelled as schematic in the UI.
-- The space-weather readout lives in the control panel like every other simulation's readouts: the "geomagnetic
-  activity" box (Kp, the G-scale pill and a storm-phase pill, tinted while a storm runs) followed by one stats
-  table – ram pressure, the two boundary distances, Sun→Earth transit, the aurora's reach and whether
-  geostationary orbit is exposed.
+- The panel: three switches in one row (field off, remove the atmosphere, launch a CME) with a single
+  notice that says what the flipped ones do; every other control – wind sliders, the volcano toggle, the
+  clock's time-lapse and scrub sliders (shown once there is a history), camera views, layer toggles, reset –
+  folds away in one collapsible section; then a "current conditions" box that is always on show, with the
+  geomagnetic row (Kp, the G-scale pill, a storm-phase pill – tinted while a storm runs) stacked over the
+  atmosphere row (air left, the stage pill, a clock note – warmed once the air is gone); then one stats
+  table with every number behind them – ram pressure, boundary distances, Sun→Earth transit, aurora reach,
+  geostationary exposure, and the world's elapsed time, pressure and composition, the three flows and their
+  net, temperature, cosmic-ray dose, breathability, ice and ocean state.
 - The geological clock runs whenever today's steady state is left: field off, atmosphere removed or volcanoes
   off. It runs at a chosen time lapse (10 kyr … 1 Gyr per second of scene time, default 100 Myr/s; removing the
   air slows it to 50 kyr/s, since that story plays in thousands to millions of years) and can be
