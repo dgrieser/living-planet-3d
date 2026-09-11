@@ -45,7 +45,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createViewToggles, createButton, createResetButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as M from './model.js';
@@ -604,6 +604,7 @@ export default function mount(container, meta) {
   const viewShift = createPanelShift({ sim, viewport });
   const panel = createPanel({
     onToggle: () => viewShift.sync(),
+    onReset: reset,
     camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
   });
 
@@ -617,7 +618,7 @@ export default function mount(container, meta) {
     format: (v) => `${fmt(v * 1000, 0)} ${t('units.lightYears')}`,
     onChange: (v) => setSunRadius(v, { fromSlider: true }),
   });
-  const sunHome = createButton({ labelKey: `${KEYS}.controls.sunHome`, icon: '↺', compact: true, onClick: () => setSunRadius(CONFIG.sun.radiusKly) });
+  const sunHome = createResetButton({ labelKey: `${KEYS}.controls.sunHome`, onClick: () => setSunRadius(CONFIG.sun.radiusKly) });
   const radiusRow = createControlRow(radiusSlider, sunHome);
 
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
@@ -648,20 +649,16 @@ export default function mount(container, meta) {
     panel.setCameraView(cameraMode, { announce });
   }
 
-  const viewToggle = (name, labelKey) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange: refresh });
+  const view = createViewToggles({ state, prefs: viewPrefs, defaults: VIEW_DEFAULTS, onChange: refresh });
   const toggles = {
-    showRing: viewToggle('showRing', `${KEYS}.controls.ring`),
-    showZones: viewToggle('showZones', `${KEYS}.controls.zones`),
-    showArmLabels: viewToggle('showArmLabels', `${KEYS}.controls.armLabels`),
+    showRing: view.toggle('showRing', `${KEYS}.controls.ring`),
+    showZones: view.toggle('showZones', `${KEYS}.controls.zones`),
+    showArmLabels: view.toggle('showArmLabels', `${KEYS}.controls.armLabels`),
   };
-
-  const resetBtn = createButton({ labelKey: 'panel.reset', icon: '↺', onClick: reset });
-  const resetRow = el('div', 'lp-button-row lp-button-row--full');
-  resetRow.append(resetBtn.el);
 
   moreControls.add(timeRow, timeHint);
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
-  moreControls.add(cameraRow, toggles.showRing, toggles.showZones, toggles.showArmLabels, resetRow);
+  moreControls.add(cameraRow, toggles.showRing, toggles.showZones, toggles.showArmLabels);
 
   // --- readouts: the conditions box, its follow-up stats, then the legend -------------------------
   const zoneReadout = el('div', 'lp-readout lp-readout--zone');
@@ -897,8 +894,10 @@ export default function mount(container, meta) {
     return t(`${E}.billionYears`, { n: fmt(myr / 1000, 2) });
   }
 
+  /** The panel header's reset: the simulation's parameters and the display toggles alike. */
   function reset() {
     Object.assign(state, DEFAULTS);
+    view.reset();
     time = 0;
     radiusSlider.setValue(state.sunRadiusKly, { silent: true });
     timeSlider.setValue(state.timeMyr, { silent: true });

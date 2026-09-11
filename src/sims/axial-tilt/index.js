@@ -24,7 +24,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createViewToggles, createButton, createResetButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
 import * as S from './physics.js';
@@ -863,6 +863,7 @@ export default function mount(container, meta) {
   const viewShift = createPanelShift({ sim, viewport });
   const panel = createPanel({
     onToggle: () => viewShift.sync(),
+    onReset: resetAll,
     camera: { views: CAMERA_VIEWS, onSelect: (id) => setCamera(id) },
   });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
@@ -878,6 +879,7 @@ export default function mount(container, meta) {
     decimals: 1,
     onChange: (v) => setTilt(v, { fromSlider: true }),
   });
+  const tiltRow = createControlRow(tiltSlider, createResetButton({ onClick: () => setTilt(DEFAULTS.tiltDeg) }));
 
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
 
@@ -890,6 +892,7 @@ export default function mount(container, meta) {
     format: (v) => `${fmt(Math.pow(10, v), Math.pow(10, v) < 10 ? 1 : 0)}\u2009${t('units.hours')}`,
     onChange: (v) => setPeriod(Math.round(Math.pow(10, v) * 10) / 10, { fromSlider: true }),
   });
+  const periodRow = createControlRow(periodSlider, createResetButton({ onClick: () => setPeriod(DEFAULTS.periodH) }));
   const presetRow = el('div', 'lp-whatif', { role: 'group' });
   bindAttr(presetRow, { 'aria-label': `${KEYS}.controls.presets` });
   const presetButtons = S.WHAT_IF_PRESETS.map((preset) => {
@@ -945,6 +948,12 @@ export default function mount(container, meta) {
       state.daysPerSecond = v;
     },
   });
+  const speedRow = createControlRow(speedSlider, createResetButton({
+    onClick: () => {
+      state.daysPerSecond = DEFAULTS.daysPerSecond;
+      speedSlider.setValue(state.daysPerSecond, { silent: true });
+    },
+  }));
 
   // which latitude the readout describes – the slider and its four presets pick it
   const latitudeSlider = createSlider({
@@ -956,6 +965,7 @@ export default function mount(container, meta) {
     format: (v) => formatLatitude(v, 1),
     onChange: (v) => setLatitude(v, { fromSlider: true }),
   });
+  const latitudeSliderRow = createControlRow(latitudeSlider, createResetButton({ onClick: () => setLatitude(DEFAULTS.latitudeDeg) }));
   const latitudeRow = el('div', 'lp-presets lp-presets--compact', { role: 'group' });
   bindAttr(latitudeRow, { 'aria-label': `${KEYS}.controls.latitudePresets` });
   const presetLatitude = (preset) => (preset.id === 'polarCircle' ? Math.round((90 - state.tiltDeg) * 10) / 10 : preset.latitudeDeg);
@@ -975,7 +985,8 @@ export default function mount(container, meta) {
     }
   }
 
-  const viewToggle = (name, labelKey, onChange = refresh) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
+  const view = createViewToggles({ state, prefs: viewPrefs, defaults: VIEW_DEFAULTS, onChange: refresh });
+  const viewToggle = (name, labelKey, onChange = refresh) => view.toggle(name, labelKey, onChange);
   // the two colour overlays share the hue ramp but mean different things (W/m² vs °C) – only one at a time
   const toggles = {
     showHeat: viewToggle('showHeat', `${KEYS}.view.heatMap`, (v) => {
@@ -1017,38 +1028,33 @@ export default function mount(container, meta) {
     panel.setCameraView(state.cameraMode, { announce });
   }
 
-  const resetBtn = createButton({
-    labelKey: 'panel.reset',
-    icon: '↺',
-    onClick: () => {
-      unpin({ restoreCamera: false });
-      Object.assign(state, DEFAULTS, { activePreset: 'earth' });
-      tiltSlider.setValue(state.tiltDeg, { silent: true });
-      periodSlider.setValue(Math.log10(state.periodH), { silent: true });
-      daySlider.setValue(state.dayOfYear, { silent: true });
-      speedSlider.setValue(state.daysPerSecond, { silent: true });
-      latitudeSlider.setValue(state.latitudeDeg, { silent: true });
-      spinGroup.rotation.y = 0;
-      syncPresets();
-      syncLatitudeButtons();
-      syncPlayButton();
-      refresh();
-      cameraPresets.earth();
-      syncCameraButtons();
-    },
-  });
-  const resetRow = el('div', 'lp-button-row lp-button-row--full');
-  resetRow.append(resetBtn.el);
+  /** The panel header's reset: the simulation's parameters and the display toggles alike. */
+  function resetAll() {
+    unpin({ restoreCamera: false });
+    Object.assign(state, DEFAULTS, { activePreset: 'earth' });
+    view.reset();
+    tiltSlider.setValue(state.tiltDeg, { silent: true });
+    periodSlider.setValue(Math.log10(state.periodH), { silent: true });
+    daySlider.setValue(state.dayOfYear, { silent: true });
+    speedSlider.setValue(state.daysPerSecond, { silent: true });
+    latitudeSlider.setValue(state.latitudeDeg, { silent: true });
+    spinGroup.rotation.y = 0;
+    syncPresets();
+    syncLatitudeButtons();
+    syncPlayButton();
+    refresh();
+    cameraPresets.earth();
+    syncCameraButtons();
+  }
 
-  moreControls.add(periodSlider, presetsTitle, presetRow, presetNote,
-    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.orbit`), dayRow, stopRow, speedSlider,
-    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.readout`), latitudeSlider, latitudeRow);
+  moreControls.add(periodRow, presetsTitle, presetRow, presetNote,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.orbit`), dayRow, stopRow, speedRow,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.sections.readout`), latitudeSliderRow, latitudeRow);
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow,
     toggles.showHeat, heatLegend, toggles.showClimate, climateLegend, toggles.showLivable,
     toggles.showTerminator, toggles.showEquator, toggles.showCircles, toggles.showAxis, toggles.showSubsolar, toggles.showGrid, toggles.showLabels,
-    resetRow,
   );
 
   // --- readouts: one verdict box, then every number in one table --------------------------------------
@@ -1098,7 +1104,7 @@ export default function mount(container, meta) {
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
-    tiltSlider, moreControls,
+    tiltRow, moreControls,
     habReadout, facts, pinHint,
     legend, infoCard, physicsCard,
   );

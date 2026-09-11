@@ -33,9 +33,10 @@ src/
   lib/i18n.js        t(), tList(), setLanguage(), getLanguage(), onLanguageChange(),
                      applyTranslations(), bindText(), bindAttr(), formatNumber()
   lib/ui.js          UI kit: createPanel, createPanelShift, createSlider, createToggle,
-                     createStateToggle, createButton, createInfoCard, createNotice,
-                     createMessage, createSection, createCollapsibleSection,
-                     createControlRow, createIcon() / ICONS (line icons), el()
+                     createStateToggle, createViewToggles, createButton, createResetButton,
+                     createInfoCard, createNotice, createMessage, createSection,
+                     createCollapsibleSection, createControlRow,
+                     createIcon() / ICONS (line icons), el()
   lib/prefs.js       createViewPrefs(): remembers a simulation's display toggles
                      (legends, labels, helper lines, overlays) in localStorage
   lib/scene.js       scene bootstrap: renderer (DPR ≤ 2), camera, OrbitControls,
@@ -78,9 +79,11 @@ scripts/
 Brand on the left, and on the right three controls of the same round, icon-sized shape
 (`.lp-icon-btn`): the way back to the overview – a house, shown only on a simulation page –
 the EN/DE language pill and the lab flask that lists the work-in-progress simulations. The
-house, the flask and the camera in the panel header are stroked line icons from `ICONS` in
-`lib/ui.js` (`createIcon('home')`), drawn on a 24 grid; everything else in the UI keeps its
-emoji glyph. They are balanced by eye rather than by their bounding box – the eye centres on
+house, the flask, and the camera and circle arrow in the panel header are stroked line icons
+from `ICONS` in `lib/ui.js` (`createIcon('home')`), drawn on a 24 grid; everything else in the
+UI keeps its emoji glyph. The circle arrow is every reset in the UI – the panel header's and
+the small ones beside the sliders alike, which take it through `createResetButton()` – so
+"back to the default" always looks the same. They are balanced by eye rather than by their bounding box – the eye centres on
 the body of a shape (the camera's back, the flask's cone, the walls of the house) and lets
 the light bits above it overhang – so a "technically centred" icon that reads as sitting low
 is wrong. Being icon-only, each one carries its name as `aria-label` and `title`, translated
@@ -93,16 +96,20 @@ finds their way around the next:
 
 1. **The headline controls**, visible as soon as the panel opens – the slider, switch
    or preset row the simulation is actually about (habitable-zone keeps three: the
-   planet's distance, the star's temperature and its radius). Where a slider has an obvious
-   companion action, it sits inline on its right as a small icon-sized button
-   (`createControlRow()` plus `compact: true`): play/pause for a timeline, "back to
-   today", "remove the Moon". A full-width action gets `slim: true` so it stays one
-   line tall, and a preset row that has to hold four labels up top uses
-   `lp-presets--tight` (tiny type, small swatch, four-up even on a phone).
+   planet's distance, the star's temperature and its radius). **Every slider carries an
+   action inline on its right**, as a small icon-sized button (`createControlRow()` plus
+   `compact: true`): a slider that runs a clock gets play/pause, every other slider gets
+   the circle arrow that puts it back to its default (`createResetButton()`, labelled
+   "Reset to default" unless the simulation can say something better – "back to
+   27,000 ly", "back to the main sequence", "back to today"). A slider may carry a second
+   action beside it where one earns its place ("remove the Moon", "today"). A full-width
+   action gets `slim: true` so it stays one line tall, and a preset row that has to hold
+   four labels up top uses `lp-presets--tight` (tiny type, small swatch, four-up even on
+   a phone).
 2. **One collapsible section** with every remaining control – secondary sliders,
-   preset rows, the camera presets on one line, the display toggles and the overall
-   reset (full width) – folded away by default on small screens
-   (`createCollapsibleSection()`).
+   preset rows, the camera presets on one line and the display toggles – folded away by
+   default on small screens (`createCollapsibleSection()`). The overall reset is not in
+   here: it lives in the panel header (below).
 3. **The readouts**: the status box, then its follow-up stats – one `lp-facts` listing,
    not a stack of boxes. A control whose readout is only readable beside it (moon-tides'
    tide gauge) travels with that readout as one block instead of moving up into the fold.
@@ -111,9 +118,21 @@ finds their way around the next:
    magnetic field is off, the Moon is gone, the date is out of range – stay next to the
    control or readout they describe.
 
-### The camera button in the panel header
+### The buttons in the panel header
 
-Every simulation's panel header carries a camera button next to the collapse chevron, and it
+Every simulation's panel header carries two icon-only buttons next to the collapse chevron –
+the overall reset (the circle arrow) and the camera – and both are there whether the panel is
+open or collapsed, so neither is ever more than one press away.
+
+The **reset** is the one button that puts *everything* back: the simulation's parameters and
+the remembered display settings alike. It is wired up with one option, and the simulation's
+own reset function does the work:
+
+```js
+const panel = createPanel({ onToggle: () => viewShift.sync(), onReset: reset, camera: { … } });
+```
+
+The **camera** button steps through the views. It
 is there whether the panel is open or collapsed – so the views stay one press away while the
 panel is out of the way. Each press steps to the next view in the simulation's list and the
 header names it for about two seconds, in place of the "Controls" title, before fading back.
@@ -471,7 +490,7 @@ disposers.push(viewShift.dispose);
   equatorward edge follows the NOAA viewline `λ ≈ 66.5° − 2.1·Kp`. Both are labelled as schematic in the UI.
 - The panel: three switches in one row (field off, remove the atmosphere, launch a CME) with a single
   notice that says what the flipped ones do; every other control – wind sliders, the volcano toggle, the
-  clock's time-lapse and scrub sliders (shown once there is a history), camera views, layer toggles, reset –
+  clock's time-lapse and scrub sliders (shown once there is a history), camera views, layer toggles –
   folds away in one collapsible section; then a "current conditions" box that is always on show, with the
   geomagnetic row (Kp, the G-scale pill, a storm-phase pill – tinted while a storm runs) stacked over the
   atmosphere row (air left, the stage pill, a clock note – warmed once the air is gone); then one stats
@@ -483,7 +502,8 @@ disposers.push(viewShift.dispose);
   air slows it to 50 kyr/s, since that story plays in thousands to millions of years) and can be
   scrubbed (0 … 100 Gyr, log scale; scrubbing re-runs the world from today under the settings set now, held
   constant). Each frame `physics.stepWorld` integrates the budget in substeps of ≤ 20 kyr (≤ 200 per frame).
-  Switching things back stops the clock but nothing comes back; Reset does.
+  Switching things back stops the clock but nothing comes back; the scrub slider's "back to
+  today" – and the panel's overall reset – does.
 - "Magnetic field off" hides the field lines, boundaries and aurora, sends the particles straight into the
   atmosphere (they are absorbed at the top of whatever air is left) and releases an escaping-atmosphere plume
   downwind. Stripping is energy-limited: `Ṃ = ε·½ρv³·πR²/(GM/R)` with R the 500-km exobase and ε = 0.25 %,
@@ -658,8 +678,9 @@ remembered: every visit starts from the teaching defaults.
 - Each simulation therefore splits its initial state into two frozen objects:
   `DEFAULTS` (simulation) and `VIEW_DEFAULTS` (display). `createViewPrefs(meta.id,
   VIEW_DEFAULTS)` from `lib/prefs.js` hydrates the display half, and the toggles are
-  built with `createStateToggle({ labelKey, state, name, prefs, onChange })` so state,
-  storage and checkbox stay in sync. A display setting does not have to be a boolean: a
+  built with `createStateToggle({ labelKey, state, name, prefs, onChange })` – in
+  practice through `createViewToggles()`, which wraps it – so state, storage and
+  checkbox stay in sync. A display setting does not have to be a boolean: a
   string carries a multi-way choice (a temperature unit), a number a continuous one
   (habitable-zone's star size). A stored value is only adopted when its type still
   matches, and the simulation clamps it to its own range on top of that.
@@ -667,9 +688,17 @@ remembered: every visit starts from the teaching defaults.
   Unknown, retyped or corrupt entries fall back to the defaults, and a blocked
   `localStorage` (privacy mode) degrades to in-memory only. `npm run check:prefs`
   covers all of that.
-- **Reset** restores the simulation defaults only; the remembered view survives it.
-  That falls out of the split, since `Object.assign(state, DEFAULTS)` no longer
-  mentions the display keys.
+- **Reset** (the circle arrow in the panel header) restores *both* halves: the
+  simulation's `DEFAULTS` and the remembered display settings, which are written back to
+  storage as they go. `Object.assign(state, DEFAULTS)` covers the first half; the second
+  is `createViewToggles({ state, prefs, defaults: VIEW_DEFAULTS, onChange })` from
+  `lib/ui.js`, which builds the toggles in place of `createStateToggle()` and keeps them
+  as a group, so `view.reset()` puts state, storage and checkbox back and then runs each
+  changed toggle's `onChange` once the whole group is already in its default state. A
+  display setting that is not a toggle (a unit switch, a star-size slider, a camera mode)
+  is put back by the simulation's own reset function next to it.
+- The small circle arrow beside a slider is a different button with a smaller job: it
+  resets that one control, and nothing else.
 
 ## Bilingual UI rules
 

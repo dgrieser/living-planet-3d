@@ -28,7 +28,8 @@
     "collapse": "Collapse controls",
     "expand": "Expand controls",
     "cameraNext": "Next camera view",
-    "reset": "Reset",
+    "resetAll": "Reset all settings",
+    "resetControl": "Reset to default",
     "info": "Information",
     "hint": "Drag to rotate · Scroll or pinch to zoom"
   },
@@ -670,6 +671,7 @@
         "timeLapse": "Time lapse",
         "timeLapseValue": "1 s = {n}",
         "elapsed": "Time on the clock",
+        "elapsedReset": "Back to today",
         "removeAir": "Remove the air",
         "restoreAir": "Give the air back",
         "volcanoes": "Volcanoes keep outgassing"

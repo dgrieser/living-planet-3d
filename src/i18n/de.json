@@ -28,7 +28,8 @@
     "collapse": "Steuerung einklappen",
     "expand": "Steuerung ausklappen",
     "cameraNext": "Nächste Kameraansicht",
-    "reset": "Zurücksetzen",
+    "resetAll": "Alle Einstellungen zurücksetzen",
+    "resetControl": "Auf Standard zurücksetzen",
     "info": "Informationen",
     "hint": "Ziehen zum Drehen · Scrollen oder Zwei-Finger-Geste zum Zoomen"
   },
@@ -670,6 +671,7 @@
         "timeLapse": "Zeitraffer",
         "timeLapseValue": "1 s = {n}",
         "elapsed": "Zeit auf der Uhr",
+        "elapsedReset": "Zurück zur Gegenwart",
         "removeAir": "Luft entfernen",
         "restoreAir": "Luft zurückgeben",
         "volcanoes": "Vulkane gasen weiter aus"

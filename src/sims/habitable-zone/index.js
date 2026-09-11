@@ -22,7 +22,7 @@
  */
 import * as THREE from 'three';
 import { createScene } from '../../lib/scene.js';
-import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createStateToggle, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
+import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createViewToggles, createButton, createResetButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
 import * as HZ from './physics.js';
@@ -666,9 +666,9 @@ export default function mount(container, meta) {
       return;
     }
     if (followAutopilot) {
-      const view = planetView();
-      camera.position.copy(view.position);
-      controls.target.copy(view.target);
+      const dest = planetView();
+      camera.position.copy(dest.position);
+      controls.target.copy(dest.target);
     } else {
       const turn = state.angle - followAngle;
       const carry = (v) => v.sub(followFrom).applyAxisAngle(THREE.Object3D.DEFAULT_UP, turn).add(planetPos);
@@ -1073,6 +1073,7 @@ export default function mount(container, meta) {
   const viewShift = createPanelShift({ sim, viewport });
   const panel = createPanel({
     onToggle: () => viewShift.sync(),
+    onReset: resetAll,
     camera: { views: CAMERA_VIEWS, onSelect: selectCameraView },
   });
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
@@ -1092,6 +1093,12 @@ export default function mount(container, meta) {
     },
   });
   distanceSlider.input.addEventListener('change', () => fitViewIfAuto());
+  const distanceRow = createControlRow(distanceSlider, createResetButton({
+    onClick: () => {
+      setDistance(DEFAULTS.distanceAU);
+      fitViewIfAuto();
+    },
+  }));
 
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: false });
 
@@ -1139,6 +1146,12 @@ export default function mount(container, meta) {
     onChange: (v) => setTemperature(Math.pow(10, v)),
   });
   teffSlider.input.addEventListener('change', () => fitViewIfAuto());
+  const teffRow = createControlRow(teffSlider, createResetButton({
+    onClick: () => {
+      setTemperature(DEFAULTS.teffK);
+      fitViewIfAuto();
+    },
+  }));
   const radiusSlider = createSlider({
     labelKey: `${KEYS}.star.radiusControl`,
     min: Math.log10(HZ.RADIUS_RANGE_SOLAR.min),
@@ -1149,10 +1162,8 @@ export default function mount(container, meta) {
     onChange: (v) => setRadius(Math.pow(10, v)),
   });
   radiusSlider.input.addEventListener('change', () => fitViewIfAuto());
-  const mainSequenceBtn = createButton({
+  const mainSequenceBtn = createResetButton({
     labelKey: `${KEYS}.star.backToMainSequence`,
-    icon: '↺',
-    compact: true,
     onClick: () => {
       setMainSequence();
       fitViewIfAuto();
@@ -1194,10 +1205,8 @@ export default function mount(container, meta) {
     playBtn.setLabel(state.playing ? `${KEYS}.evolution.pause` : `${KEYS}.evolution.play`);
     playBtn.el.setAttribute('aria-pressed', String(state.playing));
   }
-  const todayBtn = createButton({
+  const todayBtn = createResetButton({
     labelKey: `${KEYS}.evolution.resetToday`,
-    icon: '↺',
-    compact: true,
     onClick: () => {
       setPlaying(false);
       setAge(HZ.SUN_AGE_GYR);
@@ -1205,7 +1214,8 @@ export default function mount(container, meta) {
   });
   const ageRow = createControlRow(ageSlider, playBtn, todayBtn);
 
-  const viewToggle = (name, labelKey, onChange = refresh) => createStateToggle({ labelKey, state, name, prefs: viewPrefs, onChange });
+  const view = createViewToggles({ state, prefs: viewPrefs, defaults: VIEW_DEFAULTS, onChange: refresh });
+  const viewToggle = (name, labelKey, onChange = refresh) => view.toggle(name, labelKey, onChange);
   // the zone toggle owns two sub-toggles (flat annulus / 3D shell) so either representation can be shown alone
   const zoneToggle = viewToggle('showZone', `${KEYS}.view.zone`, (on) => {
     if (on && !state.showZoneSurface && !state.showZoneShell) {
@@ -1256,6 +1266,12 @@ export default function mount(container, meta) {
     viewPrefs.set('starScale', state.starScale);
     fitViewIfAuto();
   });
+  const starScaleRow = createControlRow(starScaleSlider, createResetButton({
+    onClick: () => {
+      setStarScale(VIEW_DEFAULTS.starScale);
+      fitViewIfAuto();
+    },
+  }));
   const starScaleNote = bindText(el('p', 'lp-section__note'), `${KEYS}.view.starSizeNote`);
   const speedSlider = createSlider({
     labelKey: `${KEYS}.view.speed`,
@@ -1266,6 +1282,7 @@ export default function mount(container, meta) {
     format: (v) => `${fmt(v, 1)}${t('units.times')}`,
     onChange: (v) => setSpeed(v, { silent: true }),
   });
+  const speedRow = createControlRow(speedSlider, createResetButton({ onClick: () => setSpeed(DEFAULTS.speed) }));
   const speedNote = bindText(el('p', 'lp-section__note'), `${KEYS}.view.speedNote`);
   const cameraRow = el('div', 'lp-presets lp-presets--3 lp-presets--compact', { role: 'group' });
   bindAttr(cameraRow, { 'aria-label': `${KEYS}.view.camera` });
@@ -1298,30 +1315,29 @@ export default function mount(container, meta) {
     cameraRow.append(btn.el);
   }
 
-  const resetBtn = createButton({
-    labelKey: 'panel.reset',
-    icon: '↺',
-    onClick: () => {
-      setPlaying(false);
-      Object.assign(state, DEFAULTS);
-      distanceSlider.setValue(state.distanceAU, { silent: true });
-      ageSlider.setValue(state.ageGyr, { silent: true });
-      speedSlider.setValue(state.speed, { silent: true });
-      refresh();
-      syncStarSliders();
-      syncPresetButtons();
-      fitView();
-    },
-  });
-  const resetRow = el('div', 'lp-button-row lp-button-row--full');
-  resetRow.append(resetBtn.el);
+  /** The panel header's reset: the simulation's parameters and the display settings alike. */
+  function resetAll() {
+    setPlaying(false);
+    Object.assign(state, DEFAULTS);
+    distanceSlider.setValue(state.distanceAU, { silent: true });
+    ageSlider.setValue(state.ageGyr, { silent: true });
+    speedSlider.setValue(state.speed, { silent: true });
+    view.reset();
+    setTempUnit(VIEW_DEFAULTS.tempUnit);
+    setStarScale(VIEW_DEFAULTS.starScale);
+    refresh();
+    syncStarSliders();
+    syncPresetButtons();
+    // last, so the camera lands on the scene the rest of the reset has just rebuilt
+    setCameraMode(VIEW_DEFAULTS.cameraMode);
+  }
 
   moreControls.add(bindText(el('p', 'lp-subheading'), `${KEYS}.sections.evolution`), ageRow);
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`),
     cameraRow, zoneToggle, surfaceToggle, shellToggle, tempToggle, unitSwitch, gridToggle,
-    starScaleSlider, starScaleNote, speedSlider, speedNote, resetRow,
+    starScaleRow, starScaleNote, speedRow, speedNote,
   );
 
   // --- readouts: the planet's temperature, then the numbers behind it ------------------------------
@@ -1365,7 +1381,7 @@ export default function mount(container, meta) {
     };
   });
   panel.add(
-    distanceSlider, presetRow, teffSlider, radiusRow, moreControls,
+    distanceRow, presetRow, teffRow, radiusRow, moreControls,
     readout, planetFacts, windowNote,
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.star`), starFacts,
     legend, infoCard, physicsCard,
