@@ -11,7 +11,7 @@
  *    the dayside, stretched into a magnetotail and flattened towards the current
  *    sheet on the nightside. Higher wind pressure ⇒ smaller standoff ⇒ visibly
  *    compressed dayside and a longer tail.
- *  - 10 000 solar-wind particles, 4 000 CME particles and 1 600 escaping
+ *  - 10 000 solar-wind particles, 4 000 CME particles and 3 000 escaping
  *    "erosion" particles are single `THREE.Points` objects whose positions are
  *    computed entirely in the vertex shader from a handful of uniforms, so the
  *    per-frame CPU cost is a few uniform writes.
@@ -22,7 +22,11 @@
  *    `physics.unshieldedState`, the planet cools and freezes over as the greenhouse
  *    goes, and below the triple point the ice sublimates to the poles and leaves a
  *    dry, Mars-like Earth. The Earth shader paints all of that from a handful of
- *    eased uniforms; the physics never touches pixels.
+ *    eased uniforms; the physics never touches pixels. The atmosphere shell becomes
+ *    the induced ionosphere of an unmagnetised planet: pressed down on the dayside,
+ *    plasma clouds peeled off the flanks, and an ion tail downwind – never a hole,
+ *    because a gas refills one within hours. Its visible top drops one scale height
+ *    per e-folding of lost mass, so the shell thins and finally collapses.
  *
  * All quantitative work lives in ./physics.js; this module only maps it to pixels.
  */
@@ -38,6 +42,10 @@ const DEG = Math.PI / 180;
 
 const EARTH_RADIUS = 1;
 const ATMOSPHERE_RADIUS = 1.045;
+/** How long the ion tail is drawn at the strongest wind, in Earth radii (Venus's and Mars's reach several). */
+const ION_TAIL_MAX = 3.2;
+/** log₁₀ of the ram-pressure range the sliders cover; the wind's "lean" on the ionosphere is scaled by it. */
+const PRESSURE_DECADES = Math.log10(2500);
 const AURORA_RADIUS = 1.062;
 const AURORA_CAP_DEG = 48;
 const SUN_SPRITE_DISTANCE = 400;
@@ -51,7 +59,7 @@ const FIELD_LINE_COUNT = L_SHELLS.length * AZIMUTH_COUNT; // 56 curves
 
 const WIND_PARTICLES = 10000;
 const CME_PARTICLES = 4000;
-const EROSION_PARTICLES = 1600;
+const EROSION_PARTICLES = 3000;
 const WIND_START_X = 28; // upstream spawn plane (just outside the default view)
 const WIND_PATH_LENGTH = 72; // spawn plane → far end of the tail
 const WIND_RHO_MAX = 18; // radius of the illuminated wind beam
@@ -228,12 +236,20 @@ export default function mount(container, meta) {
   earthSpin.add(earth);
   scene.add(earthSpin);
 
+  // The shell's geometry is the unit sphere; its height, dayside compression and tail are set in
+  // the vertex shader (see ATMOSPHERE_VERTEX), so nothing is rebuilt as the air goes.
   const atmosphereMaterial = new THREE.ShaderMaterial({
     uniforms: {
       uColor: { value: new THREE.Color(COLORS.atmosphere) },
       uHotColor: { value: new THREE.Color(0xff8a5c) },
       uErosion: { value: 0 },
       uOpacity: { value: 1 },
+      uHeight: { value: ATMOSPHERE_RADIUS - EARTH_RADIUS },
+      uSquash: { value: 0 },
+      uTail: { value: 0 },
+      uTailGlow: { value: 0 },
+      uRip: { value: 0 },
+      uTime: { value: 0 },
     },
     vertexShader: ATMOSPHERE_VERTEX,
     fragmentShader: ATMOSPHERE_FRAGMENT,
@@ -241,7 +257,8 @@ export default function mount(container, meta) {
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
-  const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(ATMOSPHERE_RADIUS, 96, 64), atmosphereMaterial);
+  const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS, 128, 96), atmosphereMaterial);
+  atmosphere.frustumCulled = false; // the tail reaches well outside the sphere's bounds
   atmosphere.renderOrder = 2;
   scene.add(atmosphere);
 
@@ -474,12 +491,38 @@ export default function mount(container, meta) {
     eu.uCapEdge.value = vis.capEdge;
     eu.uRust.value = vis.rust;
     eu.uTime.value = time;
-    // the shell thins with the air; it glows hot only while there is air for the wind to hit
-    atmosphereMaterial.uniforms.uErosion.value = shield ? 0 : 1;
-    atmosphereMaterial.uniforms.uOpacity.value = Math.pow(vis.atm, 0.6);
-    atmosphere.visible = vis.atm > 0.01;
-    atmosphere.scale.setScalar((EARTH_RADIUS + (ATMOSPHERE_RADIUS - EARTH_RADIUS) * (0.35 + 0.65 * vis.atm)) / ATMOSPHERE_RADIUS);
-    const absorbRadius = EARTH_RADIUS + (ATMOSPHERE_RADIUS - EARTH_RADIUS) * vis.atm;
+    // The shell. Its visible top follows the barometric law – one scale height lower per e-folding
+    // of lost mass, reaching the ground at the triple point – so it thins slowly at first and
+    // collapses at the end; its brightness is the column density, i.e. the mass itself.
+    const air = Math.max(vis.atm, 1e-9);
+    const top = clamp(1 + Math.log(air) / Math.log(1 / P.TRIPLE_POINT_FRACTION), 0, 1);
+    const height = (ATMOSPHERE_RADIUS - EARTH_RADIUS) * top;
+    // How hard the wind leans on the ionosphere, 0 for the quiet wind … 1 at the top of the sliders
+    // (log scale of the ram pressure, CME sheath included).
+    const lean = clamp(Math.log10(Math.max(m.pressureRatio, 1e-3)) / PRESSURE_DECADES, 0, 1);
+    // What still feeds the plume: the air, or – once it is gone – the sublimating ice.
+    const plume = vis.atm + (1 - vis.atm) * 0.08 * m.world.water;
+    const au = atmosphereMaterial.uniforms;
+    au.uErosion.value = shield ? 0 : 1;
+    au.uOpacity.value = Math.pow(vis.atm, 0.6);
+    au.uHeight.value = height;
+    au.uTime.value = time;
+    if (shield) {
+      au.uSquash.value = 0;
+      au.uTail.value = 0;
+      au.uTailGlow.value = 0;
+      au.uRip.value = 0;
+    } else {
+      // the ionopause is pushed down on the dayside; a thinner ionosphere holds less pressure against the wind
+      au.uSquash.value = (0.35 + 0.65 * lean) * (0.6 + 0.4 * (1 - vis.atm));
+      // the ion tail grows with the wind and lives on what is being stripped
+      au.uTail.value = ION_TAIL_MAX * (0.2 + 0.8 * lean) * Math.pow(plume, 0.35);
+      au.uTailGlow.value = 0.45 + 0.55 * lean;
+      // plasma clouds torn off the flanks – more of them the harder the wind leans and the less air is left
+      au.uRip.value = (0.3 + 0.7 * lean) * (0.55 + 0.45 * (1 - vis.atm));
+    }
+    atmosphere.visible = vis.atm > 0.002 || (!shield && plume > 0.005);
+    const absorbRadius = EARTH_RADIUS + height;
 
     // particles – positions come from the phases integrated in `frame`, never from `time × rate`
     for (const sys of [wind, cmeCloud, erosion]) {
@@ -500,9 +543,10 @@ export default function mount(container, meta) {
     cmeCloud.points.visible = m.cmeOpacity > 0.01;
 
     erosion.uniforms.uPhase.value = erosionPhase;
-    // the plume dwindles with the air; once it is gone only the sublimating ice still feeds it
-    const plume = vis.atm + (1 - vis.atm) * 0.08 * m.world.water;
-    erosion.uniforms.uOpacity.value = shield ? 0 : clamp(0.25 + 0.75 * Math.min(m.pressureRatio, 3) / 3, 0.25, 1) * plume;
+    // the plume of escaping gas: brighter, bigger and longer the harder the wind strips; dwindling with the air
+    erosion.uniforms.uOpacity.value = shield ? 0 : (0.35 + 0.65 * lean) * plume;
+    erosion.uniforms.uBoost.value = 1 + 0.9 * lean;
+    erosion.uniforms.uTail.value = au.uTail.value;
     erosion.points.visible = !shield && plume > 0.005;
 
     // labels
@@ -1084,6 +1128,8 @@ export default function mount(container, meta) {
       frame,
       refresh,
       windUniforms: wind.uniforms,
+      erosionUniforms: erosion.uniforms,
+      atmosphereUniforms: atmosphereMaterial.uniforms,
       auroraUniforms: auroraMaterial.uniforms,
       fieldLinePositions: linePositions,
       counts: { wind: WIND_PARTICLES, cme: CME_PARTICLES, erosion: EROSION_PARTICLES, lines: FIELD_LINE_COUNT },
@@ -1160,6 +1206,8 @@ function createParticles({ count, mode, size, cold, hot, rho }) {
     uFieldOn: { value: 1 },
     uAtmR: { value: ATMOSPHERE_RADIUS },
     uSize: { value: size },
+    uBoost: { value: 1 }, // point-size multiplier (the escaping plume grows with the stripping rate)
+    uTail: { value: 0 }, // length of the ion tail the escaping gas follows, in R_E
     uOpacity: { value: 1 },
     uCmeX: { value: WIND_START_X },
     uMode: { value: mode },
@@ -1595,14 +1643,42 @@ const EARTH_FRAGMENT = /* glsl */ `
   }
 `;
 
-/** Thin translucent shell: fresnel rim, brighter where the Sun hits, hot when the shield is off. */
+/**
+ * The atmosphere shell – and, with the field off, the induced ionosphere of an unmagnetised
+ * planet. The geometry is the unit sphere; the vertex shader lifts it by `uHeight` (the visible
+ * top of the air), presses it down towards the subsolar point (`uSquash`: the ionopause sits at
+ * ≈ 300 km over the subsolar point of Venus and ≈ 1000 km at the terminator) and draws the night
+ * side out into an ion tail of `uTail` Earth radii. The fragment shader tears plasma clouds off
+ * the flanks (`uRip`) that flow tailward – what actually happens where the wind meets the
+ * ionosphere; a gas can never keep a hole, it refills one within hours.
+ */
 const ATMOSPHERE_VERTEX = /* glsl */ `
+  uniform float uHeight;   // visible thickness of the air, in Earth radii
+  uniform float uSquash;   // 0…1 how far the dayside is pressed down
+  uniform float uTail;     // length of the ion tail, in Earth radii
   varying vec3 vNormalW;
   varying vec3 vViewDir;
+  varying vec3 vDir;
+  varying float vTail;
   void main() {
-    vec4 world = modelMatrix * vec4(position, 1.0);
-    vNormalW = normalize(mat3(modelMatrix) * normal);
+    vec3 d = normalize(position);
+    float sun = d.x;                                   // the Sun sits towards +x
+    float dayside = smoothstep(-0.25, 1.0, sun);
+    float h = max(uHeight, 0.004) * (1.0 - 0.6 * uSquash * dayside);
+    vec3 p = d * (1.0 + h);
+    // the night hemisphere is drawn out downwind: a teardrop that bulges just behind the planet
+    // and tapers towards its end
+    float t = smoothstep(0.0, 1.0, -sun);
+    t *= t;
+    p.x -= uTail * t;
+    p.yz *= 1.0 + 0.25 * uTail * t * (1.0 - t) - 0.5 * t * t;
+    // approximate normal: radial across the tail, tilted downwind along it
+    vec3 n = normalize(vec3(d.x * (1.0 - 0.8 * t), d.y, d.z));
+    vec4 world = modelMatrix * vec4(p, 1.0);
+    vNormalW = normalize(mat3(modelMatrix) * n);
     vViewDir = normalize(cameraPosition - world.xyz);
+    vDir = d;
+    vTail = t;
     gl_Position = projectionMatrix * viewMatrix * world;
   }
 `;
@@ -1610,16 +1686,48 @@ const ATMOSPHERE_VERTEX = /* glsl */ `
 const ATMOSPHERE_FRAGMENT = /* glsl */ `
   uniform vec3 uColor;
   uniform vec3 uHotColor;
-  uniform float uErosion;
-  uniform float uOpacity;
+  uniform float uErosion;  // 1 while the wind hits the air directly
+  uniform float uOpacity;  // column density – the mass that is left
+  uniform float uTailGlow; // how bright the ion tail is drawn
+  uniform float uRip;      // 0…1 how much of the flanks is being torn off in plasma clouds
+  uniform float uTime;
   varying vec3 vNormalW;
   varying vec3 vViewDir;
+  varying vec3 vDir;
+  varying float vTail;
+  ${NOISE_GLSL}
   void main() {
     vec3 N = normalize(vNormalW);
     float fres = pow(1.0 - max(dot(N, normalize(vViewDir)), 0.0), 2.2);
-    float lit = smoothstep(-0.35, 0.45, N.x); // the Sun sits towards +x
+    float lit = smoothstep(-0.35, 0.45, vDir.x);
     vec3 col = mix(uColor, uHotColor, uErosion * (0.35 + 0.65 * lit));
     float alpha = uOpacity * fres * (0.25 + 0.9 * lit) * (1.0 + 0.7 * uErosion);
+
+    if (uRip > 0.001) {
+      // Plasma clouds: ripples that grow on the flanks and are carried tailward (the coordinates
+      // drift towards −x), tearing gaps in the shell that close again downstream. The nose itself
+      // is pressed, not torn; the flanks and the near tail shed the most.
+      vec3 q = vDir * 5.5 + vec3(uTime * 0.7, 0.0, 0.0);
+      float ripple = fbm(q, 3);
+      float flank = smoothstep(-0.85, 0.15, vDir.x) * (1.0 - smoothstep(0.6, 0.98, vDir.x));
+      float torn = smoothstep(0.62 - 0.22 * uRip, 0.78, ripple) * uRip * (0.35 + 0.65 * flank);
+      alpha *= 1.0 - 0.9 * torn;
+      col = mix(col, uHotColor, torn * 0.5);
+      // the clouds themselves, glowing hot just outside the gaps – bright enough to show face-on
+      float edge = 0.62 - 0.22 * uRip;
+      float cloud = smoothstep(edge - 0.16, edge - 0.04, ripple) * (1.0 - smoothstep(edge - 0.04, edge + 0.06, ripple));
+      alpha += uOpacity * cloud * uRip * flank * 0.7 * (0.55 + 0.45 * fres);
+      col = mix(col, uHotColor, cloud * 0.4);
+    }
+
+    if (vTail > 0.001) {
+      // the ion tail: what is leaving, hot and filamentary, thinning with distance
+      vec3 q = vec3(vDir.yz * 6.0, vTail * 4.0 - uTime * 0.9);
+      float streak = 0.3 + 0.9 * fbm(q, 3);
+      float tail = vTail * (1.0 - 0.75 * vTail) * uTailGlow * streak;
+      alpha += uOpacity * tail * (0.35 + 0.5 * fres) * (0.6 + 0.4 * uErosion);
+      col = mix(col, uHotColor, vTail * 0.6);
+    }
     gl_FragColor = vec4(col * (0.5 + 0.9 * fres), clamp(alpha, 0.0, 1.0));
     #include <colorspace_fragment>
   }
@@ -1682,6 +1790,8 @@ const PARTICLE_VERTEX = /* glsl */ `
   uniform float uFieldOn;
   uniform float uAtmR;
   uniform float uSize;
+  uniform float uBoost;
+  uniform float uTail;
   uniform float uOpacity;
   uniform float uCmeX;
   uniform int uMode;
@@ -1705,14 +1815,18 @@ const PARTICLE_VERTEX = /* glsl */ `
     vAlpha = uOpacity;
     vSheath = 0.0;
     if (uMode == 2) {
-      // atmospheric erosion: escape from the sunlit hemisphere, then blow downwind
+      // Escaping gas: picked up at the top of the air on the sunlit side and the flanks, swept round
+      // the planet and down the ion tail. It comes off in clouds, not as a steady drizzle – the
+      // ionopause sheds plasma in clumps (Venus, Mars) – so the brightness pulses along the stream.
       float s = fract(aSeed + uPhase);
       float sn = sin(aRho);
       vec3 dir = vec3(cos(aRho), sn * cos(aPhi), sn * sin(aPhi));
       float travel = s * s;
-      p = dir * (uAtmR + travel * 14.0) + vec3(-1.0, 0.0, 0.0) * travel * 30.0;
+      float reach = 6.0 + 8.0 * uTail;
+      p = dir * (uAtmR + travel * (4.0 + 2.0 * uTail)) + vec3(-1.0, 0.0, 0.0) * travel * reach;
+      float clump = 0.45 + 0.55 * smoothstep(-0.2, 0.8, sin(uPhase * 6.2832 * 3.0 + aSeed * 40.0 + aPhi * 2.0));
       vColor = mix(uColdColor, uHotColor, aDepth);
-      vAlpha = uOpacity * (1.0 - s) * (0.35 + 0.65 * aDepth);
+      vAlpha = uOpacity * (1.0 - s) * (0.35 + 0.65 * aDepth) * clump;
     } else {
       float x;
       float edgeFade = 1.0;
@@ -1758,7 +1872,7 @@ const PARTICLE_VERTEX = /* glsl */ `
     }
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
     gl_Position = projectionMatrix * mv;
-    gl_PointSize = clamp(uSize * (1.0 + 1.1 * vSheath) * (110.0 / max(-mv.z, 0.001)), 1.0, 7.0);
+    gl_PointSize = clamp(uSize * uBoost * (1.0 + 1.1 * vSheath) * (110.0 / max(-mv.z, 0.001)), 1.0, 9.0);
   }
 `;
 

@@ -446,7 +446,7 @@ disposers.push(viewShift.dispose);
   boundary, so no line can cross the magnetopause; on the night side x is scaled up with r (tail) and y is
   pressed towards the current sheet (lobes). Both effects are faded out below r = 2 R⊕ so the footpoints stay
   planted on the surface. Rising pressure moves the noon apex from 9.2 to 4.2 R⊕ and the tail from −17 to −63 R⊕.
-- Solar wind, CME cloud and escaping atmosphere are three `THREE.Points` objects (10 000 / 4 000 / 1 600)
+- Solar wind, CME cloud and escaping atmosphere are three `THREE.Points` objects (10 000 / 4 000 / 3 000)
   whose positions are computed entirely in the vertex shader; a frame costs a handful of uniform writes.
   Streamlines follow `ρ(x) = √(ρ∞² + ρ_mp(x − 0.28·r₀)²)` – adding the obstacle's cross-section can never take a
   parcel inside the magnetopause, and evaluating the boundary 0.28·r₀ sunward makes the flow start turning at
@@ -497,8 +497,19 @@ disposers.push(viewShift.dispose);
   ice line adds nothing and a snowball reaches the equator); `uLights` fades the cities out between 60 % and
   32 % of the air; `uMigrate` / `uCapEdge` clear the ice between the caps to dry basins (pale shelves from the
   map's lighter blues, dark floor and salt pans in the deeps) and bare soil; `uRust` reddens and darkens it.
-  The atmosphere shell shrinks and fades with `uAtm`, the particles are absorbed at the top of the remaining
-  air, and the erosion plume dwindles with it.
+  The particles are absorbed at the top of the remaining air, and the erosion plume dwindles with it.
+- The atmosphere shell is the unit sphere deformed in its vertex shader. Its visible top follows the
+  barometric law – one scale height lower per e-folding of lost mass, `top = 1 + ln f / ln(1/f_triple)`, so it
+  thins slowly at first and collapses at the triple point – while its brightness is the column density (∝ f).
+  With the field off it becomes the induced ionosphere of an unmagnetised planet: the dayside is pressed
+  down towards the subsolar point (`uSquash`, cf. the Venus ionopause at ≈ 300 km subsolar vs ≈ 1000 km at the
+  terminator), the night side is drawn out into an ion tail of up to 3.2 R⊕ (`uTail`), and animated ripples on
+  the flanks tear plasma clouds off the shell that flow tailward (`uRip`, the detached clouds Pioneer Venus and
+  MAVEN see). All three scale with how hard the wind leans on it – `log₁₀` of the ram-pressure ratio over the
+  sliders' 2500× range, CME sheath included – and the rip and squash grow as the air thins, since a thinner
+  ionosphere holds less pressure against the wind. There is deliberately no "hole": a gas refills one within
+  hours, and the tail is what leaving actually looks like. The 3 000 escaping particles follow the same tail
+  length, grow with the stripping rate and pulse along the stream in clumps.
 
 ### galactic-zone notes
 
