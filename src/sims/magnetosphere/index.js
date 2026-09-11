@@ -801,14 +801,14 @@ export default function mount(container, meta) {
   const isSmallScreen = window.matchMedia('(max-width: 720px)').matches;
 
   // --- controls: the shield switch and the wind up front, the rest folded away ---------------------
+  // the two switches side by side, and one notice that says what the flipped ones do
   const fieldButton = createButton({ labelKey: `${KEYS}.controls.fieldOff`, icon: '🧲', slim: true, onClick: () => setFieldOn(!state.fieldOn) });
-  const fieldRow = el('div', 'lp-button-row lp-button-row--full');
-  fieldRow.append(fieldButton.el);
-  const fieldOffNotice = createNotice({ textKey: `${KEYS}.warn.fieldOff`, tone: 'warn' });
   const airButton = createButton({ labelKey: `${KEYS}.controls.removeAir`, icon: '🌫', slim: true, onClick: () => setAirRemoved(!state.airRemoved) });
-  const airRow = el('div', 'lp-button-row lp-button-row--full');
-  airRow.append(airButton.el);
-  const airNotice = createNotice({ textKey: `${KEYS}.warn.airRemoved`, tone: 'warn' });
+  const switchRow = el('div', 'lp-button-row lp-button-row--pair');
+  switchRow.append(fieldButton.el, airButton.el);
+  const switchNotice = el('div', 'lp-notice lp-notice--warn', { role: 'status', hidden: true });
+  const switchNoticeText = el('span');
+  switchNotice.append(switchNoticeText);
   const volcanoToggle = createToggle({ labelKey: `${KEYS}.controls.volcanoes`, checked: state.volcanoes, onChange: (v) => setVolcanoes(v) });
   const densitySlider = createSlider({
     labelKey: `${KEYS}.controls.density`,
@@ -958,7 +958,7 @@ export default function mount(container, meta) {
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
-    fieldRow, fieldOffNotice, airRow, airNotice, clockControls, densitySlider, speedSlider, volcanoToggle.el, cmeRow, moreControls,
+    switchRow, switchNotice, clockControls, densitySlider, speedSlider, volcanoToggle.el, cmeRow, moreControls,
     worldSection,
     bindText(el('p', 'lp-subheading'), `${KEYS}.storm.title`), stormReadout, stormFacts,
     legend, infoCard, physicsCard,
@@ -980,7 +980,7 @@ export default function mount(container, meta) {
     fieldButton.setLabel(state.fieldOn ? `${KEYS}.controls.fieldOff` : `${KEYS}.controls.fieldOn`);
     fieldButton.el.classList.toggle('lp-button--primary', !state.fieldOn);
     fieldButton.el.classList.toggle('lp-button--ghost', state.fieldOn);
-    fieldOffNotice.el.hidden = state.fieldOn;
+    syncSwitchNotice();
     syncWorldVisibility();
     toggles.showFieldLines.el.hidden = !state.fieldOn;
     toggles.showBoundaries.el.hidden = !state.fieldOn;
@@ -992,7 +992,14 @@ export default function mount(container, meta) {
     airButton.setLabel(state.airRemoved ? `${KEYS}.controls.restoreAir` : `${KEYS}.controls.removeAir`);
     airButton.el.classList.toggle('lp-button--primary', state.airRemoved);
     airButton.el.classList.toggle('lp-button--ghost', !state.airRemoved);
-    airNotice.el.hidden = !state.airRemoved;
+    syncSwitchNotice();
+  }
+
+  /** One warning for whatever is switched off: the field, the air, or both. */
+  function syncSwitchNotice() {
+    const key = !state.fieldOn && state.airRemoved ? 'both' : !state.fieldOn ? 'fieldOff' : state.airRemoved ? 'airRemoved' : null;
+    switchNotice.hidden = !key;
+    if (key) switchNoticeText.textContent = t(`${KEYS}.warn.${key}`);
   }
 
   /** The clock and the readout stay while there is a history to show, even after the switches are back. */

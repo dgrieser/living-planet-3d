@@ -317,6 +317,7 @@ a:hover { color: #a9d9ff; }
 .lp-button--primary:hover { background: #9fd3ff; }
 .lp-button-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .lp-button-row--full > .lp-button { flex: 1 1 100%; }
+.lp-button-row--pair > .lp-button { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.2; text-align: center; }
 .lp-button--compact { width: 34px; height: 34px; padding: 0; gap: 0; flex: none; font-size: 1rem; }
 .lp-button--slim { padding: 6px 10px; font-size: 0.85rem; }
 .lp-button--compact .lp-button__icon { line-height: 1; }
