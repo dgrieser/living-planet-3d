@@ -648,7 +648,7 @@
       "title": "Earth's magnetosphere",
       "description": "Watch Earth's magnetic field deflect the solar wind, fire off a coronal mass ejection and switch the shield off.",
       "sections": {
-        "more": "View & camera",
+        "more": "Wind, clock & view",
         "view": "View"
       },
       "controls": {
@@ -670,7 +670,7 @@
         "timeLapse": "Time lapse",
         "timeLapseValue": "1 s = {n}",
         "elapsed": "Time on the clock",
-        "removeAir": "Remove the atmosphere",
+        "removeAir": "Remove the air",
         "restoreAir": "Give the air back",
         "volcanoes": "Volcanoes keep outgassing"
       },
@@ -683,7 +683,6 @@
         "days": "{n} days"
       },
       "storm": {
-        "title": "Space weather",
         "kp": "Geomagnetic activity",
         "aurora": "Aurora reaches",
         "latitude": "geomagnetic latitude",
@@ -786,7 +785,6 @@
       "hint": "Move the sliders, launch a CME – or switch the field off, take the air away and let the clock run",
       "credit": "Earth textures: Solar System Scope (CC BY 4.0)",
       "world": {
-        "title": "What becomes of Earth",
         "atmosphere": "Atmosphere left",
         "elapsed": "Elapsed",
         "pressure": "Surface pressure",
@@ -837,6 +835,9 @@
         "airToxic": "unbreathable · CO₂",
         "oceanBoiling": "boiling at the surface, freezing over",
         "oceanMelting": "caps melting back into the basins"
+      },
+      "conditions": {
+        "title": "Current conditions"
       }
     },
     "galacticZone": {
