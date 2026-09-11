@@ -80,6 +80,9 @@ const MERIDIAN_SPREAD = 0.3; // rad
 const SURFACE_NX = 56; // paraboloid grid
 const SURFACE_NTHETA = 72;
 const SURFACE_TAIL = 5.2; // drawn tail length in units of the nose distance
+const FAR_AWAY = 1e4; // stand-in standoff (R_E) for the shaders when there is no wind and the real one is infinite
+const BOUNDARY_FADE_START = 20; // the boundaries fade out as the nose recedes from here…
+const BOUNDARY_FADE_END = 60; // …to here, well outside the scene
 
 const COLORS = Object.freeze({
   fieldInner: 0x5fd0ff,
@@ -366,12 +369,9 @@ export default function mount(container, meta) {
 
   /** Rebuild only when the shape actually moved – the CME animates through this smoothly. */
   function syncFieldLines(env) {
-    if (
-      !lastLineEnv ||
-      Math.abs(env.r0 - lastLineEnv.r0) / lastLineEnv.r0 > 0.0015 ||
-      Math.abs(env.alpha - lastLineEnv.alpha) > 0.002 ||
-      Math.abs(env.tailStretch - lastLineEnv.tailStretch) > 0.004
-    ) {
+    // compared through 1/r₀ so that an infinite standoff (no wind) is a value like any other
+    const inv = (e) => (Number.isFinite(e.r0) ? 1 / e.r0 : 0);
+    if (!lastLineEnv || Math.abs(inv(env) - inv(lastLineEnv)) > 1.2e-4 || Math.abs(env.alpha - lastLineEnv.alpha) > 0.002) {
       rebuildFieldLines({ ...env });
     }
   }
@@ -471,23 +471,29 @@ export default function mount(container, meta) {
   function applyModel() {
     const m = model;
     const shield = state.fieldOn;
-    const r0 = m.standoff;
     const alpha = m.alpha;
+    // No wind, no boundary: the standoff is then infinite. The surfaces and the streamlines get a
+    // far-away stand-in, and the boundaries fade out as they recede beyond the scene.
+    const hasWind = Number.isFinite(m.standoff);
+    const r0 = hasWind ? m.standoff : FAR_AWAY;
     const c = r0 * Math.pow(4, alpha);
-    const bsNose = m.bowShock;
+    const bsNose = hasWind ? m.bowShock : FAR_AWAY * P.BOW_SHOCK_FACTOR;
+    const boundaryFade = 1 - P.smoothstep(BOUNDARY_FADE_START, BOUNDARY_FADE_END, r0);
+    // how much of a wind there is at all, for everything that only exists because of it
+    const presence = P.smoothstep(0, 0.02, m.pressureRatio);
 
     // field lines
     fieldLines.visible = shield && state.showFieldLines;
     if (fieldLines.visible) syncFieldLines(m.env);
 
     // boundaries
-    magnetopause.mesh.visible = shield && state.showBoundaries;
-    bowShock.mesh.visible = shield && state.showBoundaries;
-    magnetopause.set({ nose: r0, c, tail: -SURFACE_TAIL * r0 });
-    bowShock.set({ nose: bsNose, c: 4 * r0, tail: -SURFACE_TAIL * r0 });
+    magnetopause.mesh.visible = shield && state.showBoundaries && boundaryFade > 0.02;
+    bowShock.mesh.visible = shield && state.showBoundaries && boundaryFade > 0.02;
+    magnetopause.set({ nose: r0, c, tail: -SURFACE_TAIL * r0, fade: boundaryFade });
+    bowShock.set({ nose: bsNose, c: 4 * r0, tail: -SURFACE_TAIL * r0, fade: boundaryFade });
 
-    // aurora
-    const auroraOn = shield && state.showAurora;
+    // aurora – lit by the wind, so none without one
+    const auroraOn = shield && state.showAurora && m.auroraIntensity > 0;
     auroraNorth.visible = auroraOn;
     auroraSouth.visible = auroraOn;
     auroraMaterial.uniforms.uColat.value = m.aurora.centreColat;
@@ -522,7 +528,7 @@ export default function mount(container, meta) {
     // What still feeds the plume: the air, or – once it is gone – the sublimating ice.
     const plume = vis.atm + (1 - vis.atm) * 0.08 * m.world.water;
     const au = atmosphereMaterial.uniforms;
-    au.uErosion.value = shield ? 0 : 1;
+    au.uErosion.value = shield ? 0 : presence;
     au.uOpacity.value = Math.pow(vis.atm, 0.6);
     // a CO₂ sky scatters paler and warmer than ours
     au.uColor.value.set(COLORS.atmosphere).lerp(hazeColor, vis.haze * 0.7);
@@ -535,12 +541,12 @@ export default function mount(container, meta) {
       au.uRip.value = 0;
     } else {
       // the ionopause is pushed down on the dayside; a thinner ionosphere holds less pressure against the wind
-      au.uSquash.value = (0.35 + 0.65 * lean) * (0.6 + 0.4 * (1 - vis.atm));
+      au.uSquash.value = (0.35 + 0.65 * lean) * (0.6 + 0.4 * (1 - vis.atm)) * presence;
       // the ion tail grows with the wind and lives on what is being stripped
-      au.uTail.value = ION_TAIL_MAX * (0.2 + 0.8 * lean) * Math.pow(plume, 0.35);
-      au.uTailGlow.value = 0.45 + 0.55 * lean;
+      au.uTail.value = ION_TAIL_MAX * (0.2 + 0.8 * lean) * Math.pow(plume, 0.35) * presence;
+      au.uTailGlow.value = (0.45 + 0.55 * lean) * presence;
       // plasma clouds torn off the flanks – more of them the harder the wind leans and the less air is left
-      au.uRip.value = (0.3 + 0.7 * lean) * (0.55 + 0.45 * (1 - vis.atm));
+      au.uRip.value = (0.3 + 0.7 * lean) * (0.55 + 0.45 * (1 - vis.atm)) * presence;
     }
     atmosphere.visible = vis.atm > 0.002 || (!shield && plume > 0.005);
     const absorbRadius = EARTH_RADIUS + height;
@@ -558,7 +564,7 @@ export default function mount(container, meta) {
     wind.uniforms.uPhase.value = windPhase;
     wind.uniforms.uOpacity.value = clamp(0.4 + 0.5 * Math.min(m.density / 30, 1), 0.4, 0.9);
     wind.uniforms.uBoost.value = shield ? 1 : 1.3; // with nothing to light the sheath, the stream itself has to show
-    wind.points.visible = m.density > 0;
+    wind.points.visible = m.density > 0 && m.speed > 0; // a wind that does not blow is no wind
 
     cmeCloud.uniforms.uCmeX.value = m.cmeX;
     cmeCloud.uniforms.uOpacity.value = m.cmeOpacity;
@@ -566,7 +572,7 @@ export default function mount(container, meta) {
 
     erosion.uniforms.uPhase.value = erosionPhase;
     // the plume of escaping gas: brighter, bigger and longer the harder the wind strips; dwindling with the air
-    erosion.uniforms.uOpacity.value = shield ? 0 : (0.35 + 0.65 * lean) * plume;
+    erosion.uniforms.uOpacity.value = shield ? 0 : (0.35 + 0.65 * lean) * plume * presence;
     erosion.uniforms.uBoost.value = 1 + 0.9 * lean;
     erosion.uniforms.uTail.value = au.uTail.value;
     erosion.points.visible = !shield && plume > 0.005;
@@ -576,7 +582,7 @@ export default function mount(container, meta) {
     labels.sun.sprite.visible = showLabels;
     labels.bowShock.sprite.visible = showLabels && bowShock.mesh.visible;
     labels.magnetopause.sprite.visible = showLabels && magnetopause.mesh.visible;
-    labels.tail.sprite.visible = showLabels && shield;
+    labels.tail.sprite.visible = showLabels && shield && boundaryFade > 0.02;
     labels.north.sprite.visible = showLabels;
     labels.south.sprite.visible = showLabels;
     labels.bowShock.sprite.position.set(bsNose, 2.4, 0);
@@ -678,7 +684,7 @@ export default function mount(container, meta) {
       cme.t += dt;
       if (!cme.impacted) {
         const travel = clamp(cme.t / P.CME.travelSeconds, 0, 1);
-        const nose = model ? model.standoff : 10.5;
+        const nose = model ? Math.min(model.standoff, 22) : 10.5; // into a dead calm the cloud still arrives
         // never let a slider that moves the magnetopause outwards mid-flight pull the cloud back
         cme.x = Math.min(cme.x, WIND_START_X + (nose - WIND_START_X) * (travel * travel * (3 - 2 * travel)));
         if (travel >= 1) {
@@ -1066,15 +1072,17 @@ export default function mount(container, meta) {
     facts.set('pressure', `${fmt(m.pressureNPa, m.pressureNPa < 10 ? 2 : 1, 1)} ${t('units.nanopascal')}`);
     facts.set('ratio', `${fmt(m.pressureRatio, m.pressureRatio < 10 ? 1 : 0, 1)}×`);
     const noBoundary = t(`${KEYS}.storm.noBoundary`);
-    facts.set('standoff', state.fieldOn ? `${fmt(m.standoff, 1, 1)} ${t('units.earthRadii')} · ${fmt(m.standoffKm, 0)} ${t('units.kilometers')}` : noBoundary);
-    facts.set('bowShock', state.fieldOn ? `${fmt(m.bowShock, 1, 1)} ${t('units.earthRadii')}` : noBoundary);
-    facts.set('transit', formatDuration(m.transitHours));
+    const noWind = t(`${KEYS}.storm.noWind`);
+    const hasWind = Number.isFinite(m.standoff);
+    facts.set('standoff', !state.fieldOn ? noBoundary : !hasWind ? noWind : `${fmt(m.standoff, 1, 1)} ${t('units.earthRadii')} · ${fmt(m.standoffKm, 0)} ${t('units.kilometers')}`);
+    facts.set('bowShock', !state.fieldOn ? noBoundary : !hasWind ? noWind : `${fmt(m.bowShock, 1, 1)} ${t('units.earthRadii')}`);
+    facts.set('transit', m.density > 0 && Number.isFinite(m.transitHours) ? formatDuration(m.transitHours) : noWind);
 
     if (state.fieldOn) {
       stormKpValue.textContent = `Kp ${fmt(m.kp, 1, 1)}`;
       stormPill.textContent = t(`${KEYS}.storm.level.${m.level}`);
       stormPill.className = `lp-state lp-state--kp-${m.level}`;
-      facts.set('aurora', w.fraction < 0.02 ? t(`${KEYS}.storm.noGlow`) : `${fmt(m.aurora.equatorwardLatDeg, 1, 1)}° ${t(`${KEYS}.storm.latitude`)}`);
+      facts.set('aurora', w.fraction < 0.02 ? t(`${KEYS}.storm.noGlow`) : m.auroraIntensity <= 0 ? t(`${KEYS}.storm.noOval`) : `${fmt(m.aurora.equatorwardLatDeg, 1, 1)}° ${t(`${KEYS}.storm.latitude`)}`);
       facts.set('geosync', t(`${KEYS}.storm.${m.geosyncExposed ? 'geosyncExposed' : 'geosyncSafe'}`));
     } else {
       stormKpValue.textContent = '—';
@@ -1348,7 +1356,7 @@ function createParaboloidSurface({ color, opacity, rings, meridians }) {
     uC: { value: 24 },
     uTail: { value: -55 },
     uColor: { value: new THREE.Color(color) },
-    uOpacity: { value: opacity },
+    uOpacity: { value: opacity }, // × fade – the surface dissolves as it recedes beyond the scene
     uRings: { value: rings },
     uMeridians: { value: meridians },
   };
@@ -1366,10 +1374,11 @@ function createParaboloidSurface({ color, opacity, rings, meridians }) {
   mesh.renderOrder = 1;
   return {
     mesh,
-    set({ nose, c, tail }) {
+    set({ nose, c, tail, fade = 1 }) {
       uniforms.uNose.value = nose;
       uniforms.uC.value = c;
       uniforms.uTail.value = tail;
+      uniforms.uOpacity.value = opacity * fade;
     },
     dispose() {
       geometry.dispose();

@@ -44,12 +44,15 @@ export const NOSE_PRESSURE_FACTOR = 0.88;
 
 /** Slider ranges and the quiet-time reference wind (ACE/DSCOVR long-term means). */
 export const DENSITY_RANGE = Object.freeze({ min: 0, max: 100, default: 5 }); // cm⁻³
-export const SPEED_RANGE = Object.freeze({ min: 200, max: 2000, default: 400 }); // km/s
+export const SPEED_RANGE = Object.freeze({ min: 0, max: 2000, default: 400 }); // km/s
 export const WIND_NOMINAL = Object.freeze({ density: 5, speed: 400 });
 
-/** Pressure floor so that n = 0 cm⁻³ stays finite, plus the standoff clamp. */
-export const MIN_PRESSURE_NPA = 0.02;
-export const STANDOFF_RANGE = Object.freeze({ min: 3, max: 22 }); // R_E
+/**
+ * The nose can be pushed no closer than this (R_E). There is no upper bound and no pressure
+ * floor: as the wind dies the boundary recedes as P^(−1/6.6) and at P = 0 it is gone
+ * altogether – the standoff is Infinity and the field is an undisturbed dipole.
+ */
+export const STANDOFF_RANGE = Object.freeze({ min: 3 });
 
 /** Bow-shock nose distance as a multiple of the magnetopause standoff. */
 export const BOW_SHOCK_FACTOR = 1.3;
@@ -84,7 +87,8 @@ export const REFERENCE_PRESSURE_NPA = dynamicPressureNPa(WIND_NOMINAL.density, W
 
 /** Sun → Earth travel time of a wind parcel, in hours (1 AU at constant speed). */
 export function transitTimeHours(speedKmS) {
-  return AU / (Math.max(speedKmS, 1) * 1e3) / 3600;
+  if (speedKmS <= 0) return Infinity;
+  return AU / (speedKmS * 1e3) / 3600;
 }
 
 // ---------- magnetopause ------------------------------------------------------
@@ -94,9 +98,9 @@ export function transitTimeHours(speedKmS) {
  * balances k·ρv²  →  r/R_E = [2B₀²/(μ₀·k·P)]^(1/6). ≈ 10.5 R_E for the quiet wind.
  */
 export function pressureBalanceStandoff(pressurePa) {
-  const p = Math.max(pressurePa, MIN_PRESSURE_NPA * 1e-9);
-  const r = Math.pow((2 * EARTH.equatorialField * EARTH.equatorialField) / (MU0 * NOSE_PRESSURE_FACTOR * p), 1 / 6);
-  return clamp(r, STANDOFF_RANGE.min, STANDOFF_RANGE.max);
+  if (pressurePa <= 0) return Infinity;
+  const r = Math.pow((2 * EARTH.equatorialField * EARTH.equatorialField) / (MU0 * NOSE_PRESSURE_FACTOR * pressurePa), 1 / 6);
+  return Math.max(r, STANDOFF_RANGE.min);
 }
 
 /**
@@ -106,14 +110,14 @@ export function pressureBalanceStandoff(pressurePa) {
  * boundary is not a vacuum dipole.
  */
 export function shueStandoff(pressureNPa, bzNT = 0) {
-  const p = Math.max(pressureNPa, MIN_PRESSURE_NPA);
+  if (pressureNPa <= 0) return Infinity;
   const base = bzNT >= 0 ? 11.4 + 0.013 * bzNT : 11.4 + 0.14 * bzNT;
-  return clamp(base * Math.pow(p, -1 / 6.6), STANDOFF_RANGE.min, STANDOFF_RANGE.max);
+  return Math.max(base * Math.pow(pressureNPa, -1 / 6.6), STANDOFF_RANGE.min);
 }
 
 /** Shue flaring exponent α = (0.58 − 0.010·B_z)(1 + 0.010·P), clamped to the fitted range. */
 export function shueAlpha(pressureNPa, bzNT = 0) {
-  const p = Math.max(pressureNPa, MIN_PRESSURE_NPA);
+  const p = Math.max(pressureNPa, 0);
   return clamp((0.58 - 0.01 * bzNT) * (1 + 0.01 * p), 0.5, 0.95);
 }
 
@@ -163,7 +167,7 @@ export function streamlineRadius(x, rhoInfinity, r0, alpha, offsetFraction = 0.2
 
 /** Magnetosheath thickness along the Sun–Earth line, in R_E. */
 export function sheathThickness(r0) {
-  return bowShockStandoff(r0) - r0;
+  return Number.isFinite(r0) ? bowShockStandoff(r0) - r0 : Infinity;
 }
 
 /** True when the magnetopause has been pushed inside geostationary orbit. */
@@ -191,26 +195,29 @@ export function dipolePoint(out, L, latRad, azimuthRad) {
   return out;
 }
 
-/** Tuning of the qualitative deformation – see `deformPoint`. */
+/**
+ * Tuning of the qualitative deformation – see `deformPoint`. The night-side stretch and
+ * flattening start at `tailStart·r₀` and grow over `tailScale·r₀`, so the whole picture is
+ * self-similar in the standoff: a weaker wind means a bigger magnetosphere whose inner
+ * lines are left alone, and no wind at all (r₀ = ∞) leaves the dipole untouched.
+ */
 export const TAIL = Object.freeze({
-  gain: 1.15, // antisunward stretch per unit of (r − 2)/6
+  gain: 1.15, // antisunward stretch per unit of reach
   flatten: 0.72, // collapse towards the cross-tail current sheet
   flare: 0.15, // slight dawn–dusk widening of the lobes
   squashExp: 3, // sharpness of the dayside saturation
+  tailStart: 0.2, // …of r₀: inside this the field is dipolar
+  tailScale: 0.6, // …of r₀ per unit of reach
+  flatScale: 0.5, // …of r₀ until fully pressed into the current sheet
   reachMax: 4,
 });
 
-/**
- * Wind-dependent parameters of the deformation.
- * `tailStretch` is 1 for the quiet-time reference pressure and grows with
- * log P – more ram pressure opens more flux into a longer, thinner tail.
- */
+/** Wind-dependent parameters of the deformation: the Shue boundary the lines are held under. */
 export function fieldEnv(pressureNPa, bzNT = 0) {
-  const p = Math.max(pressureNPa, MIN_PRESSURE_NPA);
+  const p = Math.max(pressureNPa, 0);
   return {
     r0: shueStandoff(p, bzNT),
     alpha: shueAlpha(p, bzNT),
-    tailStretch: clamp(1 + 0.9 * Math.log10(p / REFERENCE_PRESSURE_NPA), 0.45, 3.6),
   };
 }
 
@@ -222,8 +229,9 @@ export function fieldEnv(pressureNPa, bzNT = 0) {
  *  1. confinement – the radius is mapped through r ↦ r_b·u/(1+u^p)^(1/p) with
  *     u = r/r_b(θ), which is the identity for r ≪ r_b and saturates below the
  *     boundary r_b, so no line can ever cross the magnetopause;
- *  2. antisunward stretch – on the nightside x is scaled up with r, drawing the
- *     outer shells into a magnetotail whose length grows with the wind pressure;
+ *  2. antisunward stretch – on the nightside x is scaled up with r/r₀, drawing the
+ *     outer shells into a magnetotail whose length grows as the wind pushes the
+ *     boundary in, and which disappears with the wind;
  *  3. flattening – the same region is pressed towards the equatorial current
  *     sheet and slightly widened in dawn–dusk, which is what makes the two
  *     tail lobes.
@@ -243,18 +251,22 @@ export function deformPoint(out, x, y, z, env) {
   const night = nightFrac * near;
   const confine = (1 - nightFrac) * near;
 
-  const rb = shueRadius(cosT, env.r0, env.alpha);
-  const u = r / rb;
-  const squashed = (rb * u) / Math.pow(1 + Math.pow(u, TAIL.squashExp), 1 / TAIL.squashExp);
-  const rNew = r + confine * (squashed - r);
-  const s = rNew / r;
+  let s = 1; // compression ratio – 1 = untouched, < 1 = squeezed by the wind
+  if (Number.isFinite(env.r0)) {
+    const rb = shueRadius(cosT, env.r0, env.alpha);
+    const u = r / rb;
+    const squashed = (rb * u) / Math.pow(1 + Math.pow(u, TAIL.squashExp), 1 / TAIL.squashExp);
+    s = (r + confine * (squashed - r)) / r;
+  }
 
-  const reach = clamp((r - 2) / 6, 0, TAIL.reachMax);
-  const flat = clamp((r - 2) / 5, 0, 1);
-  out[0] = x * s * (1 + TAIL.gain * env.tailStretch * night * reach);
+  // everything on the night side scales with the boundary: r₀ = ∞ (no wind) is the identity
+  const inner = TAIL.tailStart * env.r0;
+  const reach = Number.isFinite(env.r0) ? clamp((r - inner) / (TAIL.tailScale * env.r0), 0, TAIL.reachMax) : 0;
+  const flat = Number.isFinite(env.r0) ? clamp((r - inner) / (TAIL.flatScale * env.r0), 0, 1) : 0;
+  out[0] = x * s * (1 + TAIL.gain * night * reach);
   out[1] = y * s * (1 - TAIL.flatten * night * flat);
   out[2] = z * s * (1 + TAIL.flare * night * flat);
-  out[3] = s; // compression ratio – 1 = untouched, < 1 = squeezed by the wind
+  out[3] = s;
   return out;
 }
 
@@ -314,8 +326,9 @@ export function auroraBand(kp) {
   };
 }
 
-/** Aurora brightness 0…1 from the index; never quite zero, because the oval always glows. */
+/** Aurora brightness 0…1 from the index; a faint oval always glows – as long as there is a wind at all. */
 export function auroraIntensity(kp) {
+  if (kp <= 0) return 0;
   return clamp(Math.pow(clamp((kp - 0.2) / 8.8, 0, 1), 1.2), 0.12, 1);
 }
 
@@ -347,7 +360,8 @@ export function effectiveWind(densityCm3, speedKmS, envelope) {
   const e = clamp(envelope, 0, 1);
   return {
     density: clamp(densityCm3 * (1 + CME.densityGain * e) + 6 * e, 0, 600),
-    speed: clamp(speedKmS * (1 + CME.speedGain * e), 0, 3000),
+    // the cloud brings its own speed: even into a dead calm it arrives at ≈ 900 km/s
+    speed: clamp(Math.max(speedKmS * (1 + CME.speedGain * e), 900 * e), 0, 3000),
   };
 }
 
@@ -371,7 +385,6 @@ export function magnetosphereState(densityCm3, speedKmS, { fieldOn = true, bzNT 
     pressureRatio: pressureNPa / REFERENCE_PRESSURE_NPA,
     standoff: env.r0,
     alpha: env.alpha,
-    tailStretch: env.tailStretch,
     dipoleStandoff: pressureBalanceStandoff(pressurePa),
     bowShock: bowShockStandoff(env.r0),
     sheath: sheathThickness(env.r0),

@@ -27,7 +27,7 @@ const between = (label, value, lo, hi) => {
 
 const NOMINAL_P = P.dynamicPressureNPa(5, 400);
 const GRID_N = [0, 0.5, 1, 2, 5, 10, 20, 35, 50, 75, 100];
-const GRID_V = [200, 300, 400, 600, 800, 1100, 1400, 1700, 2000];
+const GRID_V = [0, 25, 100, 200, 300, 400, 600, 800, 1100, 1400, 1700, 2000];
 const L_SHELLS = [2, 2.75, 3.6, 4.6, 6, 8, 10];
 
 console.log('— solar wind: P = ρv², ρ = n·m_p —');
@@ -70,15 +70,20 @@ assert('standoff decreases monotonically with density and speed', (() => {
   }
   return true;
 })());
-assert('standoff stays inside the clamp for the whole slider range', (() => {
+assert('the nose never comes closer than the inner clamp', (() => {
   for (const n of GRID_N) for (const v of GRID_V) {
-    const r = P.shueStandoff(P.dynamicPressureNPa(n, v));
-    if (r < P.STANDOFF_RANGE.min - 1e-9 || r > P.STANDOFF_RANGE.max + 1e-9) return false;
+    if (P.shueStandoff(P.dynamicPressureNPa(n, v)) < P.STANDOFF_RANGE.min - 1e-9) return false;
   }
   return true;
 })());
-check('n = 0 falls back to the pressure floor', P.shueStandoff(P.dynamicPressureNPa(0, 400)), P.shueStandoff(P.MIN_PRESSURE_NPA), 1e-12);
-between('the calmest wind still gives a finite magnetosphere', P.shueStandoff(P.dynamicPressureNPa(0, 400)), 18, P.STANDOFF_RANGE.max);
+assert('no wind, no boundary: n = 0 or v = 0 gives an infinite standoff and bow shock', (() => {
+  const a = P.magnetosphereState(0, 400);
+  const b = P.magnetosphereState(5, 0);
+  return a.standoff === Infinity && b.standoff === Infinity && a.bowShock === Infinity && a.dipoleStandoff === Infinity && !a.geosyncExposed && a.kp === 0 && a.auroraIntensity === 0;
+})());
+between('the faintest wind on the sliders (1 cm⁻³ at 25 km/s) pushes the nose out to ≈ 30 R_E', P.shueStandoff(P.dynamicPressureNPa(1, 25)), 28, 36);
+assert('a dead calm has no transit time', P.transitTimeHours(0) === Infinity);
+checkRel('a CME into a dead calm still arrives at 900 km/s', P.effectiveWind(0, 0, 1).speed, 900, 1e-9);
 
 console.log('— boundary surfaces —');
 const r0 = P.shueStandoff(NOMINAL_P);
@@ -105,6 +110,7 @@ assert('the bow shock encloses the magnetopause everywhere', (() => {
   for (const n of GRID_N) for (const v of GRID_V) {
     const rr = P.shueStandoff(P.dynamicPressureNPa(n, v));
     const aa = P.shueAlpha(P.dynamicPressureNPa(n, v));
+    if (!Number.isFinite(rr)) continue; // no wind, no boundaries to compare
     for (let x = P.bowShockStandoff(rr); x > -120; x -= 0.5) {
       if (P.bowShockRadiusAtX(x, rr) < P.magnetopauseRadiusAtX(x, rr, aa) - 1e-9) return false;
     }
@@ -118,6 +124,7 @@ assert('a streamline can never enter the magnetopause', (() => {
     const p = P.dynamicPressureNPa(n, v);
     const rr = P.shueStandoff(p);
     const aa = P.shueAlpha(p);
+    if (!Number.isFinite(rr)) continue; // no wind: the streamlines are straight, nothing to enter
     for (const rhoInf of [0, 0.5, 2, 5, 10, 20, 32]) {
       for (let x = rr; x > -80; x -= 0.25) {
         if (P.streamlineRadius(x, rhoInf, rr, aa) <= P.magnetopauseRadiusAtX(x, rr, aa)) return false;
@@ -268,7 +275,28 @@ const quietLines = sampleLines(P.fieldEnv(NOMINAL_P), 0);
 const stormLines = sampleLines(P.fieldEnv(P.dynamicPressureNPa(100, 2000)), 0);
 checkRel('noon apex of the L = 10 shell, quiet wind (R_E)', quietLines.apexX, 8.27, 0.02);
 checkRel('noon apex of the L = 10 shell, extreme wind (R_E)', stormLines.apexX, 4.15, 0.02);
-between('the tail reaches 20–30 R_E in the quiet wind', -sampleLines(P.fieldEnv(NOMINAL_P), Math.PI).tailX, 20, 30);
+between('the tail reaches 15–30 R_E in the quiet wind', -sampleLines(P.fieldEnv(NOMINAL_P), Math.PI).tailX, 15, 30);
+assert('the tail shrinks as the wind fades and is gone without one', (() => {
+  const quiet = -sampleLines(P.fieldEnv(NOMINAL_P), Math.PI).tailX;
+  const faint = -sampleLines(P.fieldEnv(P.dynamicPressureNPa(1, 25)), Math.PI).tailX;
+  const none = -sampleLines(P.fieldEnv(0), Math.PI).tailX;
+  return faint < quiet && none < faint && none <= 10.0001;
+})());
+assert('no wind leaves every field line an undisturbed dipole', (() => {
+  const env = P.fieldEnv(0);
+  for (const L of L_SHELLS) {
+    const lat1 = P.footpointLatitude(L);
+    for (let i = 0; i <= 100; i++) {
+      const lat = -lat1 + (2 * lat1 * i) / 100;
+      for (const az of [0, Math.PI / 2, Math.PI]) {
+        P.dipolePoint(pt, L, lat, az);
+        P.deformPoint(out, pt[0], pt[1], pt[2], env);
+        if (Math.hypot(out[0] - pt[0], out[1] - pt[1], out[2] - pt[2]) > 1e-9) return false;
+      }
+    }
+  }
+  return true;
+})());
 assert('the tail is flattened towards the current sheet', (() => {
   const env = P.fieldEnv(NOMINAL_P);
   P.dipolePoint(pt, 10, 0.6, Math.PI); // a point well up the nightside lobe
@@ -319,7 +347,7 @@ assert('the oval moves equatorward and widens with rising Kp', (() => {
   }
   return true;
 })());
-assert('the oval always glows a little, and saturates at 1', P.auroraIntensity(0) > 0 && P.auroraIntensity(9) === 1);
+assert('the oval glows a little for any wind, saturates at 1, and is dark without a wind', P.auroraIntensity(0.1) > 0 && P.auroraIntensity(9) === 1 && P.auroraIntensity(0) === 0);
 
 console.log('— CME sheath (schematic) —');
 check('envelope before impact', P.cmeEnvelope(-1), 0, 0);
