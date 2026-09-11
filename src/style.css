@@ -617,7 +617,10 @@ a:hover { color: #a9d9ff; }
    storm runs, and warms up once the air is gone */
 .lp-readout--conditions { flex-direction: column; align-items: stretch; gap: 0; transition: border-color 200ms ease, background 200ms ease; }
 .lp-conditions__row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
-.lp-conditions__row + .lp-conditions__row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--lp-border); }
+.lp-conditions__row[hidden] { display: none; }
+.lp-conditions__row:not([hidden]) ~ .lp-conditions__row:not([hidden]) { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--lp-border); }
+.lp-conditions__note { display: block; font-size: 0.85rem; line-height: 1.45; color: var(--lp-text); }
+.lp-readout--conditions.is-switched { border-color: rgba(255, 138, 128, 0.45); }
 .lp-readout--conditions.is-storm { border-color: rgba(255, 138, 128, 0.65); background: rgba(255, 138, 128, 0.09); }
 .lp-readout--conditions.is-airless { border-color: rgba(255, 170, 110, 0.6); background: rgba(255, 150, 90, 0.08); }
 .lp-state--phase { padding: 4px 10px; font-size: 0.75rem; color: #ffc7b8; background: rgba(255, 107, 74, 0.18); border-color: rgba(255, 107, 74, 0.6); }
