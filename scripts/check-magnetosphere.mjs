@@ -368,33 +368,39 @@ between('extreme wind strips the atmosphere in tens of Myr', P.atmosphereLifetim
 check('no wind, no loss', P.escapeRateKgS(0, 400), 0, 0);
 assert('no wind means the atmosphere lasts forever', P.atmosphereLifetimeYr(0) === Infinity);
 
-console.log('— unshielded Earth: the thinning air —');
-check('nothing lost → full atmosphere', P.atmosphereFraction(0), 1, 0);
-check('all of it lost → none left', P.atmosphereFraction(P.ATMOSPHERE_MASS), 0, 0);
-check('the ocean only starts to go once the air is gone', P.waterFraction(P.ATMOSPHERE_MASS * 0.9), 1, 0);
-checkRel('half the ocean gone', P.waterFraction(P.ATMOSPHERE_MASS + P.OCEAN_MASS / 2), 0.5, 1e-9);
+console.log('— world budget: pressures and composition —');
+const todayComp = P.composition(P.TODAY_AIR.airKg, P.TODAY_AIR.co2Kg);
+check("today's air gives today's pressure (hPa)", todayComp.totalHPa, 1013.25, 1e-9);
+between("today's CO₂ partial pressure is ≈ 0.4 hPa (≈ 420 ppm)", todayComp.co2HPa, 0.38, 0.45);
+check('no gas, no pressure', P.composition(0, 0).totalHPa, 0, 0);
+checkRel('a pure-CO₂ air is all CO₂', P.composition(0, 1e17).co2Fraction, 1, 1e-12);
 checkRel('triple point is 0.6 % of today\'s pressure', P.TRIPLE_POINT_FRACTION, 0.00604, 0.01);
 between('half the air feels like ≈ 5.5 km altitude', P.equivalentAltitudeM(0.5), 5000, 5800);
 between('a third of the air is Everest', P.equivalentAltitudeM(0.31), 8500, 9400);
-assert('breathability tiers', P.breathability(1) === 'fine' && P.breathability(0.5) === 'thin' && P.breathability(0.3) === 'deathZone' && P.breathability(0.005) === 'none');
+assert('breathability tiers', P.breathability(1) === 'fine' && P.breathability(0.5) === 'thin' && P.breathability(0.3) === 'deathZone' && P.breathability(0.005) === 'none' && P.breathability(0.5, 0.9) === 'toxic');
 
-console.log('— unshielded Earth: climate —');
-const today = P.climateState(1);
+console.log('— world budget: climate —');
+const today = P.TODAY_CLIMATE;
 checkRel('effective temperature for A = 0.30 (K)', P.effectiveTemperature(0.3), 254.6, 0.005);
-check('today\'s mean surface temperature (K)', today.meanK, 288, 0.5);
-between('today\'s ice line sits at ≈ 70–75°', today.iceLineLatDeg, 68, 76);
-check('today\'s planetary albedo is 0.30', today.albedo, 0.30, 0.005);
+check("today's mean surface temperature (K)", today.meanK, 288, 0.6);
+between("today's ice line sits at ≈ 70–75°", today.iceLineLatDeg, 68, 76);
+check("today's planetary albedo is 0.30", today.albedo, 0.30, 0.005);
 assert('today is not a snowball', !today.snowball);
-between('half the air cools the world to about 0 °C', P.climateState(0.5).meanC, -6, 3);
-between('half the air moves the ice line to ≈ 45–55°', P.climateState(0.5).iceLineLatDeg, 40, 56);
-assert('a fifth of the air is a snowball Earth', P.climateState(0.2).snowball);
-between('the snowball sits near −40 °C', P.climateState(0.2).meanC, -45, -32);
-between('the bare, airless world is what the Sun alone gives (K)', P.climateState(0).meanK, 218, 224);
+between('CO₂ carries a good third of today\'s greenhouse', P.opticalDepth(1013.25, P.TODAY_CO2_HPA) - P.opticalDepth(1013.25, 0), 0.3 * today.tau, 0.5 * today.tau);
+between('doubling CO₂ warms by ≈ 1–4 K (with the ice feedback)', P.climateState(1013.25, 2 * P.TODAY_CO2_HPA).meanK - today.meanK, 0.8, 4);
+between('half the air cools the world to about 0 °C', P.climateState(506.6, P.TODAY_CO2_HPA / 2).meanC, -6, 3);
+between('half the air moves the ice line to ≈ 45–55°', P.climateState(506.6, P.TODAY_CO2_HPA / 2).iceLineLatDeg, 40, 56);
+assert('a fifth of the air is a snowball Earth', P.climateState(202.7, P.TODAY_CO2_HPA / 5).snowball);
+between('the snowball sits near −40 °C', P.climateState(202.7, P.TODAY_CO2_HPA / 5).meanC, -45, -32);
+between('the bare, airless world is what the Sun alone gives (K)', P.climateState(0, 0).meanK, 218, 224);
+between('a Mars-like 6 hPa of CO₂ warms a frozen world by ≈ 5–10 K', P.climateState(6, 6, 220).meanK - P.climateState(0, 0, 220).meanK, 4, 11);
+between('a bar of CO₂ makes a hothouse (°C)', P.climateState(1013.25, 1013.25).meanC, 25, 60);
+assert('a snowball keeps its ice until ≈ 0.15–0.2 bar of CO₂ (hysteresis)', P.climateState(100, 100, 235).snowball && !P.climateState(250, 250, 235).snowball && !P.climateState(100, 100, 288).snowball);
 assert('temperature and ice line fall monotonically as the air goes', (() => {
   let prevT = Infinity;
   let prevIce = Infinity;
   for (let f = 1; f >= 0; f -= 0.01) {
-    const c = P.climateState(f);
+    const c = P.climateState(1013.25 * f, P.TODAY_CO2_HPA * f);
     if (c.meanK > prevT + 1e-6 || c.iceLineLatDeg > prevIce + 1e-6) return false;
     prevT = c.meanK;
     prevIce = c.iceLineLatDeg;
@@ -402,9 +408,27 @@ assert('temperature and ice line fall monotonically as the air goes', (() => {
   return true;
 })());
 assert('the ice line is 1 for a warm world and 0 for a frozen one', P.iceLineSin(20) === 1 && P.iceLineSin(-30) === 0);
-checkRel('ice line for today\'s 15 °C mean (sin φ)', P.iceLineSin(15), 0.9636, 0.001);
+checkRel("ice line for today's 15 °C mean (sin φ)", P.iceLineSin(15), 0.9636, 0.001);
 
-console.log('— unshielded Earth: the airless world —');
+console.log('— world budget: fluxes —');
+const S_ON = { density: 5, speed: 400, fieldOn: true, volcanoes: true };
+const S_OFF = { density: 100, speed: 2000, fieldOn: false, volcanoes: true };
+const S_DEAD = { density: 5, speed: 400, fieldOn: false, volcanoes: false };
+const f0 = P.fluxes(P.todayWorld(), S_ON);
+checkRel('today weathering balances the volcanoes', f0.weather / f0.outgas, 1, 1e-6);
+checkRel('volcanic CO₂ is ≈ 32 t/s', f0.outgas / P.YEAR_SECONDS / 1000, 31.7, 0.02);
+check('the shield stops the stripping', f0.strip, 0, 0);
+assert('the strongest wind strips less than the volcanoes add', P.fluxes(P.todayWorld(), S_OFF).strip < f0.outgas);
+assert('an airless world neither weathers nor strips', (() => {
+  const f = P.fluxes(P.removeAtmosphere(P.todayWorld()), S_OFF);
+  return f.weather === 0 && f.strip === 0 && f.airless && f.water > 0;
+})());
+assert('with the field the airless water loss is the hydrogen floor', P.fluxes(P.removeAtmosphere(P.todayWorld()), S_ON).water === P.WATER_LOSS_FLOOR_KGS * P.YEAR_SECONDS);
+
+console.log('— world budget: radiation and the airless world —');
+between("today's cosmic-ray dose at sea level (mSv/yr)", P.cosmicDoseMSvYr(1013.25, true), 0.1, 0.5);
+check('no air and no field: the Moon\'s dose', P.cosmicDoseMSvYr(0, false), P.RADIATION.airlessDoseMSvYr, 1e-9);
+checkRel('the field cuts the airless dose to 60 %', P.cosmicDoseMSvYr(0, true) / P.cosmicDoseMSvYr(0, false), 0.6, 1e-9);
 const bare = P.airlessTemperatures(P.capLatitudeDeg(1));
 between('airless equatorial noon (°C)', bare.noonK - 273.15, 50, 75);
 between('airless equatorial night (°C)', bare.nightK - 273.15, -60, -25);
@@ -412,39 +436,82 @@ between('airless global mean (°C)', bare.meanK - 273.15, -25, -8);
 check('polar caps reach 55° while the ocean is all there', P.capLatitudeDeg(1), P.AIRLESS.capLatDeg, 1e-12);
 check('no water, no caps', P.capLatitudeDeg(0), 90, 0);
 assert('the caps retreat poleward as the water goes', P.capLatitudeDeg(0.5) > P.capLatitudeDeg(1) && P.capLatitudeDeg(0.05) > P.capLatitudeDeg(0.5));
-assert('the ice has moved to the poles within 1 Myr', P.migrationProgress(0) === 0 && P.migrationProgress(P.AIRLESS.migrationYr) === 1);
-checkRel('one e-folding time of rust', P.rustProgress(P.AIRLESS.rustYr), 1 - Math.exp(-1), 1e-9);
 
-console.log('— unshielded Earth: timeline —');
-const extremeRate = P.escapeRateKgS(100, 2000);
-assert('integrating the clock in steps matches the constant-wind history', (() => {
-  let st = { elapsedYr: 0, lostKg: 0, airlessYr: 0 };
-  for (let i = 0; i < 400; i++) st = P.advanceUnshielded(st, extremeRate, 2.5e5);
-  const h = P.historyAtConstantWind(extremeRate, 1e8);
-  return Math.abs(st.lostKg - h.lostKg) / h.lostKg < 1e-9 && Math.abs(st.airlessYr - h.airlessYr) / h.airlessYr < 1e-6 && st.elapsedYr === h.elapsedYr;
+console.log('— world budget: timelines —');
+const at = (S, yr, removed) => P.worldState(P.historyAt(S, yr, { airRemoved: removed }), S);
+assert("today's Earth with its shield is a steady state", (() => {
+  const w = at(S_ON, 1e8, false);
+  return Math.abs(w.pressureHPa - 1013.25) < 1 && Math.abs(w.meanK - today.meanK) < 0.2 && w.stage === 'intact';
 })());
-assert('the airless clock only counts below the triple point', P.historyAtConstantWind(extremeRate, 1e7).airlessYr === 0 && P.historyAtConstantWind(extremeRate, 5e7).airlessYr > 0);
-assert('the clock is capped', P.advanceUnshielded({ elapsedYr: P.CLOCK.maxYr - 1, lostKg: 0, airlessYr: 0 }, 0, 1e9).elapsedYr === P.CLOCK.maxYr);
-assert('the stages come in the right order under the extreme wind', (() => {
-  const order = ['intact', 'thinning', 'iceAge', 'snowball', 'sublimating', 'airless'];
-  let last = -1;
+assert('the budget integrated in frames matches the re-run history', (() => {
+  let w = P.removeAtmosphere(P.todayWorld());
+  for (let i = 0; i < 500; i++) w = P.stepWorld(w, S_ON, 2e3);
+  const h = P.historyAt(S_ON, 1e6, { airRemoved: true });
+  return Math.abs(w.co2Kg - h.co2Kg) / h.co2Kg < 0.02 && w.elapsedYr === h.elapsedYr;
+})());
+assert('the clock is capped', P.stepWorld({ ...P.todayWorld(), elapsedYr: P.CLOCK.maxYr - 1 }, S_ON, 1e9).elapsedYr === P.CLOCK.maxYr);
+// the removed air, on a living planet with its shield
+assert('the moment the air goes: airless, boiling, frozen, lethal', (() => {
+  const w = at(S_ON, 0, true);
+  return w.stage === 'decompression' && w.airless && w.pressureHPa === 0 && w.breathability === 'none' && w.doseMSvYr === 300 && w.lifeGone;
+})());
+between('volcanoes bring the air back over the triple point within ≈ 20–60 kyr', (() => {
+  for (let yr = 1e3; yr < 1e6; yr *= 1.15) if (!at(S_ON, yr, true).airless) return yr;
+  return Infinity;
+})(), 2e4, 6e4);
+assert('the rebuilt air is CO₂ and the world stays frozen at first', (() => {
+  const w = at(S_ON, 3e5, true);
+  return w.co2Fraction > 0.95 && w.stage === 'co2Frozen' && w.climate.snowball;
+})());
+between('the snowball thaws once ≈ 0.15–0.25 bar of CO₂ have built up (Myr)', (() => {
+  for (let yr = 1e5; yr < 1e8; yr *= 1.1) if (!at(S_ON, yr, true).climate.snowball) return yr / 1e6;
+  return Infinity;
+})(), 0.8, 3);
+assert('…then the thermostat settles it into a cold CO₂ world with liquid oceans', (() => {
+  const w = at(S_ON, 1e7, true);
+  return w.stage === 'co2Cold' && w.co2Fraction > 0.7 && !w.airless && w.migration < 0.01 && w.meanC > -8 && w.meanC < 3 && Math.abs(w.netKgS) < 5000;
+})());
+assert('nitrogen comes back over a billion years and the world warms', (() => {
+  const w = at(S_ON, 1e9, true);
+  return w.co2Fraction < 0.1 && w.pressureHPa > 500 && w.meanC > 8 && w.stage === 'rebuilt';
+})());
+// the same without the field, under the strongest wind
+assert('without the field the strongest wind keeps the rebuilt air thin and CO₂-rich for good', (() => {
+  const w = at(S_OFF, 1e9, true);
+  return w.stage === 'co2Cold' && w.co2Fraction > 0.8 && w.pressureHPa < 120;
+})());
+assert('without the field the airless ground weathers three times faster', P.AIRLESS.rustYrShielded / P.AIRLESS.rustYrUnshielded === 3 && at(S_DEAD, 1e9, true).rust > at({ ...S_DEAD, fieldOn: true }, 1e9, true).rust);
+between('without the field the airless dose is the Moon\'s', at({ ...S_DEAD }, 1e5, true).doseMSvYr, 499, 501);
+// the dead planet
+assert('a dead planet stays airless: ice to the poles, then rust', (() => {
+  const w = at(S_DEAD, 1e9, true);
+  return w.airless && w.stage === 'airless' && w.migration === 1 && w.rust > 0.85 && w.pressureHPa === 0;
+})());
+between('on a dead planet the ice has moved to the poles within ≈ 100 kyr', (() => {
+  for (let yr = 1e3; yr < 1e7; yr *= 1.15) if (at(S_DEAD, yr, true).migration >= 0.999) return yr;
+  return Infinity;
+})(), 8e4, 2e5);
+assert('switching the volcanoes off on today\'s Earth freezes it within a million years', (() => {
+  const w = at({ ...S_ON, volcanoes: false }, 1e6, false);
+  return w.climate.snowball && w.pressureHPa > 1000;
+})());
+// the stripped world
+assert('a strong wind on a living planet ends in a cold CO₂ world, not a vacuum', (() => {
+  const w = at(S_OFF, 2e8, false);
+  return w.stage === 'co2Cold' && !w.airless && w.co2Fraction > 0.8;
+})());
+assert('the stripping passes through thinning and an ice age on the way', (() => {
   const seen = new Set();
-  for (let yr = 0; yr <= 2e8; yr += 1e5) {
-    const w = P.unshieldedState(P.historyAtConstantWind(extremeRate, yr), 100, 2000);
-    const idx = order.indexOf(w.stage);
-    if (idx < last) return false;
-    last = idx;
-    seen.add(w.stage);
-  }
-  return seen.size === order.length;
+  for (let yr = 0; yr <= 6e7; yr += 1e6) seen.add(at(S_OFF, yr, false).stage);
+  return seen.has('intact') && seen.has('thinning') && seen.has('iceAge') && seen.has('co2Cold');
 })());
-const quietRun = P.unshieldedState(P.historyAtConstantWind(quietRate, 1e9), 5, 400);
-between('a billion years of the quiet wind takes only ≈ 1 % of the air', (1 - quietRun.fraction) * 100, 0.8, 1.3);
-assert('…and leaves the planet intact', quietRun.stage === 'intact' && !quietRun.airless);
-const late = P.unshieldedState(P.historyAtConstantWind(extremeRate, 1e10), 100, 2000);
-assert('ten billion years of the extreme wind take the ocean too', late.airless && late.water < 0.05 && late.beyondSun && late.capLatDeg > 75);
-const start = P.unshieldedState({ elapsedYr: 0, lostKg: 0, airlessYr: 0 }, 5, 400);
-assert('at the switch the readouts show today\'s Earth', start.stage === 'intact' && start.fraction === 1 && Math.abs(start.meanC - 14.85) < 0.6 && start.breathability === 'fine' && start.water === 1);
+assert('a strong wind on a dead planet strips it to a Mars-like Earth in ≈ 50 Myr', (() => {
+  const w = at({ ...S_OFF, volcanoes: false }, 6e7, false);
+  return w.airless && w.migration > 0.99;
+})());
+const quietRun = at({ ...S_DEAD, volcanoes: true }, 1e9, false);
+between('a billion years of the quiet wind take only ≈ 1 % of the air – volcanic N₂ refills the rest', (1 - quietRun.fraction) * 100, 0.5, 2);
+assert('nitrogen never overshoots today\'s inventory', at(S_ON, 5e9, true).pressureHPa < 1013.25 + 1);
 
 console.log(failed === 0 ? '\nAll magnetosphere physics checks passed.' : `\n${failed} check(s) FAILED.`);
 process.exit(failed ? 1 : 0);

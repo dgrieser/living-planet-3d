@@ -403,15 +403,21 @@ export function magnetosphereState(densityCm3, speedKmS, { fieldOn = true, bzNT 
  *   ≈ 1–2 kg/s measured today at Venus, Earth and Mars alike (Gunell et al. 2018) – which
  *   is also why the honest answer for the quiet wind is "longer than the Sun will live".
  *   A stronger wind strips faster as n·v³, so the sliders matter a great deal.
- * - The climate is a grey atmosphere whose optical depth grows as √P (calibrated to the
- *   logarithmic CO₂ forcing and the pressure-broadening result of Goldblatt et al. 2009
- *   that doubling N₂ warms by ≈ 4 K) coupled to the Budyko/North one-dimensional ice line
- *   with the ice–albedo feedback. It reproduces today's 288 K and ≈ 70° ice line, and
- *   freezes the planet over once roughly three quarters of the air are gone.
+ * - The air is a budget of two reservoirs: the N₂/O₂ background, which nothing replaces,
+ *   and CO₂, which volcanoes add at ≈ 32 t/s and silicate weathering removes wherever
+ *   there is liquid water (the carbonate–silicate thermostat of Walker, Hays & Kasting
+ *   1981). The wind strips both in proportion. This is why an Earth stripped or robbed of
+ *   its air does not stay airless: as long as the planet is volcanically alive it rebuilds
+ *   a CO₂ atmosphere in millions of years – the difference between Earth and Mars.
+ * - The climate is a grey atmosphere (see GREENHOUSE) coupled to the Budyko/North
+ *   one-dimensional ice line with the ice–albedo feedback. It reproduces today's 288 K and
+ *   ≈ 74° ice line, freezes the planet over once roughly two thirds of the air are gone,
+ *   and needs ≈ 0.2 bar of CO₂ to thaw a snowball again (Pierrehumbert 2004).
  * - Below the triple point of water (6.1 hPa) ice can no longer melt, only sublimate: the
- *   sunlit low latitudes lose their ice to the polar cold traps, as on Mars. The cap
- *   extent, the migration time and the reddening of the dry surface are order-of-
- *   magnitude choices, labelled schematic in the UI.
+ *   sunlit low latitudes lose their ice to the polar cold traps, as on Mars. With no air the
+ *   ground also takes the full cosmic-ray dose of the Moon (cut by the field's cutoff) and
+ *   space-weathers – faster when the solar wind reaches it. Cap extent, migration time and
+ *   the reddening are order-of-magnitude choices, labelled schematic in the UI.
  */
 export const G = 6.674e-11; // m³ kg⁻¹ s⁻²
 export const SIGMA = 5.670374e-8; // W m⁻² K⁻⁴
@@ -433,12 +439,26 @@ export const ESCAPE = Object.freeze({
 export const CLIMATE = Object.freeze({
   albedoOpen: 0.2884, // ice-free surface + clouds; calibrated so today's fixed point is A = 0.30
   albedoIce: 0.6084, // planetary albedo of a fully frozen world
-  tau0: 0.85, // grey optical depth today: (288/254.6)⁴ = 1 + ¾τ₀
-  tauExponent: 0.5, // τ ∝ P^½ – logarithmic-like forcing plus pressure broadening
   iceThresholdC: -10, // Budyko: the ice line sits where the annual mean is −10 °C
   meridionalT2: -28, // North (1975): T(x) = T_m + T₂·P₂(x), x = sin φ
   iterations: 80,
   damping: 0.5,
+});
+
+/**
+ * Grey greenhouse in two parts. The background term stands for water vapour, clouds and
+ * pressure broadening and scales with √P (Goldblatt et al. 2009: doubling N₂ ≈ +4 K); the CO₂
+ * term is logarithmic above a knee – ≈ 3 K per doubling near today's 0.4 hPa once the
+ * water-vapour feedback is folded in – and fades in a thin atmosphere, where the lines are
+ * not broadened. Together they give 288 K today with CO₂ carrying ≈ 43 % of the effect,
+ * ≈ +9 K for a Mars-like 6 hPa of CO₂ and ≈ +60 K for a bar of it.
+ */
+export const GREENHOUSE = Object.freeze({
+  tauBackground: 0.48,
+  pressureExponent: 0.5,
+  co2Gain: 0.0975,
+  co2KneeHPa: 0.01,
+  broadeningExponent: 0.25,
 });
 
 export const AIRLESS = Object.freeze({
@@ -446,15 +466,53 @@ export const AIRLESS = Object.freeze({
   albedoIce: 0.6,
   capLatDeg: 55, // where the polar caps end while the whole ocean is still there (flow vs. sublimation)
   capLatDryDeg: 84, // …and when nearly all of it has been lost
-  migrationYr: 1e6, // low-latitude ice → polar cold traps (mm–m per year, so geologically instant)
-  rustYr: 1.5e9, // e-folding time of the oxidation / space-weathering of the bare surface
+  migrationYr: 1e5, // low-latitude ice → polar cold traps (mm–m per year, so geologically instant)
+  meltYr: 2e4, // …and back into the basins once a greenhouse has thawed the world
+  rustYrShielded: 1.2e9, // space weathering by micrometeorites alone (the field keeps the wind off the ground)
+  rustYrUnshielded: 4e8, // …plus solar-wind sputtering and implantation, as on the Moon
   noonFactor: 0.9, // thermal lag of a 24-h rotator below the instantaneous subsolar temperature
   nightDropK: 45, // how far a rock surface cools below its mean during a 12-h night
 });
 
+/** Volcanic CO₂ and the silicate-weathering thermostat that consumes it (Walker, Hays & Kasting 1981). */
+export const VOLCANISM = Object.freeze({
+  co2KgPerYr: 1e12, // subaerial + mid-ocean-ridge outgassing, ≈ 0.3 Gt C/yr ≈ 32 t/s
+  n2KgPerYr: 5e9, // nitrogen comes back too, but a thousand times more slowly – today's N₂ in ≈ 1 Gyr
+  // …and only up to today's amount: what the crust and mantle can give back is what the air held, and
+  // today's N₂ is itself in balance with burial, so the shielded Earth stays a steady state
+  n2InventoryMultiple: 1,
+});
+export const WEATHERING = Object.freeze({
+  tempScaleK: 13.7, // weathering rate grows e-fold per 13.7 K
+  co2Exponent: 0.3, // …and as pCO₂^0.3
+  maxMultiple: 20, // a hothouse cannot weather faster than this
+  // The ocean holds ≈ 45× the air's carbon and hands it back as the air loses CO₂, so changes in
+  // atmospheric CO₂ run this much slower than the bare fluxes while there is open water. A frozen
+  // or boiled-off ocean is sealed and buffers nothing.
+  oceanBuffer: 15,
+});
+
+/** Galactic cosmic rays at the ground: lunar dose with nothing above you, cut down by air and by the field. */
+export const RADIATION = Object.freeze({
+  airlessDoseMSvYr: 500, // Chang'e-4 / LRO on the Moon: ≈ 1.4 mSv per day
+  shieldingGcm2: 140, // e-folding column of air (1033 g/cm² today → ≈ 0.3 mSv/yr)
+  fieldFactor: 0.6, // geomagnetic cutoff, averaged over the globe (≈ 0.4 at the equator, 1 at the poles)
+});
+
+/** Today's air: 5.15 × 10¹⁸ kg, of which 3.2 × 10¹⁵ kg are CO₂ (≈ 420 ppm by volume). */
+export const TODAY_AIR = Object.freeze({ airKg: ATMOSPHERE_MASS - 3.2e15, co2Kg: 3.2e15 });
+export const EARTH_SURFACE_AREA = 5.1e14; // m²
+export const GRAVITY = 9.81; // m/s²
+export const MOLAR_MASS = Object.freeze({ air: 28.97, co2: 44.01 });
+/** Water loss to space once the air is gone and the ice sublimates, kg/s – H escapes on its own even with the field. */
+export const WATER_LOSS_FLOOR_KGS = 3;
+
 export const CLOCK = Object.freeze({
   maxYr: 1e11, // the scrub range and the cap for the running clock
-  timeLapse: { minMyrPerS: 1, maxMyrPerS: 1000, defaultMyrPerS: 100 },
+  timeLapse: { minMyrPerS: 0.01, maxMyrPerS: 1000, defaultMyrPerS: 100, removedMyrPerS: 0.05 }, // the removed-air story plays in kyr–Myr
+  maxSubstepYr: 2e4, // the budget is integrated in steps no longer than this…
+  maxSubsteps: 200, // …and no more than this many per frame
+  historySteps: 400, // outer steps when the clock is scrubbed and the run is re-integrated
 });
 
 const TODAY_ICE_LINE = { x: 0 }; // filled in below once the model exists
@@ -496,19 +554,29 @@ export function atmosphereLifetimeYr(rateKgS) {
   return ATMOSPHERE_MASS / rateKgS / YEAR_SECONDS;
 }
 
+
+// ---------- pressures and composition ----------------------------------------------------------
+/** Surface pressure of a column of `kg` spread over the globe, in hPa – today's mass gives today's 1013.25. */
+export function pressureHPa(kg) {
+  return (Math.max(kg, 0) / ATMOSPHERE_MASS) * SEA_LEVEL_PRESSURE_HPA;
+}
+
+/** Total pressure, CO₂ partial pressure (by volume) and CO₂ volume fraction of an air/CO₂ mix. */
+export function composition(airKg, co2Kg) {
+  const air = Math.max(airKg, 0);
+  const co2 = Math.max(co2Kg, 0);
+  const totalHPa = pressureHPa(air + co2);
+  const molesAir = air / MOLAR_MASS.air;
+  const molesCo2 = co2 / MOLAR_MASS.co2;
+  const co2Fraction = molesAir + molesCo2 > 0 ? molesCo2 / (molesAir + molesCo2) : 0;
+  return { totalHPa, co2HPa: totalHPa * co2Fraction, co2Fraction, fraction: totalHPa / SEA_LEVEL_PRESSURE_HPA };
+}
+
+/** Today's CO₂ partial pressure in the model, ≈ 0.4 hPa. */
+export const TODAY_CO2_HPA = composition(TODAY_AIR.airKg, TODAY_AIR.co2Kg).co2HPa;
+
 /** Fraction of the atmosphere at which the surface pressure drops below the triple point. */
 export const TRIPLE_POINT_FRACTION = TRIPLE_POINT_HPA / SEA_LEVEL_PRESSURE_HPA;
-
-// ---------- the thinning atmosphere ------------------------------------------------------------
-/** Mass still in the air, as a fraction of today's, after `lostKg` have been carried off. */
-export function atmosphereFraction(lostKg) {
-  return clamp(1 - Math.max(lostKg, 0) / ATMOSPHERE_MASS, 0, 1);
-}
-
-/** Fraction of the ocean left once the air is gone and the water starts to go. */
-export function waterFraction(lostKg) {
-  return clamp(1 - Math.max(lostKg - ATMOSPHERE_MASS, 0) / OCEAN_MASS, 0, 1);
-}
 
 /** Altitude on today's Earth with the same pressure, in metres (barometric formula). */
 export function equivalentAltitudeM(fraction) {
@@ -516,9 +584,13 @@ export function equivalentAltitudeM(fraction) {
   return Math.max(0, -SCALE_HEIGHT_KM * 1e3 * Math.log(fraction));
 }
 
-/** How the air feels: 'fine' below 3 km, 'thin' up to Everest, 'deathZone' beyond, 'none' in vacuum. */
-export function breathability(fraction) {
+/**
+ * How the air feels: 'fine' below 3 km, 'thin' up to Everest, 'deathZone' beyond, 'none' in
+ * vacuum – and 'toxic' once more than a tenth of it is CO₂, whatever the pressure.
+ */
+export function breathability(fraction, co2Fraction = 0) {
   if (fraction < TRIPLE_POINT_FRACTION * 2) return 'none';
+  if (co2Fraction > 0.1) return 'toxic';
   const h = equivalentAltitudeM(fraction);
   if (h < 3000) return 'fine';
   if (h < 8000) return 'thin';
@@ -531,10 +603,17 @@ export function effectiveTemperature(albedo) {
   return Math.pow((SOLAR_CONSTANT * (1 - albedo)) / (4 * SIGMA), 0.25);
 }
 
-/** Grey-atmosphere surface temperature: T_s⁴ = T_e⁴·(1 + ¾τ), τ = τ₀·f^k. */
-export function greenhouseSurfaceTemperature(effectiveK, fraction) {
-  const tau = CLIMATE.tau0 * Math.pow(clamp(fraction, 0, 1), CLIMATE.tauExponent);
-  return effectiveK * Math.pow(1 + 0.75 * tau, 0.25);
+/** Grey optical depth of an atmosphere with `totalHPa` of gas, `co2HPa` of it CO₂ – see GREENHOUSE. */
+export function opticalDepth(totalHPa, co2HPa) {
+  const x = Math.max(totalHPa, 0) / SEA_LEVEL_PRESSURE_HPA;
+  const background = GREENHOUSE.tauBackground * Math.pow(x, GREENHOUSE.pressureExponent);
+  const co2 = GREENHOUSE.co2Gain * Math.log(1 + Math.max(co2HPa, 0) / GREENHOUSE.co2KneeHPa) * Math.pow(x, GREENHOUSE.broadeningExponent);
+  return background + co2;
+}
+
+/** Grey-atmosphere surface temperature: T_s⁴ = T_e⁴·(1 + ¾τ). */
+export function greenhouseSurfaceTemperature(effectiveK, tau) {
+  return effectiveK * Math.pow(1 + 0.75 * Math.max(tau, 0), 0.25);
 }
 
 /**
@@ -555,18 +634,24 @@ export function planetaryAlbedo(iceSin) {
 }
 
 /**
- * Fixed point of greenhouse + ice–albedo feedback for an atmosphere fraction f.
- * Always iterated from today's warm state, so the result is a function of f alone.
+ * Fixed point of greenhouse + ice–albedo feedback for an atmosphere of `totalHPa` with
+ * `co2HPa` of CO₂, iterated from `startK`. The feedback has two branches – a warm one with
+ * an ice line and a snowball – so where both exist the start decides: a run carries its
+ * own temperature forward and therefore freezes only when the warm branch vanishes and
+ * thaws only when the frozen one does (≈ 0.15 bar of CO₂, Pierrehumbert 2004). Called
+ * without a start it answers "what would today's Earth do with this air".
  */
-export function climateState(fraction) {
-  let meanK = 288;
+export function climateState(totalHPa, co2HPa, startK = 288) {
+  const tau = opticalDepth(totalHPa, co2HPa);
+  let meanK = startK;
   for (let i = 0; i < CLIMATE.iterations; i++) {
     const x = iceLineSin(meanK - 273.15);
-    const next = greenhouseSurfaceTemperature(effectiveTemperature(planetaryAlbedo(x)), fraction);
+    const next = greenhouseSurfaceTemperature(effectiveTemperature(planetaryAlbedo(x)), tau);
     meanK += CLIMATE.damping * (next - meanK);
   }
   const iceSin = iceLineSin(meanK - 273.15);
   return {
+    tau,
     meanK,
     meanC: meanK - 273.15,
     iceSin,
@@ -577,7 +662,9 @@ export function climateState(fraction) {
   };
 }
 
-TODAY_ICE_LINE.x = climateState(1).iceSin;
+/** Today's climate in the model: 288 K, ice line ≈ 74°. */
+export const TODAY_CLIMATE = climateState(SEA_LEVEL_PRESSURE_HPA, TODAY_CO2_HPA);
+TODAY_ICE_LINE.x = TODAY_CLIMATE.iceSin;
 /** sin(latitude) of today's ice line in the model (≈ 0.96, i.e. ≈ 74°). */
 export const TODAY_ICE_SIN = TODAY_ICE_LINE.x;
 
@@ -604,84 +691,172 @@ export function airlessTemperatures(capLatDeg) {
   };
 }
 
-/** Progress 0…1 of the low-latitude ice moving to the poles, `airlessYr` after the air went. */
-export function migrationProgress(airlessYr) {
-  return smoothstep(0, AIRLESS.migrationYr, Math.max(airlessYr, 0));
-}
-
-/** How rusty and space-weathered the bare surface has become, 0…1. */
-export function rustProgress(airlessYr) {
-  return 1 - Math.exp(-Math.max(airlessYr, 0) / AIRLESS.rustYr);
-}
-
-// ---------- the timeline -------------------------------------------------------------------------
 /**
- * Advance the integrated state by `dtYr` years of a wind that strips `rateKgS`.
- * `airlessYr` only counts once the pressure is below the triple point.
+ * Galactic-cosmic-ray dose at the ground in mSv/yr: the lunar value with nothing above you,
+ * attenuated e-fold per 140 g/cm² of air, and cut to 60 % by the geomagnetic field.
  */
-export function advanceUnshielded(state, rateKgS, dtYr) {
-  const elapsedYr = Math.min(state.elapsedYr + Math.max(dtYr, 0), CLOCK.maxYr);
-  const applied = elapsedYr - state.elapsedYr;
-  const lostKg = Math.min(state.lostKg + Math.max(rateKgS, 0) * applied * YEAR_SECONDS, ATMOSPHERE_MASS + OCEAN_MASS);
-  const before = atmosphereFraction(state.lostKg);
-  const after = atmosphereFraction(lostKg);
-  let below = 0; // share of the step spent below the triple point
-  if (before <= TRIPLE_POINT_FRACTION) below = 1;
-  else if (after < TRIPLE_POINT_FRACTION) below = (TRIPLE_POINT_FRACTION - after) / (before - after);
-  return { elapsedYr, lostKg, airlessYr: state.airlessYr + applied * below };
+export function cosmicDoseMSvYr(totalHPa, fieldOn) {
+  const column = (Math.max(totalHPa, 0) * 100) / GRAVITY / 10; // g/cm²
+  return RADIATION.airlessDoseMSvYr * Math.exp(-column / RADIATION.shieldingGcm2) * (fieldOn ? RADIATION.fieldFactor : 1);
 }
 
-/** The state after `elapsedYr` years of a *constant* wind – used when the clock is scrubbed. */
-export function historyAtConstantWind(rateKgS, elapsedYr) {
+// ---------- the budget ------------------------------------------------------------------------
+/**
+ * Silicate weathering, kg of CO₂ per year: today's outgassing at today's climate, e-fold per
+ * 13.7 K and ∝ pCO₂^0.3, scaled by the ice-free area – and nothing at all below the triple
+ * point or on a frozen world, because it needs rain on rock.
+ */
+export function weatheringRate(climate, totalHPa, co2HPa) {
+  if (totalHPa < TRIPLE_POINT_HPA || climate.snowball || co2HPa <= 0) return 0;
+  const warmth = Math.exp((climate.meanK - TODAY_CLIMATE.meanK) / WEATHERING.tempScaleK);
+  const supply = Math.pow(co2HPa / TODAY_CO2_HPA, WEATHERING.co2Exponent);
+  const liquid = clamp(climate.iceSin, 0, 1) / TODAY_CLIMATE.iceSin;
+  return VOLCANISM.co2KgPerYr * Math.min(warmth * supply, WEATHERING.maxMultiple) * liquid;
+}
+
+/** The world as it is today – the starting point of every run. */
+export function todayWorld() {
+  return { elapsedYr: 0, airKg: TODAY_AIR.airKg, co2Kg: TODAY_AIR.co2Kg, waterKg: OCEAN_MASS, meanK: TODAY_CLIMATE.meanK, migration: 0, rust: 0, airlessYr: 0, lifeGone: false };
+}
+
+/** The thought experiment: every last bit of gas is gone, and with it everything that breathed it. */
+export function removeAtmosphere(world) {
+  return { ...world, airKg: 0, co2Kg: 0, lifeGone: true };
+}
+
+/** Put today's air back (the ground keeps whatever the run did to it). */
+export function restoreAtmosphere(world) {
+  return { ...world, airKg: TODAY_AIR.airKg, co2Kg: TODAY_AIR.co2Kg };
+}
+
+/**
+ * The fluxes acting on a world under the given settings, all in kg/yr.
+ * @param {{ density: number, speed: number, fieldOn: boolean, volcanoes: boolean }} settings
+ */
+export function fluxes(world, settings) {
+  const gas = world.airKg + world.co2Kg;
+  const { totalHPa, co2HPa } = composition(world.airKg, world.co2Kg);
+  const climate = climateState(totalHPa, co2HPa, world.meanK);
+  const airless = totalHPa < TRIPLE_POINT_HPA;
+  // the wind strips whatever gas there is – a tenuous exosphere offers it little to take
+  const windKgS = settings.fieldOn ? 0 : escapeRateKgS(settings.density, settings.speed);
+  const strip = windKgS * YEAR_SECONDS * smoothstep(0, 0.002 * ATMOSPHERE_MASS, gas);
+  const outgas = settings.volcanoes ? VOLCANISM.co2KgPerYr : 0;
+  const n2 = settings.volcanoes ? VOLCANISM.n2KgPerYr * clamp(1 - world.airKg / (VOLCANISM.n2InventoryMultiple * TODAY_AIR.airKg), 0, 1) : 0;
+  const weather = weatheringRate(climate, totalHPa, co2HPa);
+  const openOcean = !airless && !climate.snowball;
+  // water only goes once the ice sublimates into vacuum: hydrogen escapes on its own, the
+  // oxygen is picked up by the wind unless the field keeps it
+  const waterKgS = airless ? Math.max(WATER_LOSS_FLOOR_KGS, windKgS) : 0;
+  return { strip, outgas, n2, weather, water: waterKgS * YEAR_SECONDS, climate, totalHPa, co2HPa, airless, openOcean };
+}
+
+/** One explicit step of the budget; `stepWorld` splits a frame into these. */
+function stepOnce(world, settings, dtYr) {
+  const f = fluxes(world, settings);
+  const gas = world.airKg + world.co2Kg;
+  const airShare = gas > 0 ? world.airKg / gas : 0;
+  const airKg = Math.max(0, world.airKg + (f.n2 - f.strip * airShare) * dtYr);
+  const buffer = f.openOcean ? WEATHERING.oceanBuffer : 1;
+  const co2Kg = Math.max(0, world.co2Kg + ((f.outgas - f.weather - f.strip * (1 - airShare)) * dtYr) / buffer);
+  const waterKg = Math.max(0, world.waterKg - f.water * dtYr);
+  let migration = world.migration;
+  if (f.airless) migration = Math.min(1, migration + dtYr / AIRLESS.migrationYr);
+  else if (f.climate.meanC > CLIMATE.iceThresholdC) migration = Math.max(0, migration - dtYr / AIRLESS.meltYr);
+  let rust = world.rust;
+  if (f.airless) {
+    const rustYr = settings.fieldOn ? AIRLESS.rustYrShielded : AIRLESS.rustYrUnshielded;
+    rust = 1 - (1 - rust) * Math.exp(-dtYr / rustYr);
+  }
+  return {
+    elapsedYr: world.elapsedYr + dtYr,
+    airKg,
+    co2Kg,
+    waterKg,
+    meanK: f.climate.meanK,
+    migration,
+    rust,
+    airlessYr: world.airlessYr + (f.airless ? dtYr : 0),
+    lifeGone: world.lifeGone || (f.totalHPa < 0.35 * SEA_LEVEL_PRESSURE_HPA),
+  };
+}
+
+/** Advance the world by `dtYr` years, in substeps short enough for the thermostat to behave. */
+export function stepWorld(world, settings, dtYr) {
+  const dt = Math.min(Math.max(dtYr, 0), CLOCK.maxYr - world.elapsedYr);
+  if (dt <= 0) return world;
+  const n = clamp(Math.ceil(dt / CLOCK.maxSubstepYr), 1, CLOCK.maxSubsteps);
+  let w = world;
+  for (let i = 0; i < n; i++) w = stepOnce(w, settings, dt / n);
+  return w;
+}
+
+/**
+ * The world after `elapsedYr` years of *constant* settings, integrated from today (with the
+ * air removed at t = 0 when the settings say so) – used when the clock is scrubbed.
+ */
+export function historyAt(settings, elapsedYr, { airRemoved = false } = {}) {
   const yr = clamp(elapsedYr, 0, CLOCK.maxYr);
-  const lostKg = Math.min(rateKgS * yr * YEAR_SECONDS, ATMOSPHERE_MASS + OCEAN_MASS);
-  const tripleYr = rateKgS > 0 ? (ATMOSPHERE_MASS * (1 - TRIPLE_POINT_FRACTION)) / rateKgS / YEAR_SECONDS : Infinity;
-  return { elapsedYr: yr, lostKg, airlessYr: Math.max(0, yr - tripleYr) };
+  let w = airRemoved ? removeAtmosphere(todayWorld()) : todayWorld();
+  if (yr <= 0) return w;
+  const n = CLOCK.historySteps;
+  for (let i = 0; i < n; i++) w = stepWorld(w, settings, yr / n);
+  return w;
 }
 
+// ---------- everything the panel and the picture need -------------------------------------
 /**
- * Everything the panel and the picture need about the unshielded planet.
- * @param {{ elapsedYr: number, lostKg: number, airlessYr: number }} state
- * @param {number} densityCm3 steady wind (the CME sheath lasts a day and is not integrated)
- * @param {number} speedKmS
+ * @param {ReturnType<typeof todayWorld>} world
+ * @param {{ density: number, speed: number, fieldOn: boolean, volcanoes: boolean }} settings
  */
-export function unshieldedState(state, densityCm3, speedKmS) {
-  const fraction = atmosphereFraction(state.lostKg);
-  const water = waterFraction(state.lostKg);
-  const climate = climateState(fraction);
-  const airless = fraction <= TRIPLE_POINT_FRACTION;
-  const migration = airless ? migrationProgress(state.airlessYr) : 0;
+export function worldState(world, settings) {
+  const f = fluxes(world, settings);
+  const comp = composition(world.airKg, world.co2Kg);
+  const climate = f.climate;
+  const airless = f.airless;
+  const water = clamp(world.waterKg / OCEAN_MASS, 0, 1);
   const capLatDeg = capLatitudeDeg(water);
   const bare = airlessTemperatures(capLatDeg);
-  const rate = escapeRateKgS(densityCm3, speedKmS);
-  let stage = 'intact';
-  if (airless) stage = migration >= 0.999 ? 'airless' : 'sublimating';
+  const windKgS = settings.fieldOn ? 0 : escapeRateKgS(settings.density, settings.speed);
+  let stage;
+  if (airless) stage = world.airlessYr < 1e3 ? 'decompression' : world.migration < 0.999 ? 'sublimating' : 'airless';
+  else if (comp.co2Fraction > 0.5) stage = climate.snowball ? 'co2Frozen' : climate.iceLineLatDeg < 60 ? 'co2Cold' : 'co2World';
   else if (climate.snowball) stage = 'snowball';
   else if (climate.iceLineLatDeg < 60) stage = 'iceAge';
-  else if (fraction < 0.97) stage = 'thinning';
+  else if (world.lifeGone) stage = 'rebuilt';
+  else if (comp.fraction < 0.97) stage = 'thinning';
+  else stage = 'intact';
   // the mean temperature hands over from the ice-line model to the bare-rock world as the ice migrates
-  const meanK = climate.meanK + (bare.meanK - climate.meanK) * migration;
+  const bareShare = airless ? world.migration : 0;
+  const meanK = climate.meanK + (bare.meanK - climate.meanK) * bareShare;
   return {
-    elapsedYr: state.elapsedYr,
-    lostKg: state.lostKg,
-    airlessYr: state.airlessYr,
-    fraction,
-    pressureHPa: fraction * SEA_LEVEL_PRESSURE_HPA,
-    altitudeM: equivalentAltitudeM(fraction),
-    breathability: breathability(fraction),
+    elapsedYr: world.elapsedYr,
+    airlessYr: world.airlessYr,
+    lifeGone: world.lifeGone,
+    fraction: comp.fraction,
+    pressureHPa: comp.totalHPa,
+    co2HPa: comp.co2HPa,
+    co2Fraction: comp.co2Fraction,
+    altitudeM: equivalentAltitudeM(comp.fraction),
+    breathability: breathability(comp.fraction, comp.co2Fraction),
     water,
     airless,
     climate,
     meanK,
     meanC: meanK - 273.15,
-    migration,
-    rust: airless ? rustProgress(state.airlessYr) : 0,
+    migration: world.migration,
+    rust: world.rust,
     capLatDeg,
     bare,
-    rateKgS: rate,
-    lifetimeYr: atmosphereLifetimeYr(rate),
-    remainingYr: rate > 0 ? (fraction * ATMOSPHERE_MASS) / rate / YEAR_SECONDS : Infinity,
+    stripKgS: f.strip / YEAR_SECONDS,
+    windKgS,
+    outgasKgS: f.outgas / YEAR_SECONDS,
+    weatherKgS: f.weather / YEAR_SECONDS,
+    netKgS: (f.outgas + f.n2 - f.weather - f.strip) / YEAR_SECONDS,
+    lifetimeYr: atmosphereLifetimeYr(windKgS),
+    remainingYr: f.strip > f.outgas + f.n2 - f.weather ? (world.airKg + world.co2Kg) / (f.strip - (f.outgas + f.n2 - f.weather)) : Infinity,
+    doseMSvYr: cosmicDoseMSvYr(comp.totalHPa, settings.fieldOn),
     stage,
-    beyondSun: state.elapsedYr > SUN_REMAINING_YR,
+    beyondSun: world.elapsedYr > SUN_REMAINING_YR,
   };
 }
