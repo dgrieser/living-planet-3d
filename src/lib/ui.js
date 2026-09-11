@@ -69,8 +69,9 @@ const ANNOUNCE_MS = 1900; // how long the header names the camera view that was 
  * With `camera` the header carries a camera button next to the chevron – open or
  * collapsed, so the views stay one tap away while the panel is out of the way. Each
  * press steps to the next view in the list and the header names it for a moment.
- * The simulation keeps the button in step by calling `setCameraView()` whenever its
- * own camera changes (its preset row, a click in the scene, a reset).
+ * The simulation keeps the cycle in step by calling `setCameraView()` whenever its
+ * own camera changes (its preset row, a click in the scene, a reset), so the next
+ * press carries on from whatever is on screen.
  *
  * With `onReset` it carries the simulation's overall reset next to them – the circle
  * arrow, icon-only, and reachable while the panel is collapsed like the camera. It is
@@ -89,7 +90,7 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onTo
   const title = bindText(el('h2', 'lp-panel__title', { id: panel.getAttribute('aria-labelledby') }), titleKey);
   const announce = el('span', 'lp-panel__announce', { role: 'status' });
   const actions = el('div', 'lp-panel__actions');
-  const toggle = el('button', 'lp-panel__toggle', { type: 'button', 'aria-expanded': 'true' });
+  const toggle = el('button', 'lp-panel__action lp-panel__toggle', { type: 'button', 'aria-expanded': 'true' });
   toggle.innerHTML = '<span class="lp-panel__chevron" aria-hidden="true"></span>';
   const body = el('div', 'lp-panel__body');
   body.id = uid('panel-body');
@@ -97,9 +98,7 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onTo
 
   // --- the header's camera button: one press, the next view ------------------
   const views = camera?.views ?? [];
-  let cameraBtn = null;
   let cursor = -1; // the view the last press landed on – where the next one carries on from
-  let activeView = null; // what the simulation says it is showing (null: a view of the visitor's own)
   let announceTimer = 0;
 
   /** Name a view in the header for a moment, then fade it out again. */
@@ -109,25 +108,19 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onTo
     clearTimeout(announceTimer);
     announceTimer = setTimeout(() => header.classList.remove('is-announcing'), ANNOUNCE_MS);
   }
-  function syncCameraButton() {
-    if (!cameraBtn) return;
-    // not aria-pressed: the button steps through the views, it does not switch one on and off
-    cameraBtn.classList.toggle('is-active', views.some((v) => v.id === activeView));
-  }
   if (views.length) {
-    cameraBtn = el('button', 'lp-panel__action lp-panel__camera', { type: 'button' });
+    // no pressed or active state: the button steps through the views, it does not switch one
+    // on and off, and the header's three buttons are one row of the same colour
+    const cameraBtn = el('button', 'lp-panel__action lp-panel__camera', { type: 'button' });
     bindAttr(cameraBtn, { 'aria-label': 'panel.cameraNext', title: 'panel.cameraNext' });
     cameraBtn.append(createIcon('camera', 'lp-panel__action-icon'));
     cameraBtn.addEventListener('click', () => {
       cursor = (cursor + 1) % views.length;
       const view = views[cursor];
-      activeView = view.id;
-      syncCameraButton();
       announceView(view.labelKey);
       camera.onSelect?.(view.id);
     });
     actions.append(cameraBtn);
-    syncCameraButton();
     disposers.push(() => clearTimeout(announceTimer));
   }
 
@@ -251,16 +244,15 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onTo
       render();
     },
     /**
-     * Tell the header which camera view is showing – `null` (or an id that is not in the
-     * list) for a view the visitor set up themselves, which leaves the next press carrying
-     * on from the last preset. Pass `{ announce: true }` to name it in the header as well,
-     * for a switch the visitor made somewhere other than this button.
+     * Tell the header which camera view is showing, so the next press carries on from it –
+     * `null` (or an id that is not in the list) for a view the visitor set up themselves,
+     * which leaves the cycle where the last preset left it. Pass `{ announce: true }` to
+     * name it in the header as well, for a switch the visitor made somewhere other than
+     * this button.
      */
     setCameraView(id, { announce: say = false } = {}) {
       const index = views.findIndex((v) => v.id === id);
-      activeView = index >= 0 ? views[index].id : null;
       if (index >= 0) cursor = index;
-      syncCameraButton();
       if (say && index >= 0) announceView(views[index].labelKey);
     },
     dispose() {

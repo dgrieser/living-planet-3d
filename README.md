@@ -124,6 +124,10 @@ Every simulation's panel header carries two icon-only buttons next to the collap
 the overall reset (the circle arrow) and the camera – and both are there whether the panel is
 open or collapsed, so neither is ever more than one press away.
 
+All three share one look (`.lp-panel__action`): the same border and the same muted glyph, in
+every state, so the row reads as a row and no button shouts over its neighbours. Hover is the
+one thing that sets a button apart, and only while the pointer is on it.
+
 The **reset** is the one button that puts *everything* back: the simulation's parameters and
 the remembered display settings alike. It is wired up with one option, and the simulation's
 own reset function does the work:
@@ -135,11 +139,12 @@ const panel = createPanel({ onToggle: () => viewShift.sync(), onReset: reset, ca
 The **camera** button steps through the views. It
 is there whether the panel is open or collapsed – so the views stay one press away while the
 panel is out of the way. Each press steps to the next view in the simulation's list and the
-header names it for about two seconds, in place of the "Controls" title, before fading back.
-The panel keeps no camera state of its own: the simulation reports every change – its own
-preset row, a click in the scene, a reset – so the button stays in step, and a view the
-visitor set up by hand simply leaves no view marked as active, with the next press carrying
-on from the last preset. One list per simulation wires it up:
+header names it for about two seconds, in place of the "Controls" title, before fading back –
+which is the only feedback it gives, since none of the three buttons carries a state of its
+own (see below). The panel keeps no camera state either: the simulation reports every change –
+its own preset row, a click in the scene, a reset – so the cycle stays in step, and a view the
+visitor set up by hand simply leaves it where the last preset left it, with the next press
+carrying on from there. One list per simulation wires it up:
 
 ```js
 const CAMERA_VIEWS = Object.freeze([
