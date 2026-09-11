@@ -807,9 +807,8 @@ export default function mount(container, meta) {
   const cmeButton = createButton({ labelKey: `${KEYS}.controls.launchCme`, icon: '☀', variant: 'primary', slim: true, onClick: launchCme });
   const switchRow = el('div', 'lp-button-row lp-button-row--split');
   switchRow.append(fieldButton.el, airButton.el, cmeButton.el);
-  const switchNotice = el('div', 'lp-notice lp-notice--warn', { role: 'status', hidden: true });
-  const switchNoticeText = el('span');
-  switchNotice.append(switchNoticeText);
+  // what the flipped switches do is explained inside the conditions box below, as its own row
+  const switchNotice = el('div', 'lp-conditions__row lp-conditions__note', { role: 'status', hidden: true });
   const volcanoToggle = createToggle({ labelKey: `${KEYS}.controls.volcanoes`, checked: state.volcanoes, onChange: (v) => setVolcanoes(v) });
   const densitySlider = createSlider({
     labelKey: `${KEYS}.controls.density`,
@@ -915,7 +914,7 @@ export default function mount(container, meta) {
   const worldPill = el('span', 'lp-state');
   const worldNote = el('span', 'lp-state lp-state--phase', { hidden: true });
   worldRow.append(bindText(el('div', 'lp-readout__label'), `${KEYS}.world.atmosphere`), worldValue, worldPill, worldNote);
-  conditions.append(stormRow, worldRow);
+  conditions.append(stormRow, worldRow, switchNotice);
   const facts = createFacts([
     ['pressure', `${KEYS}.facts.pressure`],
     ['ratio', `${KEYS}.facts.pressureRatio`],
@@ -951,7 +950,7 @@ export default function mount(container, meta) {
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: !isSmallScreen });
   const physicsCard = createPhysicsCard();
   panel.add(
-    switchRow, switchNotice, moreControls,
+    switchRow, moreControls,
     bindText(el('p', 'lp-subheading'), `${KEYS}.conditions.title`), conditions, facts,
     legend, infoCard, physicsCard,
   );
@@ -991,7 +990,8 @@ export default function mount(container, meta) {
   function syncSwitchNotice() {
     const key = !state.fieldOn && state.airRemoved ? 'both' : !state.fieldOn ? 'fieldOff' : state.airRemoved ? 'airRemoved' : null;
     switchNotice.hidden = !key;
-    if (key) switchNoticeText.textContent = t(`${KEYS}.warn.${key}`);
+    conditions.classList.toggle('is-switched', !!key);
+    if (key) switchNotice.textContent = t(`${KEYS}.warn.${key}`);
   }
 
   /** The clock's sliders appear once there is a history to run or to scrub. */
