@@ -507,9 +507,8 @@ disposers.push(viewShift.dispose);
   the flanks tear plasma clouds off the shell that flow tailward (`uRip`, the detached clouds Pioneer Venus and
   MAVEN see). All three scale with how hard the wind leans on it – `log₁₀` of the ram-pressure ratio over the
   sliders' 2500× range, CME sheath included – and the rip and squash grow as the air thins, since a thinner
-  ionosphere holds less pressure against the wind. There is deliberately no "hole": a gas refills one within
-  hours, and the tail is what leaving actually looks like. The 3 000 escaping particles follow the same tail
-  length, grow with the stripping rate and pulse along the stream in clumps.
+  ionosphere holds less pressure against the wind. The 3 000 escaping particles follow the same tail length,
+  grow with the stripping rate and pulse along the stream in clumps.
 
 ### galactic-zone notes
 

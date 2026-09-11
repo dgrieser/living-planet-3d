@@ -24,9 +24,9 @@
  *    dry, Mars-like Earth. The Earth shader paints all of that from a handful of
  *    eased uniforms; the physics never touches pixels. The atmosphere shell becomes
  *    the induced ionosphere of an unmagnetised planet: pressed down on the dayside,
- *    plasma clouds peeled off the flanks, and an ion tail downwind – never a hole,
- *    because a gas refills one within hours. Its visible top drops one scale height
- *    per e-folding of lost mass, so the shell thins and finally collapses.
+ *    plasma clouds peeled off the flanks, and an ion tail downwind. Its visible top
+ *    drops one scale height per e-folding of lost mass, so the shell thins and
+ *    finally collapses.
  *
  * All quantitative work lives in ./physics.js; this module only maps it to pixels.
  */
@@ -1649,8 +1649,7 @@ const EARTH_FRAGMENT = /* glsl */ `
  * top of the air), presses it down towards the subsolar point (`uSquash`: the ionopause sits at
  * ≈ 300 km over the subsolar point of Venus and ≈ 1000 km at the terminator) and draws the night
  * side out into an ion tail of `uTail` Earth radii. The fragment shader tears plasma clouds off
- * the flanks (`uRip`) that flow tailward – what actually happens where the wind meets the
- * ionosphere; a gas can never keep a hole, it refills one within hours.
+ * the flanks (`uRip`) that flow tailward – what happens where the wind meets the ionosphere.
  */
 const ATMOSPHERE_VERTEX = /* glsl */ `
   uniform float uHeight;   // visible thickness of the air, in Earth radii
