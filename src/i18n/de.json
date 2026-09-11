@@ -706,7 +706,7 @@
         }
       },
       "warn": {
-        "fieldOff": "Ohne Feld trifft der Wind die obere Atmosphäre und trägt sie fort. Die Uhr läuft in Millionen Jahren pro Sekunde, und das Bild folgt der Physik: Die Luft wird dünn, der Planet kühlt aus und friert zu, und unter 6 hPa sublimiert das Eis zu den Polen. Mit dem heutigen ruhigen Wind dauerte das Abtragen rund 100 Milliarden Jahre – weit länger, als die Sonne lebt –, also Wind oder Zeitraffer aufdrehen. Verlorene Luft kommt nicht zurück, wenn das Feld wieder da ist."
+        "fieldOff": "Ohne Feld drückt der Wind die Ionosphäre auf der Tagseite nieder, reißt an ihren Flanken Plasmawolken ab und zieht sie in einen Ionenschweif – so geht die Luft verloren. Die Uhr läuft in Millionen Jahren pro Sekunde, und das Bild folgt der Physik: Die Luft wird dünn, der Planet kühlt aus und friert zu, und unter 6 hPa sublimiert das Eis zu den Polen. Mit dem heutigen ruhigen Wind dauerte das Abtragen rund 100 Milliarden Jahre – weit länger, als die Sonne lebt –, also Wind oder Zeitraffer aufdrehen. Verlorene Luft kommt nicht zurück, wenn das Feld wieder da ist."
       },
       "legend": {
         "fieldLines": "Dipol-Feldlinien",
@@ -717,7 +717,7 @@
         "sheath": "Abgebremster Wind (Magnetosheath)",
         "cme": "CME-Wolke",
         "aurora": "Polarlichtoval",
-        "erosion": "Entweichende Atmosphäre"
+        "erosion": "Entweichende Atmosphäre (Ionenschweif)"
       },
       "labels": {
         "sun": "Sonne",
@@ -800,7 +800,7 @@
         "waterLost": "{n} % ins All verloren",
         "halted": "Verlust gestoppt – die Luft kommt nicht zurück",
         "beyondSun": "jenseits der Restlebensdauer der Sonne",
-        "schematic": "Der ungeschützte Lauf ist ein Lehrmodell: energielimitiertes Abtragen, geeicht auf die heute an Venus, Erde und Mars gemessenen ≈ 1–2 kg/s; eine graue Treibhausatmosphäre gekoppelt an die Budyko-Eisgrenze; Kappenausdehnung, Wanderungsdauer und Rostfärbung sind Größenordnungsabschätzungen. Die Sonne bleibt konstant, obwohl sie nach 5 Milliarden Jahren die Hauptreihe verließe.",
+        "schematic": "Der ungeschützte Lauf ist ein Lehrmodell: energielimitiertes Abtragen, geeicht auf die heute an Venus, Erde und Mars gemessenen ≈ 1–2 kg/s; eine graue Treibhausatmosphäre gekoppelt an die Budyko-Eisgrenze; Kappenausdehnung, Wanderungsdauer und Rostfärbung sind Größenordnungsabschätzungen. Die Hülle ist als induzierte Ionosphäre eines unmagnetisierten Planeten gezeichnet – auf der Tagseite niedergedrückt, an den Flanken abgerissene Plasmawolken, ein Ionenschweif im Lee, wie an Venus und Mars –, und ihre sichtbare Obergrenze sinkt pro e-Faltung verlorener Masse um eine Skalenhöhe. Die Sonne bleibt konstant, obwohl sie nach 5 Milliarden Jahren die Hauptreihe verließe.",
         "stage": {
           "intact": "Intakt",
           "thinning": "Dünner · kühlt ab",

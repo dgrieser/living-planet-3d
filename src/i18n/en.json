@@ -706,7 +706,7 @@
         }
       },
       "warn": {
-        "fieldOff": "Without the field the wind hits the upper atmosphere and carries it off. The clock runs in millions of years per second, and the picture follows the physics: the air thins, the planet cools and freezes over, and below 6 hPa the ice sublimates to the poles. With today's quiet wind the stripping would take about 100 billion years – far longer than the Sun will live – so turn up the wind, or the time lapse. Lost air does not come back when the field returns."
+        "fieldOff": "Without the field the wind presses the ionosphere down on the dayside, tears plasma clouds off its flanks and drags them into an ion tail – that is how the air leaves. The clock runs in millions of years per second, and the picture follows the physics: the air thins, the planet cools and freezes over, and below 6 hPa the ice sublimates to the poles. With today's quiet wind the stripping would take about 100 billion years – far longer than the Sun will live – so turn up the wind, or the time lapse. Lost air does not come back when the field returns."
       },
       "legend": {
         "fieldLines": "Dipole field lines",
@@ -717,7 +717,7 @@
         "sheath": "Shocked wind (magnetosheath)",
         "cme": "CME cloud",
         "aurora": "Auroral oval",
-        "erosion": "Escaping atmosphere"
+        "erosion": "Escaping atmosphere (ion tail)"
       },
       "labels": {
         "sun": "Sun",
@@ -800,7 +800,7 @@
         "waterLost": "{n} % lost to space",
         "halted": "Loss halted – the air does not come back",
         "beyondSun": "beyond the Sun's remaining life",
-        "schematic": "The unshielded run is a teaching model: energy-limited stripping calibrated to the ≈ 1–2 kg/s measured today at Venus, Earth and Mars; a grey greenhouse coupled to the Budyko ice line; cap extent, migration time and reddening are order-of-magnitude choices. The Sun is held constant, although it would leave the main sequence after 5 billion years.",
+        "schematic": "The unshielded run is a teaching model: energy-limited stripping calibrated to the ≈ 1–2 kg/s measured today at Venus, Earth and Mars; a grey greenhouse coupled to the Budyko ice line; cap extent, migration time and reddening are order-of-magnitude choices. The shell is drawn as the induced ionosphere of an unmagnetised planet – pressed down on the dayside, plasma clouds torn off the flanks, an ion tail downwind, as at Venus and Mars – and its visible top drops one scale height per e-folding of lost mass. The Sun is held constant, although it would leave the main sequence after 5 billion years.",
         "stage": {
           "intact": "Intact",
           "thinning": "Thinning · cooling",
