@@ -108,7 +108,7 @@ const DEFAULTS = Object.freeze({
   fieldOn: true,
   timeLapse: P.CLOCK.timeLapse.defaultMyrPerS, // Myr of the geological clock per second of scene time
   airRemoved: false, // the thought experiment: take every last bit of gas away
-  volcanoes: true, // Earth is volcanically alive – switch off to see the dead-planet (Mars) path
+  carbonCycle: true, // volcanoes, weathering and the ocean's buffer in the model – off, the air is a fixed inventory
 });
 /** The boiling oceans right after the air is taken: a scene-time flash that fades over this many seconds. */
 const STEAM_FADE = 2.5;
@@ -166,9 +166,9 @@ export default function mount(container, meta) {
   // What the Earth shader currently shows; eased towards the model every frame.
   const vis = { atm: 1, iceEdge: NO_ICE_EDGE, deep: 0, veg: 0, lights: 1, landSnow: 1, migrate: 0, capEdge: 1, rust: 0, haze: 0 };
   /** The settings the budget runs under. */
-  const settings = () => ({ density: state.density, speed: state.speed, fieldOn: state.fieldOn, volcanoes: state.volcanoes });
+  const settings = () => ({ density: state.density, speed: state.speed, fieldOn: state.fieldOn, carbonCycle: state.carbonCycle });
   /** Today's Earth with its shield is a steady state; anything else has a history worth running. */
-  const clockRunning = () => !state.fieldOn || state.airRemoved || !state.volcanoes;
+  const clockRunning = () => !state.fieldOn || state.airRemoved;
 
   const viewport = el('div', 'lp-sim__viewport');
   container.append(viewport);
@@ -756,11 +756,11 @@ export default function mount(container, meta) {
     syncFieldButton();
     refresh();
   }
-  function setVolcanoes(on) {
-    if (state.volcanoes === on) return;
-    state.volcanoes = on;
-    volcanoToggle.setChecked(on, { silent: true });
-    syncFieldButton();
+  function setCarbonCycle(on) {
+    if (state.carbonCycle === on) return;
+    state.carbonCycle = on;
+    cycleToggle.setChecked(on, { silent: true });
+    syncSwitchNotice();
     refresh();
   }
   function setTimeLapse(myrPerS, { fromSlider = false } = {}) {
@@ -816,7 +816,7 @@ export default function mount(container, meta) {
   switchRow.append(fieldButton.el, airButton.el, cmeButton.el);
   // what the flipped switches do is explained inside the conditions box below, as its own row
   const switchNotice = el('div', 'lp-conditions__row lp-conditions__note', { role: 'status', hidden: true });
-  const volcanoToggle = createToggle({ labelKey: `${KEYS}.controls.volcanoes`, checked: state.volcanoes, onChange: (v) => setVolcanoes(v) });
+  const cycleToggle = createToggle({ labelKey: `${KEYS}.controls.carbonCycle`, checked: state.carbonCycle, onChange: (v) => setCarbonCycle(v) });
   const densitySlider = createSlider({
     labelKey: `${KEYS}.controls.density`,
     unitKey: 'units.perCubicCentimeter',
@@ -906,7 +906,7 @@ export default function mount(container, meta) {
 
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
-    densityRow, speedRow, volcanoToggle, clockControls, cameraRow,
+    densityRow, speedRow, cycleToggle, clockControls, cameraRow,
     toggles.showFieldLines, toggles.showBoundaries, toggles.showAurora, labelsToggle,
   );
 
@@ -1001,7 +1001,8 @@ export default function mount(container, meta) {
     const key = !state.fieldOn && state.airRemoved ? 'both' : !state.fieldOn ? 'fieldOff' : state.airRemoved ? 'airRemoved' : null;
     switchNotice.hidden = !key;
     conditions.classList.toggle('is-switched', !!key);
-    if (key) switchNotice.textContent = t(`${KEYS}.warn.${key}`);
+    // the closing sentence depends on whether the carbon cycle is in the model
+    if (key) switchNotice.textContent = `${t(`${KEYS}.warn.${key}`)} ${t(`${KEYS}.warn.${state.carbonCycle ? 'cycleOn' : 'cycleOff'}`)}`;
   }
 
   /** The clock's sliders appear once there is a history to run or to scrub. */
@@ -1031,7 +1032,7 @@ export default function mount(container, meta) {
     densitySlider.setValue(state.density, { silent: true });
     speedSlider.setValue(state.speed, { silent: true });
     timeLapseSlider.setValue(Math.log10(state.timeLapse), { silent: true });
-    volcanoToggle.setChecked(state.volcanoes, { silent: true });
+    cycleToggle.setChecked(state.carbonCycle, { silent: true });
     syncClockSlider(true);
     syncAirButton();
     syncFieldButton();
@@ -1068,7 +1069,7 @@ export default function mount(container, meta) {
       w.doseMSvYr.toPrecision(2),
       w.weatherKgS.toPrecision(2),
       w.beyondSun,
-      state.volcanoes,
+      state.carbonCycle,
       state.airRemoved,
     ].join('|');
     if (!force && key === lastReadoutKey) return;
@@ -1120,9 +1121,9 @@ export default function mount(container, meta) {
     facts.set('surfacePressure', w.co2Fraction >= 0.005 ? `${pressure} · ${t(`${K}.co2Share`, { n: fmt(w.co2Fraction * 100, w.co2Fraction < 0.1 ? 1 : 0) })}` : pressure);
     // the three flows that make the budget – blank where nothing flows
     facts.set('strip', state.fieldOn ? t(`${K}.none`) : formatRate(w.stripKgS));
-    facts.set('outgas', state.volcanoes ? formatRate(w.outgasKgS) : t(`${K}.none`));
-    facts.set('weather', w.weatherKgS > 0.05 ? formatRate(w.weatherKgS) : t(`${K}.none`));
-    facts.set('net', Math.abs(w.netKgS) < 0.05 ? t(`${K}.balanced`) : `${w.netKgS > 0 ? '+' : '−'}${formatRate(Math.abs(w.netKgS))}`);
+    facts.set('outgas', state.carbonCycle ? formatRate(w.outgasKgS) : t(`${K}.none`));
+    facts.set('weather', state.carbonCycle && w.weatherKgS > 0.05 ? formatRate(w.weatherKgS) : t(`${K}.none`));
+    facts.set('net', !state.carbonCycle && state.fieldOn ? t(`${K}.none`) : Math.abs(w.netKgS) < 0.05 ? t(`${K}.balanced`) : `${w.netKgS > 0 ? '+' : '−'}${formatRate(Math.abs(w.netKgS))}`);
     const degC = (k) => `${fmt(k - 273.15, 0)} ${t('units.celsius')}`;
     facts.set(
       'temp',
@@ -1216,7 +1217,7 @@ export default function mount(container, meta) {
       setSpeed,
       setFieldOn,
       setAirRemoved,
-      setVolcanoes,
+      setCarbonCycle,
       setTimeLapse,
       setElapsed,
       launchCme,
