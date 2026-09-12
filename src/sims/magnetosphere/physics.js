@@ -744,7 +744,7 @@ export function restoreAtmosphere(world) {
 
 /**
  * The fluxes acting on a world under the given settings, all in kg/yr.
- * @param {{ density: number, speed: number, fieldOn: boolean, volcanoes: boolean }} settings
+ * @param {{ density: number, speed: number, fieldOn: boolean, carbonCycle: boolean }} settings
  */
 export function fluxes(world, settings) {
   const gas = world.airKg + world.co2Kg;
@@ -754,10 +754,13 @@ export function fluxes(world, settings) {
   // the wind strips whatever gas there is – a tenuous exosphere offers it little to take
   const windKgS = settings.fieldOn ? 0 : escapeRateKgS(settings.density, settings.speed);
   const strip = windKgS * YEAR_SECONDS * smoothstep(0, 0.002 * ATMOSPHERE_MASS, gas);
-  const outgas = settings.volcanoes ? VOLCANISM.co2KgPerYr : 0;
-  const n2 = settings.volcanoes ? VOLCANISM.n2KgPerYr * clamp(1 - world.airKg / (VOLCANISM.n2InventoryMultiple * TODAY_AIR.airKg), 0, 1) : 0;
-  const weather = weatheringRate(climate, totalHPa, co2HPa);
-  const openOcean = !airless && !climate.snowball;
+  // The carbon cycle – volcanic CO₂ and N₂, silicate weathering, the ocean's buffer – is one switch:
+  // off, the air is a fixed inventory that only the wind can touch.
+  const cycle = settings.carbonCycle !== false;
+  const outgas = cycle ? VOLCANISM.co2KgPerYr : 0;
+  const n2 = cycle ? VOLCANISM.n2KgPerYr * clamp(1 - world.airKg / (VOLCANISM.n2InventoryMultiple * TODAY_AIR.airKg), 0, 1) : 0;
+  const weather = cycle ? weatheringRate(climate, totalHPa, co2HPa) : 0;
+  const openOcean = cycle && !airless && !climate.snowball;
   // water only goes once the ice sublimates into vacuum: hydrogen escapes on its own, the
   // oxygen is picked up by the wind unless the field keeps it
   const waterKgS = airless ? Math.max(WATER_LOSS_FLOOR_KGS, windKgS) : 0;
@@ -820,7 +823,7 @@ export function historyAt(settings, elapsedYr, { airRemoved = false } = {}) {
 // ---------- everything the panel and the picture need -------------------------------------
 /**
  * @param {ReturnType<typeof todayWorld>} world
- * @param {{ density: number, speed: number, fieldOn: boolean, volcanoes: boolean }} settings
+ * @param {{ density: number, speed: number, fieldOn: boolean, carbonCycle: boolean }} settings
  */
 export function worldState(world, settings) {
   const f = fluxes(world, settings);

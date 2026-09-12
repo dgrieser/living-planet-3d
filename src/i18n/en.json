@@ -674,7 +674,7 @@
         "elapsedReset": "Back to today",
         "removeAir": "Remove the air",
         "restoreAir": "Give the air back",
-        "volcanoes": "Volcanoes keep outgassing"
+        "carbonCycle": "Carbon cycle (volcanoes & weathering)"
       },
       "facts": {
         "pressure": "Dynamic pressure",
@@ -713,9 +713,11 @@
         "noWind": "no wind – undisturbed dipole"
       },
       "warn": {
-        "fieldOff": "Without the field the wind presses the ionosphere down on the dayside, tears plasma clouds off its flanks and drags them into an ion tail – that is how the air leaves. The clock below runs in millions of years per second. With today's quiet wind the stripping would take about 100 billion years, and volcanoes replace what a strong wind takes with CO₂ – so turn up the wind, switch the volcanoes off, or take the air away.",
-        "airRemoved": "Every last bit of gas is gone in an instant: the oceans boil until an ice lid stops them within minutes, everything that breathed is dead, the sky is black and the ground takes the Moon's dose of cosmic rays. Then the clock decides. As long as the volcanoes keep going they rebuild a CO₂ atmosphere in about a million years and the ice thaws – Earth is big and alive, which is why it is not Mars. Switch the volcanoes off for the dead-planet path, and the field on or off to see what it still protects.",
-        "both": "No field and no air: the wind reaches the ground and sputters it, the wake behind the planet closes like the Moon's, and a strong solar storm is lethal everywhere. The oceans have boiled and frozen over, the sky is black. Whether Earth recovers is up to the volcanoes: with them going they rebuild a CO₂ atmosphere in about a million years, but without the field a strong wind keeps it thin and CO₂-rich for good. Switch the volcanoes off for the dead-planet path."
+        "fieldOff": "Without the field the wind presses the ionosphere down on the dayside, tears plasma clouds off its flanks and drags them into an ion tail – that is how the air leaves. The clock below runs in millions of years per second; with today's quiet wind the stripping would take about 100 billion years, so turn up the wind or take the air away.",
+        "airRemoved": "Every last bit of gas is gone in an instant: the oceans boil until an ice lid stops them within minutes, everything that breathed is dead, the sky is black and the ground takes the Moon's dose of cosmic rays. Then the clock decides, and the field on or off shows what it still protects.",
+        "both": "No field and no air: the wind reaches the ground and sputters it, the wake behind the planet closes like the Moon's, and a strong solar storm is lethal everywhere. The oceans have boiled and frozen over, the sky is black.",
+        "cycleOn": "With the carbon cycle in the model, volcanoes replace what is lost with CO₂ – about 32 t/s, more than any wind here can strip – so a robbed Earth rebuilds a CO₂ atmosphere in about a million years and thaws again; without the field a strong wind keeps that air thin and CO₂-rich. Switch the cycle off to see the air as a fixed inventory.",
+        "cycleOff": "The carbon cycle is switched out of the model, so nothing replaces what is lost: the air is a fixed inventory, a strong wind strips it to a snowball and then a dry, rusting, Mars-like Earth, and a robbed Earth stays airless. Switch the cycle on for the living planet."
       },
       "legend": {
         "fieldLines": "Dipole field lines",
@@ -780,7 +782,7 @@
         "sublimationNote": "Under 6.1 hPa water cannot be liquid. Where the Sun warms the frozen ocean it sublimates and the vapour freezes out again at the cold poles, as on Mars – millimetres to metres a year, so within 100 000 years the tropics are dry basins and the water sits in polar caps down to ≈ 55°. Vapour that reaches the exosphere is split by UV; the hydrogen escapes, the oxygen rusts the bare surface – three times faster where the solar wind sputters the ground as well, i.e. without the field. The ocean itself goes only under the strongest wind, over ≈ 10 billion years.",
         "volcanismLabel": "Volcanoes against weathering",
         "volcanismFormula": "dCO₂/dt = V − W − S,   W = V · e^((T−288 K)/13.7 K) · (pCO₂/pCO₂₀)^0.3",
-        "volcanismNote": "Volcanoes outgas ≈ 10¹² kg of CO₂ a year (≈ 32 t/s), and silicate weathering – rain on rock – consumes it faster the warmer and the more CO₂-rich the air is (Walker, Hays & Kasting 1981). That thermostat holds today's balance; it stops on a frozen or airless world, so an Earth robbed of its air rebuilds a CO₂ atmosphere in about a million years, while a dead planet – Mars – never does. Nitrogen returns a thousand times more slowly. The wind's 4 t/s at the strongest setting cannot outrun the volcanoes; the ocean's carbon damps changes about fifteen-fold while it is liquid.",
+        "volcanismNote": "Volcanoes outgas ≈ 10¹² kg of CO₂ a year (≈ 32 t/s), and silicate weathering – rain on rock – consumes it faster the warmer and the more CO₂-rich the air is (Walker, Hays & Kasting 1981). That thermostat holds today's balance; it stops on a frozen or airless world, so an Earth robbed of its air rebuilds a CO₂ atmosphere in about a million years, while a dead planet – Mars – never does. Nitrogen returns a thousand times more slowly. The wind's 4 t/s at the strongest setting cannot outrun the volcanoes; the ocean's carbon damps changes about fifteen-fold while it is liquid. The toggle takes the whole cycle out of the model, leaving the air as a fixed inventory. (Volcanoes alone dying while weathering continues would freeze Earth within about a million years – not shown.)",
         "radiationLabel": "Cosmic rays at the ground",
         "radiationFormula": "D ≈ 500 mSv/yr · e^(−m/140 g cm⁻²) · (0.6 with the field)",
         "radiationNote": "With nothing above you the ground takes the Moon's galactic-cosmic-ray dose, ≈ 1.4 mSv a day (Chang'e-4, LRO). Today's 1033 g/cm² of air cut that to ≈ 0.3 mSv a year; the geomagnetic cutoff removes ≈ 40 % more at low latitudes and nothing at the poles. The field's clearest job on an airless Earth is against solar storms: it steers their particles into the polar caps, without it a strong one delivers a lethal dose everywhere."

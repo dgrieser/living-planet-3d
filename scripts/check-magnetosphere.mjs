@@ -439,9 +439,9 @@ assert('the ice line is 1 for a warm world and 0 for a frozen one', P.iceLineSin
 checkRel("ice line for today's 15 °C mean (sin φ)", P.iceLineSin(15), 0.9636, 0.001);
 
 console.log('— world budget: fluxes —');
-const S_ON = { density: 5, speed: 400, fieldOn: true, volcanoes: true };
-const S_OFF = { density: 100, speed: 2000, fieldOn: false, volcanoes: true };
-const S_DEAD = { density: 5, speed: 400, fieldOn: false, volcanoes: false };
+const S_ON = { density: 5, speed: 400, fieldOn: true, carbonCycle: true };
+const S_OFF = { density: 100, speed: 2000, fieldOn: false, carbonCycle: true };
+const S_DEAD = { density: 5, speed: 400, fieldOn: false, carbonCycle: false }; // the air as a fixed inventory
 const f0 = P.fluxes(P.todayWorld(), S_ON);
 checkRel('today weathering balances the volcanoes', f0.weather / f0.outgas, 1, 1e-6);
 checkRel('volcanic CO₂ is ≈ 32 t/s', f0.outgas / P.YEAR_SECONDS / 1000, 31.7, 0.02);
@@ -511,17 +511,21 @@ assert('without the field the strongest wind keeps the rebuilt air thin and CO�
 assert('without the field the airless ground weathers three times faster', P.AIRLESS.rustYrShielded / P.AIRLESS.rustYrUnshielded === 3 && at(S_DEAD, 1e9, true).rust > at({ ...S_DEAD, fieldOn: true }, 1e9, true).rust);
 between('without the field the airless dose is the Moon\'s', at({ ...S_DEAD }, 1e5, true).doseMSvYr, 499, 501);
 // the dead planet
-assert('a dead planet stays airless: ice to the poles, then rust', (() => {
+assert('without the carbon cycle a robbed Earth stays airless: ice to the poles, then rust', (() => {
   const w = at(S_DEAD, 1e9, true);
   return w.airless && w.stage === 'airless' && w.migration === 1 && w.rust > 0.85 && w.pressureHPa === 0;
 })());
-between('on a dead planet the ice has moved to the poles within ≈ 100 kyr', (() => {
+between('on an airless Earth the ice has moved to the poles within ≈ 100 kyr', (() => {
   for (let yr = 1e3; yr < 1e7; yr *= 1.15) if (at(S_DEAD, yr, true).migration >= 0.999) return yr;
   return Infinity;
 })(), 8e4, 2e5);
-assert('switching the volcanoes off on today\'s Earth freezes it within a million years', (() => {
-  const w = at({ ...S_ON, volcanoes: false }, 1e6, false);
-  return w.climate.snowball && w.pressureHPa > 1000;
+assert('with the carbon cycle out of the model, today\'s shielded Earth still sits still', (() => {
+  const w = at({ ...S_ON, carbonCycle: false }, 1e8, false);
+  return Math.abs(w.pressureHPa - 1013.25) < 1e-6 && w.stage === 'intact' && w.outgasKgS === 0 && w.weatherKgS === 0;
+})());
+assert('with the carbon cycle off a strong wind strips the air below the triple point in ≈ 40 Myr', (() => {
+  const w = at({ ...S_OFF, carbonCycle: false }, 4.5e7, false);
+  return w.airless && w.pressureHPa < 1 && w.outgasKgS === 0;
 })());
 // the stripped world
 assert('a strong wind on a living planet ends in a cold CO₂ world, not a vacuum', (() => {
@@ -533,11 +537,11 @@ assert('the stripping passes through thinning and an ice age on the way', (() =>
   for (let yr = 0; yr <= 6e7; yr += 1e6) seen.add(at(S_OFF, yr, false).stage);
   return seen.has('intact') && seen.has('thinning') && seen.has('iceAge') && seen.has('co2Cold');
 })());
-assert('a strong wind on a dead planet strips it to a Mars-like Earth in ≈ 50 Myr', (() => {
-  const w = at({ ...S_OFF, volcanoes: false }, 6e7, false);
+assert('a strong wind on a planet without a carbon cycle strips it to a Mars-like Earth in ≈ 50 Myr', (() => {
+  const w = at({ ...S_OFF, carbonCycle: false }, 6e7, false);
   return w.airless && w.migration > 0.99;
 })());
-const quietRun = at({ ...S_DEAD, volcanoes: true }, 1e9, false);
+const quietRun = at({ ...S_DEAD, carbonCycle: true }, 1e9, false);
 between('a billion years of the quiet wind take only ≈ 1 % of the air – volcanic N₂ refills the rest', (1 - quietRun.fraction) * 100, 0.5, 2);
 assert('nitrogen never overshoots today\'s inventory', at(S_ON, 5e9, true).pressureHPa < 1013.25 + 1);
 
