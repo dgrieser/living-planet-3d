@@ -334,8 +334,12 @@ export function auroraIntensity(kp) {
 
 // ---------- coronal mass ejection (schematic envelope) ------------------------
 export const CME = Object.freeze({
-  travelSeconds: 3.6, // scene time from the Sun sprite to the magnetopause
-  riseSeconds: 0.6, // ramp-up after impact – the aurora must be lit well within 2 s
+  // The cloud flies at one constant speed, in and straight on through: ≈ 2.8 s from the spawn plane to
+  // the quiet-time bow shock. A shock front does not slow down for the magnetosphere – the boundary is
+  // what gives way – so there is no easing at arrival, and the storm begins the moment the leading edge
+  // reaches the bow shock, where the density jump of a real sheath arrives.
+  sceneSpeedRE: 5, // R_E per second of scene time
+  riseSeconds: 0.6, // ramp-up after the shock arrives – the aurora must be lit well within 2 s
   holdSeconds: 5.5,
   decaySeconds: 8,
   densityGain: 9, // sheath compression of the density

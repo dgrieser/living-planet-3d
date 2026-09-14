@@ -657,7 +657,7 @@
         "speed": "Geschwindigkeit",
         "launchCme": "CME auslösen",
         "cmeRunning": "CME unterwegs …",
-        "cmeHint": "Ein koronaler Massenauswurf erreicht die Magnetopause nach etwa drei Sekunden Szenenzeit; in Wirklichkeit dauert es 18 Stunden bis 4 Tage.",
+        "cmeHint": "Ein koronaler Massenauswurf erreicht die Bugstoßwelle nach etwa drei Sekunden Szenenzeit und zieht mit einer Geschwindigkeit geradewegs durch – die Magnetosphäre gibt nach, nicht die Wolke. In Wirklichkeit dauert die Reise 18 Stunden bis 4 Tage.",
         "fieldOff": "Magnetfeld aus",
         "fieldOn": "Magnetfeld ein",
         "fieldLines": "Feldlinien",

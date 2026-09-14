@@ -657,7 +657,7 @@
         "speed": "Speed",
         "launchCme": "Launch CME",
         "cmeRunning": "CME on its way …",
-        "cmeHint": "A coronal mass ejection reaches the magnetopause after about three seconds of scene time; in reality it takes 18 hours to 4 days.",
+        "cmeHint": "A coronal mass ejection reaches the bow shock after about three seconds of scene time and passes straight through at one speed – the magnetosphere gives way, not the cloud. In reality the trip takes 18 hours to 4 days.",
         "fieldOff": "Magnetic field off",
         "fieldOn": "Magnetic field on",
         "fieldLines": "Field lines",
