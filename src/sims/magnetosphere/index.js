@@ -64,6 +64,7 @@ const WIND_PARTICLES = 10000;
 const CME_PARTICLES = 4000;
 const EROSION_PARTICLES = 3000;
 const WIND_START_X = 28; // upstream spawn plane (just outside the default view)
+const CME_CALM_SHOCK_X = 14.2; // where a CME meets the quiet-time bow shock – the trigger when there is no wind at all
 const WIND_PATH_LENGTH = 72; // spawn plane → far end of the tail
 const WIND_RHO_MAX = 18; // radius of the illuminated wind beam
 const WIND_BASE_RATE = 0.135; // path fractions per second at 400 km/s
@@ -682,18 +683,17 @@ export default function mount(container, meta) {
     earthSpin.rotation.y += dt * 0.05;
     if (cme) {
       cme.t += dt;
+      // one constant speed from the Sun to far down the tail – a shock front does not pause for anything
+      cme.x = Math.max(cme.x - dt * P.CME.sceneSpeedRE, -40);
       if (!cme.impacted) {
-        const travel = clamp(cme.t / P.CME.travelSeconds, 0, 1);
-        const nose = model ? Math.min(model.standoff, 22) : 10.5; // into a dead calm the cloud still arrives
-        // never let a slider that moves the magnetopause outwards mid-flight pull the cloud back
-        cme.x = Math.min(cme.x, WIND_START_X + (nose - WIND_START_X) * (travel * travel * (3 - 2 * travel)));
-        if (travel >= 1) {
+        // the storm starts when the leading edge reaches the bow shock (the quiet-time one into a dead calm)
+        const shock = model && Number.isFinite(model.bowShock) ? Math.min(model.bowShock, WIND_START_X - 2) : CME_CALM_SHOCK_X;
+        if (cme.x <= shock) {
           cme.impacted = true;
           cme.sinceImpact = 0;
         }
       } else {
         cme.sinceImpact += dt;
-        cme.x = Math.max(cme.x - dt * 16, -40);
         if (cme.sinceImpact > P.CME_TOTAL_SECONDS) {
           cme = null;
           syncCmeButton();

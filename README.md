@@ -488,8 +488,12 @@ disposers.push(viewShift.dispose);
   How far along its path a parcel has come is an *integrated* phase (`phase += dt·rate`), not `time × rate`:
   with the latter a falling rate shrinks the product, and the whole stream runs backwards – which is what the
   decaying half of a CME used to do, about six times faster than the wind normally flows.
-- "Launch CME": the cloud travels from the Sun sprite to the magnetopause in 3.6 s, then a sheath envelope
-  (0.6 s rise, 5.5 s plateau, 8 s decay) multiplies the wind to `n·(1 + 9e) + 6e` and `v·(1 + 1.25e)`. Everything
+- "Launch CME": the cloud flies at one constant 5 R⊕/s from the spawn plane at 28 R⊕ straight through to
+  −40 R⊕ – a shock front does not slow down for the magnetosphere, the boundary is what gives way – and the
+  storm begins the moment its leading edge reaches the bow shock (≈ 2.8 s on the quiet wind; the quiet-time
+  shock at 14.2 R⊕ stands in when there is no wind), where a real sheath's density jump arrives. From there a
+  sheath envelope (0.6 s rise, 5.5 s plateau, 8 s decay) multiplies the wind to `n·(1 + 9e) + 6e` and
+  `v·(1 + 1.25e)`, with the cloud's own ≈ 900 km/s as the floor. Everything
   else – standoff, Kp, aurora radius and brightness – follows from that single effective wind, so on the quiet
   wind a CME pushes the nose to 5.9 R⊕ (inside geostationary orbit) and the index to Kp 5.6 (G2) within 0.6 s.
 - Kp-style index `Kp ≈ 1.5 + 3.3·log₁₀[√(n/5)·(v/400)²]`, capped at 9, bucketed into the NOAA G-scale; the oval's
