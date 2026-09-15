@@ -278,7 +278,8 @@ disposers.push(viewShift.dispose);
   bisection so they move smoothly with the tilt slider) to the shader as up to four `[lo, hi]` uniforms, which
   darken every latitude outside them, and draws the band edges as green latitude rings from a fixed pool; the
   displayed fraction is the exact band area `Δsin φ / 2`, which the check script keeps within 3 % of the
-  sampled area-weighted fraction.
+  sampled area-weighted fraction. Like the two colour overlays it is off by default: the darkening and the
+  rings lie over the surface conditions, and the livable share is in the readout either way.
 - Panel: the tilt slider up front, everything else folded away – rotation period, the what-if presets, the
   year & orbit group and, under "Readout for one latitude", the latitude slider with its four presets, which
   pick the latitude every per-latitude figure describes. The readouts are one verdict box plus one table: the
