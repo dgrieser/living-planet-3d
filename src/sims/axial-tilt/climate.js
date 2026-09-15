@@ -53,6 +53,14 @@ export const LIVABLE = Object.freeze({
  *   there), a tilt of 45° or more clears them.
  * - lightsFadeK: city lights stay where the latitude is livable year-round and fade out within this
  *   many K past a LIVABLE edge (as the habitable-zone simulation's LIVABLE_FADE_K).
+ * - perennial vegetation needs the whole year: the map's forests, savanna and tundra shrub persist
+ *   only where the latitude is livable year-round (the same factor as the lights). Elsewhere they are
+ *   dead for good and the land is bare soil whatever the current season – a place that bakes at
+ *   60 °C every summer does not grow its forest back each autumn.
+ * - bloom: on that bare ground only ephemeral life – annuals, grasses, algal crusts – flushes green
+ *   for the mild shoulder season, the way deserts bloom after rain: within `onsetC`…`fullC` and gone
+ *   again past `fadeC`…`goneC` of the seasonal mean, and never more than `strength` of a living
+ *   landscape's green.
  */
 export const SURFACE = Object.freeze({
   tempRangeC: Object.freeze({ min: -60, max: 100 }), // 8-bit encoding of the seasonal mean in the surface texture (0.63 K per step)
@@ -63,6 +71,7 @@ export const SURFACE = Object.freeze({
   scorch: Object.freeze({ onsetC: LIVABLE.maxSummerC, fullC: 75 }),
   dry: Object.freeze({ onsetC: LIVABLE.maxSummerC, fullC: 80 }),
   thaw: Object.freeze({ onsetC: 2, fullC: 10 }), // on the annual mean
+  bloom: Object.freeze({ onsetC: 5, fullC: 15, fadeC: 30, goneC: 40, strength: 0.35 }),
   lightsFadeK: 8,
 });
 
@@ -159,7 +168,8 @@ export function encodeSurfaceTemp(tempC) {
 /**
  * City lights (0 … 1) for a latitude from its seasonal extremes: the soft-edged form of
  * isLivable() – 1 where the band is livable year-round, fading to 0 within SURFACE.lightsFadeK
- * past any of the three LIVABLE limits.
+ * past any of the three LIVABLE limits. The same factor says whether perennial vegetation can
+ * persist there (see SURFACE).
  */
 export function lightsFactor({ summerC, winterC }) {
   const { minWinterC, maxSummerC, minSummerC } = LIVABLE;
@@ -190,6 +200,7 @@ export function surfaceState(latitudeDeg, tiltDeg, declinationDeg, annualInsolat
   const cold = (ramp) => smoothstep(ramp.onsetC, ramp.fullC, meanC);
   const hot = (ramp) => smoothstep(ramp.onsetC, ramp.fullC, meanC);
   const darkness = seaIceDarkness(insolation);
+  const perennial = lightsFactor(seasonalExtremes(latitudeDeg, tiltDeg, annualInsolation));
   return {
     meanC,
     annualC,
@@ -201,8 +212,19 @@ export function surfaceState(latitudeDeg, tiltDeg, declinationDeg, annualInsolat
     parch: hot(SURFACE.parch),
     scorch: hot(SURFACE.scorch),
     dry: hot(SURFACE.dry),
-    lights: lightsFactor(seasonalExtremes(latitudeDeg, tiltDeg, annualInsolation)),
+    lights: perennial,
+    perennial,
+    bloom: bloomFactor(meanC, perennial),
   };
+}
+
+/**
+ * Ephemeral greening (0 … 1) of land whose perennial vegetation is gone: a flush in the mild
+ * shoulder season only, and only as far as the perennial cover is missing (SURFACE.bloom).
+ */
+export function bloomFactor(meanC, perennial) {
+  const b = SURFACE.bloom;
+  return (1 - perennial) * smoothstep(b.onsetC, b.fullC, meanC) * (1 - smoothstep(b.fadeC, b.goneC, meanC));
 }
 
 // --- temperature colour ramp (matches .lp-heat-legend__bar in style.css) ---------
