@@ -40,6 +40,10 @@ export const LIVABLE = Object.freeze({
  *   (`darkFullC`), the two blended by how little daily sunshine is left (`darkBelowWm2`).
  * - dormant: vegetation shuts down for the cold season – the land goes brown before the snow arrives.
  * - parch: heat kills the vegetation and the land goes to sand, complete at the livable limit.
+ * - scorch: beyond that limit the dead land bakes – red-brown earth, bleached playas, cracked ground,
+ *   salt in the basins – and the bare ground feeds dust storms; over the hot seas the air fills with a
+ *   dense convective cloud deck, the ocean going into the air (the moist-greenhouse state), and the
+ *   limb haze turns from blue to a warm white.
  * - dry: evaporation outruns what rain returns – the shallow shelves fall dry, the deep water turns to
  *   brine with salt pans. Only the polar summers of a high tilt get here (~90 °C in the model);
  *   schematic, since one summer cannot evaporate an ocean.
@@ -56,7 +60,8 @@ export const SURFACE = Object.freeze({
   seaIce: Object.freeze({ onsetC: -2, fullC: -12, darkFullC: -5, darkBelowWm2: 60 }),
   dormant: Object.freeze({ onsetC: 8, fullC: -4 }),
   parch: Object.freeze({ onsetC: 30, fullC: LIVABLE.maxSummerC }),
-  dry: Object.freeze({ onsetC: 45, fullC: 80 }),
+  scorch: Object.freeze({ onsetC: LIVABLE.maxSummerC, fullC: 75 }),
+  dry: Object.freeze({ onsetC: LIVABLE.maxSummerC, fullC: 80 }),
   thaw: Object.freeze({ onsetC: 2, fullC: 10 }), // on the annual mean
   lightsFadeK: 8,
 });
@@ -194,6 +199,7 @@ export function surfaceState(latitudeDeg, tiltDeg, declinationDeg, annualInsolat
     seaIce: Math.max(smoothstep(SURFACE.seaIce.onsetC, seaIceFullC(darkness), meanC), permIce),
     dormant: cold(SURFACE.dormant),
     parch: hot(SURFACE.parch),
+    scorch: hot(SURFACE.scorch),
     dry: hot(SURFACE.dry),
     lights: lightsFactor(seasonalExtremes(latitudeDeg, tiltDeg, annualInsolation)),
   };

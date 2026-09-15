@@ -126,6 +126,10 @@ const VIEW_DEFAULTS = Object.freeze({
 const { clamp } = S;
 const DEG = Math.PI / 180;
 const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const smoothstep = (edge0, edge1, x) => {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+};
 const fmt = (v, digits, min = 0) => formatNumber(v, { maximumFractionDigits: digits, minimumFractionDigits: min });
 const rotateY = (v, angle) => {
   const c = Math.cos(angle);
@@ -290,7 +294,12 @@ export default function mount(container, meta) {
   const atmosphere = new THREE.Mesh(
     new THREE.SphereGeometry(EARTH_RADIUS * 1.06, 48, 32),
     new THREE.ShaderMaterial({
-      uniforms: { uSunPos: earthMaterial.uniforms.uSunPos },
+      uniforms: {
+        uSunPos: earthMaterial.uniforms.uSunPos,
+        uSurfTex: earthMaterial.uniforms.uSurfTex, // the shell reads the same eased rows: warm haze along the hot latitudes
+        uSurfaceMix: earthMaterial.uniforms.uSurfaceMix,
+        uAxis: { value: new THREE.Vector3(0, 1, 0) }, // Earth's rotation axis in world space – the shell itself does not tilt
+      },
       vertexShader: ATMOSPHERE_VERTEX,
       fragmentShader: ATMOSPHERE_FRAGMENT,
       transparent: true,
@@ -357,8 +366,10 @@ export default function mount(container, meta) {
   terminatorLine.renderOrder = 3;
   scene.add(terminatorLine);
 
-  // subsolar point marker + sun ray
-  const subsolarMarker = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: COLORS.subsolar, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false, sizeAttenuation: false, toneMapped: false }));
+  // subsolar point marker + sun ray. The marker is a screen-space sprite that ignores depth (it must stay
+  // one crisp dot at any zoom), so Earth has to hide it by hand when the point is on the far side (see updateOverlay)
+  const SUBSOLAR_OPACITY = 0.95;
+  const subsolarMarker = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: COLORS.subsolar, transparent: true, opacity: SUBSOLAR_OPACITY, depthWrite: false, depthTest: false, sizeAttenuation: false, toneMapped: false }));
   subsolarMarker.scale.set(0.045, 0.045, 1);
   subsolarMarker.renderOrder = 8;
   const subsolarLabel = createLabel(COLORS.subsolar, labelFont, 0.85);
@@ -582,6 +593,9 @@ export default function mount(container, meta) {
     earthPivot.position.copy(earthPos);
     sunDir.copy(earthPos).negate().normalize();
     tiltGroup.rotation.z = state.tiltDeg * DEG;
+    tiltGroup.updateWorldMatrix(true, false);
+    tiltGroup.getWorldQuaternion(tiltQuat);
+    atmosphere.material.uniforms.uAxis.value.copy(UP).applyQuaternion(tiltQuat);
     earthMaterial.uniforms.uSunPos.value.set(0, 0, 0);
     earthMaterial.uniforms.uDecl.value = declDeg * DEG;
     earthMaterial.uniforms.uHeatMix.value = state.showHeat ? 1 : 0;
@@ -668,9 +682,15 @@ export default function mount(container, meta) {
     dragMarker.position.copy(earthPos);
     dragMarker.scale.setScalar(clamp((EARTH_RADIUS * 2.6) / earthDist, 0.04, 0.5));
     dragMarker.visible = dragging; // hovering only changes the cursor – no ring around Earth
+    tmpCamDir.copy(camera.position).sub(earthPos).normalize();
+    // the subsolar point is in front of the limb while its direction leans towards the camera by more than
+    // the limb's own angle (R / distance): behind it the marker fades out and its label dims like the others
+    const facing = sunDir.dot(tmpCamDir) - EARTH_RADIUS / earthDist;
+    subsolarMarker.material.opacity = SUBSOLAR_OPACITY * smoothstep(-0.04, 0.08, facing);
+    subsolarMarker.visible = state.showSubsolar && subsolarMarker.material.opacity > 0.005;
     subsolarLabel.sprite.position.copy(subsolarMarker.position).addScaledVector(tmpUp, -earthDist * 0.028);
+    subsolarLabel.sprite.material.opacity = farSideOpacity(sunDir);
     if (tempLabels.day.sprite.visible || tempLabels.pin.sprite.visible) {
-      tmpCamDir.copy(camera.position).sub(earthPos).normalize();
       if (pin) {
         // above the pin's head, on the direction the marker itself stands on
         placeTempLabel(tempLabels.pin, pinMarker.getWorldPosition(tmpPinDir).sub(earthPos).normalize(), 0.05, earthDist);
@@ -681,6 +701,7 @@ export default function mount(container, meta) {
     }
     if (tempLabels.subsolar.sprite.visible) {
       tempLabels.subsolar.sprite.position.copy(subsolarMarker.position).addScaledVector(tmpUp, -earthDist * 0.028);
+      tempLabels.subsolar.sprite.material.opacity = farSideOpacity(sunDir);
     }
     for (const { label, anchor } of stopLabels) {
       // offset along screen-up so the text never sits on its marker, whatever the camera angle
@@ -707,7 +728,12 @@ export default function mount(container, meta) {
       .copy(earthPos)
       .addScaledVector(dir, EARTH_RADIUS * 1.04)
       .addScaledVector(tmpUp, up * earthDist);
-    label.sprite.material.opacity = 0.35 + 0.65 * clamp((dir.dot(tmpCamDir) + 0.2) / 0.4, 0, 1);
+    label.sprite.material.opacity = farSideOpacity(dir);
+  }
+
+  /** Opacity of a label standing on the surface point in direction `dir`: full on the near side, dimmed – never hidden – on the far side (tmpCamDir must be current). */
+  function farSideOpacity(dir) {
+    return 0.35 + 0.65 * clamp((dir.dot(tmpCamDir) + 0.2) / 0.4, 0, 1);
   }
 
   function refresh() {
@@ -1784,8 +1810,10 @@ const EARTH_VERTEX = /* glsl */ `
  * (the map has no land under its ice, so Greenland and the Canadian islands are told from the Arctic
  * Ocean by coarse coastline polygons), the land loses its green for the cold season, goes to sand in the heat,
  * the shallow seas fall dry to brine and salt in a high-tilt polar summer, and snow and sea ice with
- * leads settle over everything cold, thick and blue-white where the ice is permanent. Ice is always a
- * layer over the world that is there, never a swap. The
+ * leads settle over everything cold, thick and blue-white where the ice is permanent, and beyond the
+ * livable limit the dead land bakes to red earth, cracks and salt flats under dust storms while the hot
+ * seas disappear under a moist-greenhouse cloud deck. Ice is always a layer over the world that is
+ * there, never a swap. The
  * latitude the texture is read at is jittered by noise, so every front is ragged and the same way
  * ragged – a locally colder spot is both snowier and browner. Then the Sun lights it with a soft
  * terminator, the optional heat / temperature-band overlays and the livable darkening paint over
@@ -1824,7 +1852,17 @@ const EARTH_FRAGMENT = /* glsl */ `
   const vec3 SEA_ICE = vec3(0.60, 0.72, 0.84);
   const vec3 SEA_ICE_DARK = vec3(0.40, 0.54, 0.70);
   const vec3 LEAD = vec3(0.04, 0.09, 0.18);
-  const vec3 BRINE = vec3(0.05, 0.07, 0.10);
+  const vec3 HOT_BRINE = vec3(0.03, 0.09, 0.09); // murky teal of a hot, dead sea
+  const vec3 BLEACH = vec3(0.68, 0.58, 0.40);    // parched: bleached sand
+  const vec3 OCHRE = vec3(0.50, 0.32, 0.12);     // parched: ochre soil
+  const vec3 BAKED = vec3(0.30, 0.12, 0.06);     // scorched: dark red-brown baked earth
+  const vec3 PLAYA = vec3(0.70, 0.62, 0.50);     // scorched: bleached pale playa
+  const vec3 CRACK = vec3(0.09, 0.05, 0.03);     // desiccation cracks
+  const vec3 CRUST = vec3(0.88, 0.86, 0.80);     // salt crust in the basins
+  const vec3 DECK = vec3(0.92, 0.90, 0.86);      // the moist-greenhouse cloud deck over hot seas
+  const vec3 DUST = vec3(0.72, 0.52, 0.28);      // dust veil over baked land
+  const vec3 RIM_COOL = vec3(0.25, 0.50, 1.00);
+  const vec3 RIM_HOT = vec3(1.00, 0.80, 0.55);
   const vec3 SEABED = vec3(0.075, 0.058, 0.042);
   const vec3 SEABED_PALE = vec3(0.26, 0.20, 0.13);
   const vec3 SALT = vec3(0.72, 0.68, 0.60);
@@ -1905,7 +1943,9 @@ const EARTH_FRAGMENT = /* glsl */ `
     float seaIceFull = mix(${glslFloat(SURF.seaIce.fullC)}, ${glslFloat(SURF.seaIce.darkFullC)}, darkness);
     float seaIce = max(1.0 - smoothstep(seaIceFull, ${glslFloat(SURF.seaIce.onsetC)}, tC), permIce);
     float parch = ${hotRamp(SURF.parch)};
+    float scorch = ${hotRamp(SURF.scorch)};
     float dry = ${hotRamp(SURF.dry)};
+    float hotAir = max(scorch, dry); // 0 on today's Earth (its seasonal means top out near 27 °C)
 
     // 0. the ice the map itself paints melts away where the year has turned warm for good: the Arctic to open
     //    water, Greenland and Antarctica to bedrock that greens into tundra as the annual mean climbs. In the
@@ -1932,10 +1972,23 @@ const EARTH_FRAGMENT = /* glsl */ `
     // 1. vegetation: brown for the cold season, sand where it is scorched – land only, most where the map is green
     vec3 soil = mix(SOIL_DARK, SOIL_PALE, smoothstep(0.3, 0.75, detail));
     ground = mix(ground, mix(ground * vec3(0.9, 0.7, 0.45), DORMANT, 0.5), dormant * land * (0.3 + 0.7 * green));
-    ground = mix(ground, mix(SAND, soil, 0.35) * (0.8 + 0.4 * detail), parch * land * (0.35 + 0.65 * green));
+    vec3 parched = mix(OCHRE, BLEACH, smoothstep(0.3, 0.75, detail)) * (0.85 + 0.3 * relief);
+    ground = mix(ground, parched, parch * land * (0.55 + 0.45 * green));
 
-    // 2. hot seas: the water darkens to brine, the shelves fall dry first, the deep basins only half – one
-    //    summer cannot evaporate an ocean – with salt where the last water stood
+    // 1b. beyond the livable limit the dead land bakes: dark red earth and bleached playas by relief, salt
+    //     crusts collecting in the low ground, and hairline cracks opening as it dries out
+    if (scorch > 0.001) {
+      float crackField = fbm(p * 30.0 + vec3(3.0, 11.0, 5.0), 3);
+      float cracks = pow(1.0 - abs(crackField * 2.0 - 1.0), 14.0) * 0.6; // a fine fissure texture, not drawn borders
+      float lowGround = smoothstep(0.55, 0.75, fbm(p * 2.3 + vec3(23.0, 7.0, 3.0), 3)) * (1.0 - 0.6 * relief);
+      vec3 baked = mix(BAKED, PLAYA, smoothstep(0.35, 0.80, detail) * (0.35 + 0.65 * relief));
+      baked = mix(baked, CRUST, lowGround * smoothstep(0.3, 1.0, scorch) * 0.8);
+      baked = mix(baked, CRACK, cracks * 0.7 * smoothstep(0.2, 0.8, scorch));
+      ground = mix(ground, baked * (0.85 + 0.3 * detail), scorch * land);
+    }
+
+    // 2. hot seas: the water darkens to a murky brine, the shelves fall dry first, the deep basins only half –
+    //    one summer cannot evaporate an ocean – with salt where the last water stood
     float dried = 0.0;
     if (dry > 0.001) {
       float basin = smoothstep(0.42, 0.62, fbm(p * 1.7 + vec3(19.0, 4.0, 27.0), 4)) * (1.0 - shelf);
@@ -1943,8 +1996,8 @@ const EARTH_FRAGMENT = /* glsl */ `
       float shelfDry = smoothstep(0.15, 0.7, dry) * shelf;
       float deepDry = smoothstep(0.5, 1.0, dry) * basin * 0.5;
       dried = clamp(shelfDry + deepDry, 0.0, 1.0) * (1.0 - land);
-      vec3 brine = mix(ground, BRINE, 0.6 * dry);
-      vec3 seabed = mix(mix(SEABED, SEABED_PALE, shelf) * (0.8 + 0.4 * detail), SALT, pans * 0.7);
+      vec3 brine = mix(ground, HOT_BRINE, 0.75 * dry);
+      vec3 seabed = mix(mix(SEABED, SEABED_PALE, shelf) * (0.8 + 0.4 * detail), mix(SALT, CRUST, smoothstep(0.6, 1.0, dry)), pans * 0.7);
       ground = mix(ground, mix(brine, seabed, dried), (1.0 - land) * max(dried, 0.6 * dry));
     }
 
@@ -1962,6 +2015,29 @@ const EARTH_FRAGMENT = /* glsl */ `
       vec3 snowy = mix(ground, mix(ICE_SHADE, ICE, 0.45 + 0.55 * relief), cover);
       conditioned = mix(icedSea, snowy, land);
       conditioned = mix(conditioned, vec3(0.62, 0.74, 0.92), permIce * 0.25);
+    }
+
+    // 4. the air over the extremes: a dense convective cloud deck builds over the hot seas – the ocean going
+    //    into the air – and the baked land throws up dust, in storm cells and zonal streaks, thickest at the
+    //    limb. Part of the surface stack, so the Sun lights it and the overlays paint over it like the rest.
+    float fog = 0.0;
+    float dust = 0.0;
+    if (hotAir > 0.001) {
+      float bank = fbm(p * 2.2 + vec3(uTime * 0.05, uTime * 0.02, 5.0), 4);
+      float wisp = fbm(p * 6.0 + vec3(uTime * 0.18, -uTime * 0.10, 9.0), 3);
+      float field = 0.7 * bank + 0.3 * wisp;
+      float threshold = mix(0.60, 0.32, dry); // the hotter the sea, the more of the sky it covers
+      fog = smoothstep(threshold, threshold + 0.26, field) * smoothstep(0.0, 0.5, dry);
+      fog = max(fog, 0.35 * smoothstep(0.6, 1.0, dry)); // by 80 °C most of the sea lies under cloud, with gaps
+      fog *= smoothstep(0.7, 0.2, land); // the deck spills a little over the coasts
+      vec3 deck = DECK * (0.70 + 0.45 * smoothstep(0.3, 0.8, bank)) * (0.9 + 0.2 * wisp); // towers lit, bases shaded
+      float storm = fbm(p * 3.0 + vec3(uTime * 0.12, 0.0, uTime * 0.05), 3);
+      float streaks = smoothstep(0.50, 0.75, fbm(vec3(p.x, p.y * 4.5, p.z) * 3.2 + vec3(uTime * 0.30, 0.0, 0.0), 3));
+      float limb = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 1.5);
+      dust = (0.10 + 0.35 * smoothstep(0.45, 0.8, storm) + 0.22 * streaks) * scorch * smoothstep(0.3, 0.8, land);
+      dust = clamp(dust + 0.35 * limb * scorch, 0.0, 0.55);
+      conditioned = mix(conditioned, DUST * (0.9 + 0.2 * storm), dust);
+      conditioned = mix(conditioned, deck, fog * 0.92);
     }
     vec3 surf = mix(base, conditioned, uSurfaceMix);
 
@@ -1988,12 +2064,10 @@ const EARTH_FRAGMENT = /* glsl */ `
     }
     color *= 1.0 - uLivableMix * (1.0 - livable) * 0.6;
 
-    // weather over the extremes: blowing snow over the ice, steam off the hot seas
-    if (uSurfaceMix > 0.001) {
+    // blowing snow over the ice
+    if (iceAny * uSurfaceMix > 0.001) {
       float gust = smoothstep(0.55, 0.8, fbm(p * 5.0 + vec3(uTime * 0.25, uTime * 0.12, 0.0), 3));
       color += vec3(0.92, 0.95, 1.0) * gust * iceAny * 0.22 * (0.2 + 0.8 * day) * uSurfaceMix;
-      float puff = smoothstep(0.42, 0.7, fbm(p * 4.5 + vec3(uTime * 0.45, uTime * 0.3, 0.0), 3));
-      color += vec3(0.9, 0.92, 0.95) * puff * dry * (1.0 - land) * 0.28 * (0.25 + 0.75 * day) * uSurfaceMix;
     }
 
     // city lights, fading in across the terminator – only where the latitude is livable all year
@@ -2001,14 +2075,15 @@ const EARTH_FRAGMENT = /* glsl */ `
 
     // glints: the Sun on open water – a bright core in a soft halo, as the waves spread it – a little on sea ice, none on dry sea floor
     vec3 H = normalize(L + V);
-    float open = (1.0 - land) * (1.0 - seaIce) * (1.0 - dried);
+    float open = (1.0 - land) * (1.0 - seaIce) * (1.0 - dried) * (1.0 - fog);
     float ndh = clamp(dot(N, H), 0.0, 1.0);
-    float spec = (0.55 * pow(ndh, 260.0) + 0.10 * pow(ndh, 24.0)) * step(0.0, ndl);
+    float spec = (0.55 * pow(ndh, 260.0) + 0.10 * pow(ndh, 24.0)) * step(0.0, ndl) * (1.0 - dust);
     color += vec3(1.0, 0.95, 0.85) * spec * uSurfaceMix * (open + 0.35 * seaIce * (1.0 - land));
 
-    // thin atmospheric rim
+    // thin atmospheric rim – blue, turning to a warm, brighter haze where the air is loaded with vapour and dust
+    float hotRim = hotAir * uSurfaceMix;
     float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
-    color += vec3(0.25, 0.5, 1.0) * rim * (0.15 + 0.5 * day);
+    color += mix(RIM_COOL, RIM_HOT, hotRim) * rim * (0.15 + 0.5 * day) * (1.0 + 0.9 * hotRim);
 
     gl_FragColor = vec4(color, 1.0);
     #include <tonemapping_fragment>
@@ -2027,19 +2102,31 @@ const ATMOSPHERE_VERTEX = /* glsl */ `
   }
 `;
 
+/**
+ * The atmosphere shell. Blue, and along the latitudes whose seasonal mean has gone past the livable
+ * limit – read from the same surface texture the globe uses, at the latitude the rotation axis gives –
+ * it thickens into the warm, bright haze of an air full of vapour and dust.
+ */
 const ATMOSPHERE_FRAGMENT = /* glsl */ `
   uniform vec3 uSunPos;
+  uniform sampler2D uSurfTex; // R = seasonal mean per latitude row (encoded), as in the Earth shader
+  uniform float uSurfaceMix;
+  uniform vec3 uAxis;         // Earth's rotation axis, world space
   varying vec3 vWorldPos;
   varying vec3 vWorldNormal;
+  const float PI = 3.141592653589793;
   void main() {
     vec3 N = normalize(vWorldNormal);
     vec3 V = normalize(cameraPosition - vWorldPos);
     vec3 L = normalize(uSunPos - vWorldPos);
-    // back-face shell: the rim is where the normal is perpendicular to the view direction
-    float rim = pow(clamp(1.0 + dot(N, V), 0.0, 1.0), 2.5);
+    float sinLat = clamp(dot(N, uAxis), -1.0, 1.0);
+    float tC = texture2D(uSurfTex, vec2(0.5, asin(sinLat) / PI + 0.5)).r * ${glslFloat(SURF.tempRangeC.max - SURF.tempRangeC.min)} + ${glslFloat(SURF.tempRangeC.min)};
+    float hot = max(${hotRamp(SURF.scorch)}, ${hotRamp(SURF.dry)}) * uSurfaceMix;
+    // back-face shell: the rim is where the normal is perpendicular to the view direction; the haze broadens it
+    float rim = pow(clamp(1.0 + dot(N, V), 0.0, 1.0), mix(2.5, 1.8, hot));
     float lit = 0.25 + 0.75 * smoothstep(-0.3, 0.3, dot(N, L));
-    vec3 color = vec3(0.35, 0.6, 1.0) * rim * lit * 0.9;
-    gl_FragColor = vec4(color, rim * 0.9);
+    vec3 color = mix(vec3(0.35, 0.6, 1.0), vec3(1.0, 0.78, 0.50), hot) * rim * lit * 0.9 * (1.0 + 1.2 * hot);
+    gl_FragColor = vec4(color, rim * (0.9 + 0.3 * hot));
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }

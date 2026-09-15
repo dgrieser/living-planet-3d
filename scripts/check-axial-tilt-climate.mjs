@@ -209,6 +209,28 @@ check('polar night: darkness is 0 in daily sunshine', C.seaIceDarkness(200), 0, 
 check('the pack closes at darkFullC in polar night', C.seaIceFullC(1), C.SURFACE.seaIce.darkFullC, 1e-12);
 check('the pack closes at fullC under the Sun', C.seaIceFullC(0), C.SURFACE.seaIce.fullC, 1e-12);
 between('Earth tilt: no sea ice at 45° S in June despite the ramp change', surf(-45, EARTH_TILT_DEG, JUNE).seaIce, 0, 0.1);
+// beyond the livable limit the land bakes
+check('baked starts where livable ends', C.SURFACE.scorch.onsetC, C.LIVABLE.maxSummerC, 1e-12);
+check('baked and drying share their onset', C.SURFACE.scorch.onsetC, C.SURFACE.dry.onsetC, 1e-12);
+check('nothing baked anywhere at Earth tilt', Math.max(...[-90, -60, -30, 0, 30, 60, 90].flatMap((lat) => [surf(lat, EARTH_TILT_DEG, JUNE).scorch, surf(lat, EARTH_TILT_DEG, DEC).scorch])), 0, 1e-9);
+check('nothing parched anywhere at Earth tilt in December either', Math.max(...[-90, -60, -30, 0, 30, 60, 90].map((lat) => surf(lat, EARTH_TILT_DEG, DEC).parch)), 0, 1e-9);
+check('tilt 90 June: 60° N baked', surf(60, 90, JUNE).scorch, 1, 1e-9);
+check('tilt 90 June: the pole baked', surf(89.5, 90, JUNE).scorch, 1, 1e-9);
+check('tilt 90 June: 30° N not yet baked', surf(30, 90, JUNE).scorch, 0, 1e-9);
+between('tilt 90 June: 30° N parched', surf(30, 90, JUNE).parch, 0.5, 1);
+between('tilt 45 June: the pole only part-baked', surf(89.5, 45, JUNE).scorch, 0.2, 0.6);
+check('tilt 90 equinox: nothing baked', Math.max(...[-60, 0, 60].map((lat) => surf(lat, 90, SEPT).scorch)), 0, 1e-9);
+assert('baked never runs ahead of parched, drying never ahead of baked', (() => {
+  for (const tilt of [23.4, 45, 70, 90]) {
+    for (let angle = 0; angle < 360; angle += 45) {
+      for (let lat = -90; lat <= 90; lat += 7.5) {
+        const { parch, scorch, dry } = surf(lat, tilt, angle);
+        if (scorch > parch + 1e-12 || dry > scorch + 1e-12) return false;
+      }
+    }
+  }
+  return true;
+})());
 check('tilt 90 equinox: nothing dry', Math.max(...[-60, 0, 60].map((lat) => surf(lat, 90, SEPT).dry)), 0, 1e-9);
 check('tilt 90 equinox: nothing parched', Math.max(...[-60, 0, 60].map((lat) => surf(lat, 90, SEPT).parch)), 0, 1e-9);
 assert('the texture encoding is monotone and clamped', (() => {
