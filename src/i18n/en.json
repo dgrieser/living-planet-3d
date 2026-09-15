@@ -217,7 +217,7 @@
         "circles": "Tropics & polar circles",
         "axis": "Rotation axis",
         "subsolar": "Subsolar point & sun ray",
-        "temps": "Temperatures on Earth (day / night)",
+        "temps": "Temperatures on Earth",
         "subsolarTemp": "Temperature where the sun ray lands",
         "grid": "Ecliptic plane & season stops",
         "labels": "Labels",
