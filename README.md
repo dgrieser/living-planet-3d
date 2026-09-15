@@ -228,19 +228,26 @@ disposers.push(viewShift.dispose);
   local weather and applies the ramps of `C.SURFACE`, mirrored into the GLSL from the same constants: dormant
   vegetation 8 → −4 °C, snow on land 2 → −8 °C, sea ice −2 → −12 °C (seawater freezes at −1.8 °C, the seasonal
   mean is already ocean-damped; in polar night, when nothing melts by day, the pack closes at −5 °C already – the
-  two ends blended by the daily insolation, which the shader computes per fragment anyway for the heat map), parched land 30 → 45 °C (complete at the livable limit), seas falling dry
-  45 → 80 °C (shelves first, deep basins only half – schematic; only high-tilt polar summers get there), and the
+  two ends blended by the daily insolation, which the shader computes per fragment anyway for the heat map), parched land 30 → 45 °C (complete at the livable limit), baked land 45 → 75 °C (red earth and bleached playas by
+  relief, desiccation cracks, salt crusts in the low ground), seas falling dry 45 → 80 °C (shelves first, deep basins only half – schematic; only high-tilt polar summers get there), and the
   ice the map itself paints (bright, unsaturated pixels beyond ~58° – the Sahara is bright but yellow) melts away
   where the *annual* mean sits at 2 → 10 °C: the Arctic to the map's own deep-water blue, Greenland, the Canadian
   Arctic islands (two coarse coastline polygons tested in the shader – the map has no land/sea information under
   its ice) and Antarctica to bedrock that greens into tundra. Today's Earth keeps its caps (annual means ≤ 3 °C there); 45° of tilt clears them. Layer
-  order: melted caps → vegetation → hot seas → ice, so ice is always a layer over the world that is there; land,
-  shelf, green and relief masks come from the day map as in the magnetosphere sim. On top: blowing snow over ice
-  and steam off hot seas (`uTime`), city lights × the lights channel, a sun glint on open water, the rim.
+  order: melted caps → vegetation → baked land → hot seas → ice → air, so ice is always a layer over the world that
+  is there; land, shelf, green and relief masks come from the day map as in the magnetosphere sim. The air layer is
+  the moist-greenhouse answer to a 60–90 °C ocean: a dense two-scale animated cloud deck whose coverage rises with
+  the drying ramp, and dust over the baked land (storm cells, zonal streaks, thickest at the limb); it sits in the
+  albedo stack so the Sun lights it and the overlays paint over it. On top: blowing snow over ice (`uTime`), city
+  lights × the lights channel, a sun glint on open water that fades under cloud and dust, and a rim that turns from
+  blue to a warm, brighter haze where the air is hot. The atmosphere shell reads the same surface texture at the
+  latitude `uAxis` (the world-space rotation axis) gives, so its limb warms and broadens along the hot latitudes.
   The "Surface conditions" toggle (default on) blends it all in via `uSurfaceMix`; off, Earth is the plain map.
 - The Sun's screen-space corona sprite ignores depth (so the Sun keeps a halo at any distance); when Earth stands
   between the camera and the Sun it is faded out by how far behind the limb the Sun sits, so it no longer shows
-  through the night side.
+  through the night side. The subsolar marker is a screen-space sprite too: it fades out once the subsolar point
+  leans away from the camera by more than the limb's angle, and its "Sun at zenith" label dims on the far side
+  exactly like the day/night temperature labels do.
 - `climate.js` derives the headline numbers: seasonal extremes are the solstice means; a latitude band counts
   as livable when its winter mean stays above −25 °C and its summer mean between 0 and 45 °C; the habitable
   fraction is the area-weighted share of livable bands. The model peaks near Earth's tilt (~100 % livable at
