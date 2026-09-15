@@ -217,6 +217,8 @@
         "circles": "Wende- & Polarkreise",
         "axis": "Rotationsachse",
         "subsolar": "Subsolarer Punkt & Sonnenstrahl",
+        "temps": "Temperaturen auf der Erde (Tag / Nacht)",
+        "subsolarTemp": "Temperatur am Auftreffpunkt des Sonnenstrahls",
         "grid": "Ekliptikebene & Jahreszeiten-Stationen",
         "labels": "Beschriftungen",
         "cameraEarth": "Erde",
@@ -231,6 +233,8 @@
         "terminator": "Tag-Nacht-Grenze",
         "selected": "Gewählter Breitengrad",
         "subsolar": "Subsolarer Punkt (Sonne im Zenit)",
+        "dayTemp": "Tagtemperatur (Ortsmittag, gewählter Breitengrad)",
+        "nightTemp": "Nachttemperatur (Ortsmitternacht, gewählter Breitengrad)",
         "heatTitle": "Mittlere Tageseinstrahlung je Breitengrad",
         "heatLow": "0 W/m²",
         "heatHigh": "≥ 550 W/m²",
@@ -242,7 +246,10 @@
       "labels": {
         "north": "N",
         "south": "S",
-        "subsolar": "Sonne im Zenit"
+        "subsolar": "Sonne im Zenit",
+        "dayTemp": "Tag {value}",
+        "nightTemp": "Nacht {value}",
+        "zenithTemp": "Zenit {value}"
       },
       "info": {
         "title": "Was ist die Achsneigung – und warum 23,4° so wichtig sind",

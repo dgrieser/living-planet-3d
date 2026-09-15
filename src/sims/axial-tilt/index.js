@@ -9,7 +9,10 @@
  * energy-balance temperature per latitude – both painted at full strength only
  * where the colour ramp turns hostile, so livable values stay a tint the map
  * shows through – plus a livable-region view that darkens the latitudes that are
- * not livable all year. Tropics, polar circles, the subsolar point, a readout
+ * not livable all year. Small temperature labels sit on the globe itself: the day
+ * value at local noon of the selected latitude, the night value at local midnight
+ * and the temperature where the sun ray lands, each with its own toggle.
+ * Tropics, polar circles, the subsolar point, a readout
  * (day length, insolation, temperature estimate, seasonal extremes, climate
  * zone) for a selectable latitude and the year-round
  * livable share of the surface with a verdict all update live. Clicking Earth
@@ -47,6 +50,7 @@ const BORDER_RING_POOL = 2 * MAX_LIVABLE_BANDS; // one ring per band edge
 const CLICK_THRESHOLD_PX = 6; // pointer travel below which a press counts as a click (pin) rather than a drag
 const PIN_DISTANCE = Object.freeze({ min: 2.2, max: 6 }); // camera distance from Earth's centre when flying to a pin
 const PIN_SPIN_MAX_RAD_S = 30 * (Math.PI / 180); // visual spin cap while the camera rides on a pinned place
+const TEMP_LABEL_SIZE = 0.62; // screen-space size of the temperature labels on the globe – small enough not to cover it
 const UP = new THREE.Vector3(0, 1, 0);
 const PIN_LEAN = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0.85); // ≈49° off the vertical, so the needle stays visible from above
 const VERDICT_STATE = Object.freeze({ uniform: 'frozen', moderate: 'habitable', severe: 'scorched', extreme: 'scorched' });
@@ -61,6 +65,8 @@ const COLORS = Object.freeze({
   orbit: 0x7cc4ff,
   grid: 0xa7b4cc,
   subsolar: 0xfff1b0,
+  dayTemp: 0xffc089,
+  nightTemp: 0x9dbcff,
   season: 0xc7d3ea,
   livable: 0x5adc8c,
   pinHead: 0xe23a2e,
@@ -89,8 +95,8 @@ const DEFAULTS = Object.freeze({
 });
 
 /** Display toggles – remembered per visitor, see ../../lib/prefs.js. Earth arrives with the
- *  climate story already on – temperature bands, the livable region and the subsolar point,
- *  which is what the tilt is about – and everything else is one tap away in the panel. */
+ *  climate story already on – temperature bands, the livable region, the subsolar point and the
+ *  temperature labels that put numbers on all three – and everything else is one tap away in the panel. */
 const VIEW_DEFAULTS = Object.freeze({
   showHeat: false, // insolation heat map – exclusive with showClimate
   showClimate: true, // seasonal-mean temperature bands
@@ -100,6 +106,8 @@ const VIEW_DEFAULTS = Object.freeze({
   showCircles: false, // tropics + polar circles
   showAxis: true,
   showSubsolar: true,
+  showTemps: true, // day / night temperature of the selected latitude, on the globe
+  showSubsolarTemp: true, // temperature where the sun ray lands
   showGrid: false,
   showLabels: true,
 });
@@ -336,6 +344,16 @@ export default function mount(container, meta) {
   sunRay.frustumCulled = false;
   scene.add(subsolarMarker, subsolarLabel.sprite, sunRay);
 
+  // temperature labels on the globe: the day value of the selected latitude at its local noon, its
+  // night value at local midnight, and the temperature where the sun ray lands (the subsolar point,
+  // where the Sun stands in the zenith). Small, world-positioned, placed anew every frame.
+  const tempLabels = {
+    day: createLabel(COLORS.dayTemp, labelFont, TEMP_LABEL_SIZE),
+    night: createLabel(COLORS.nightTemp, labelFont, TEMP_LABEL_SIZE),
+    subsolar: createLabel(COLORS.subsolar, labelFont, TEMP_LABEL_SIZE),
+  };
+  scene.add(tempLabels.day.sprite, tempLabels.night.sprite, tempLabels.subsolar.sprite);
+
   // hit sphere for dragging Earth along its orbit
   const earthHit = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), new THREE.MeshBasicMaterial());
   earthHit.layers.set(HIT_LAYER);
@@ -349,6 +367,12 @@ export default function mount(container, meta) {
   const earthPos = new THREE.Vector3();
   const tmpV = new THREE.Vector3();
   const tmpUp = new THREE.Vector3();
+  const tmpCamDir = new THREE.Vector3(); // Earth → camera (unit), for the far-side fade of the temperature labels
+  const tmpMeridian = new THREE.Vector3();
+  const dayDirWorld = new THREE.Vector3(); // Earth's centre → local noon at the selected latitude
+  const nightDirWorld = new THREE.Vector3(); // … → local midnight
+  const tiltQuat = new THREE.Quaternion();
+  const tiltQuatInv = new THREE.Quaternion();
   const Z_AXIS = new THREE.Vector3(0, 0, 1);
   let model = null;
   let annualCache = { key: '', insolation: 0, polar: null, extremes: null, livable: false };
@@ -377,6 +401,36 @@ export default function mount(container, meta) {
       zone: S.climateZone(state.latitudeDeg, state.tiltDeg),
       season: S.seasonAt(orbitAngleDeg),
     };
+  }
+
+  /**
+   * Unit direction (world space) from Earth's centre to the point at `latitudeDeg` on the meridian
+   * facing the Sun (`toward` – local noon, the warmest hour) or on the one opposite it (local
+   * midnight, the coldest): where the day and night temperatures of that latitude belong.
+   */
+  function meridianDirection(out, latitudeDeg, toward) {
+    tiltGroup.getWorldQuaternion(tiltQuat); // the tilted frame – its +y is the rotation axis
+    tiltQuatInv.copy(tiltQuat).invert();
+    tmpMeridian.copy(sunDir).applyQuaternion(tiltQuatInv);
+    tmpMeridian.y = 0; // the Sun's meridian: its direction projected onto the equatorial plane
+    if (tmpMeridian.lengthSq() < 1e-8) tmpMeridian.set(1, 0, 0); // Sun straight above a pole – any meridian will do
+    tmpMeridian.normalize().multiplyScalar(toward ? 1 : -1);
+    const phi = latitudeDeg * DEG;
+    const c = Math.cos(phi);
+    return out.set(tmpMeridian.x * c, Math.sin(phi), tmpMeridian.z * c).applyQuaternion(tiltQuat);
+  }
+
+  // temperature where the sun ray lands: the subsolar latitude is the declination, and the Sun stands
+  // there in the zenith, so it is that latitude's local-noon value. Cached – the declination only
+  // moves with the date.
+  let subsolarTempCache = { key: '', value: 0 };
+  function subsolarTempC(declDeg) {
+    const key = `${declDeg.toFixed(2)}|${state.tiltDeg}|${state.periodH}`;
+    if (subsolarTempCache.key !== key) {
+      const annual = S.annualMeanInsolation(declDeg, state.tiltDeg, 90);
+      subsolarTempCache = { key, value: S.temperatureEstimate(declDeg, state.tiltDeg, declDeg, state.periodH, annual).dayC };
+    }
+    return subsolarTempCache.value;
   }
 
   // --- habitability (tilt-dependent) -----------------------------------------------------------------------------------
@@ -463,6 +517,22 @@ export default function mount(container, meta) {
     rayPos.setXYZ(1, tmpV.x, tmpV.y, tmpV.z);
     rayPos.needsUpdate = true;
 
+    // temperature labels: day and night of the selected latitude on the two sides of the globe,
+    // plus the value at the point the sun ray hits
+    const showDayNightTemps = state.showTemps && state.showLabels;
+    tempLabels.day.sprite.visible = showDayNightTemps;
+    tempLabels.night.sprite.visible = showDayNightTemps;
+    tempLabels.subsolar.sprite.visible = state.showSubsolarTemp && state.showLabels;
+    if (showDayNightTemps) {
+      meridianDirection(dayDirWorld, state.latitudeDeg, true);
+      meridianDirection(nightDirWorld, state.latitudeDeg, false);
+      tempLabels.day.setText(t(`${KEYS}.labels.dayTemp`, { value: formatTemperature(model.temps.dayC) }));
+      tempLabels.night.setText(t(`${KEYS}.labels.nightTemp`, { value: formatTemperature(model.temps.nightC) }));
+    }
+    if (tempLabels.subsolar.sprite.visible) {
+      tempLabels.subsolar.setText(t(`${KEYS}.labels.zenithTemp`, { value: formatTemperature(subsolarTempC(declDeg)) }));
+    }
+
     gridGroup.visible = state.showGrid;
     stopGroup.visible = state.showGrid;
     stopLabels.forEach(({ stop, label }) => label.setText(t(`${KEYS}.stopLabels.${stop.id}`)));
@@ -481,6 +551,16 @@ export default function mount(container, meta) {
     dragMarker.scale.setScalar(clamp((EARTH_RADIUS * 2.6) / earthDist, 0.04, 0.5));
     dragMarker.visible = dragging; // hovering only changes the cursor – no ring around Earth
     subsolarLabel.sprite.position.copy(subsolarMarker.position).addScaledVector(tmpUp, -earthDist * 0.028);
+    if (tempLabels.day.sprite.visible) {
+      tmpCamDir.copy(camera.position).sub(earthPos).normalize();
+      placeTempLabel(tempLabels.day, dayDirWorld, 1, earthDist);
+      placeTempLabel(tempLabels.night, nightDirWorld, -1, earthDist);
+    }
+    if (tempLabels.subsolar.sprite.visible) {
+      // under the subsolar label when that one is on, otherwise right under the marker
+      const drop = state.showSubsolar && state.showLabels ? 0.055 : 0.028;
+      tempLabels.subsolar.sprite.position.copy(subsolarMarker.position).addScaledVector(tmpUp, -earthDist * drop);
+    }
     for (const { label, anchor } of stopLabels) {
       // offset along screen-up so the text never sits on its marker, whatever the camera angle
       label.sprite.position.copy(anchor).addScaledVector(tmpUp, camera.position.distanceTo(anchor) * 0.03);
@@ -492,6 +572,20 @@ export default function mount(container, meta) {
       camera.near = near;
       camera.updateProjectionMatrix();
     }
+  }
+
+  /**
+   * Puts a temperature label on the surface point it describes, lifted along screen-up so it clears
+   * the globe (day up, night down – at a pole the two points nearly meet). The labels draw over
+   * everything, so the one on Earth's far side is dimmed instead of hidden: it is still the
+   * temperature of the side turned away, and it stays readable while the planet turns.
+   */
+  function placeTempLabel(label, dir, upSign, earthDist) {
+    label.sprite.position
+      .copy(earthPos)
+      .addScaledVector(dir, EARTH_RADIUS * 1.04)
+      .addScaledVector(tmpUp, upSign * earthDist * 0.03);
+    label.sprite.material.opacity = 0.35 + 0.65 * clamp((dir.dot(tmpCamDir) + 0.2) / 0.4, 0, 1);
   }
 
   function refresh() {
@@ -1005,6 +1099,8 @@ export default function mount(container, meta) {
     showCircles: viewToggle('showCircles', `${KEYS}.view.circles`),
     showAxis: viewToggle('showAxis', `${KEYS}.view.axis`),
     showSubsolar: viewToggle('showSubsolar', `${KEYS}.view.subsolar`),
+    showTemps: viewToggle('showTemps', `${KEYS}.view.temps`),
+    showSubsolarTemp: viewToggle('showSubsolarTemp', `${KEYS}.view.subsolarTemp`),
     showGrid: viewToggle('showGrid', `${KEYS}.view.grid`),
     showLabels: viewToggle('showLabels', `${KEYS}.view.labels`),
   };
@@ -1054,7 +1150,8 @@ export default function mount(container, meta) {
   moreControls.add(
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow,
     toggles.showHeat, heatLegend, toggles.showClimate, climateLegend, toggles.showLivable,
-    toggles.showTerminator, toggles.showEquator, toggles.showCircles, toggles.showAxis, toggles.showSubsolar, toggles.showGrid, toggles.showLabels,
+    toggles.showTerminator, toggles.showEquator, toggles.showCircles, toggles.showAxis, toggles.showSubsolar,
+    toggles.showTemps, toggles.showSubsolarTemp, toggles.showGrid, toggles.showLabels,
   );
 
   // --- readouts: one verdict box, then every number in one table --------------------------------------
@@ -1208,6 +1305,7 @@ export default function mount(container, meta) {
     stopLabels.forEach(({ label }) => label.dispose());
     Object.values(poleLabels).forEach((l) => l.dispose());
     subsolarLabel.dispose();
+    Object.values(tempLabels).forEach((label) => label.dispose());
     glowTexture.dispose();
     placeholder.dispose();
     nightPlaceholder.dispose();
@@ -1303,6 +1401,8 @@ function createLegend() {
     item(`${KEYS}.legend.terminator`, COLORS.terminator),
     item(`${KEYS}.legend.selected`, COLORS.selected),
     item(`${KEYS}.legend.subsolar`, COLORS.subsolar),
+    item(`${KEYS}.legend.dayTemp`, COLORS.dayTemp),
+    item(`${KEYS}.legend.nightTemp`, COLORS.nightTemp),
     item(`${KEYS}.legend.livableBorder`, COLORS.livable),
   );
   return { el: wrap, dispose() {} };
