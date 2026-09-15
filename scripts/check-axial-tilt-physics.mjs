@@ -133,5 +133,21 @@ assert('6 h rotation: day–night swing is smaller than at 24 h', T(0, TILT, MAR
 check('no day–night swing during polar day', S.diurnalSwingK(90, dJune, 24), 0, 1e-9);
 check('no day–night swing during polar night', S.diurnalSwingK(90, dDec, 24), 0, 1e-9);
 
+console.log('— temperature over the local day —');
+const noon = T(45, TILT, JUNE);
+check('local noon is the day value', S.temperatureAtHour(noon, 0), noon.dayC, 1e-12);
+check('local midnight is the night value', S.temperatureAtHour(noon, Math.PI), noon.nightC, 1e-12);
+check('sunrise / sunset sit on the mean', S.temperatureAtHour(noon, Math.PI / 2), noon.meanC, 1e-12);
+assert('the hours before and after noon mirror each other', Math.abs(S.temperatureAtHour(noon, 1) - S.temperatureAtHour(noon, -1)) < 1e-12);
+assert('every hour stays within the day/night bounds', (() => {
+  for (let h = -Math.PI; h <= Math.PI; h += Math.PI / 180) {
+    const t = S.temperatureAtHour(noon, h);
+    if (t < noon.nightC - 1e-9 || t > noon.dayC + 1e-9) return false;
+  }
+  return true;
+})());
+const polarDay = T(90, TILT, JUNE);
+check('polar day: every hour sits at the mean', S.temperatureAtHour(polarDay, 0) - polarDay.meanC, 0, 1e-12);
+
 console.log(failed ? `\n${failed} check(s) failed` : '\nAll checks passed');
 process.exit(failed ? 1 : 0);

@@ -210,6 +210,23 @@ export function diurnalSwingK(latitudeDeg, declinationDeg, periodH) {
 }
 
 /**
+ * Temperature at one place at a given local solar hour, from that latitude's estimate: the day–night
+ * swing runs as a cosine over the rotation, so local noon (h = 0) lands exactly on `dayC`, local
+ * midnight (h = ±π) on `nightC` and the two turning points of the day on the mean. Where the swing
+ * vanishes – polar day, polar night, a pole – the whole rotation sits at the mean.
+ *
+ * (The cosine is the Sun's height over the rotation, normalised: with u(h) = sin φ sin δ +
+ * cos φ cos δ cos h, noon and midnight are u(0) and u(π), and (u − sin φ sin δ) / (cos φ cos δ) is
+ * cos h itself. No thermal lag is modelled, so the warmest hour is noon rather than mid-afternoon.)
+ *
+ * @param {{ meanC: number, swingK: number }} temps  result of temperatureEstimate() for that latitude
+ * @param {number} hourAngleRad  local solar hour angle: 0 = local noon, ±π = local midnight
+ */
+export function temperatureAtHour(temps, hourAngleRad) {
+  return temps.meanC + (temps.swingK / 2) * Math.cos(hourAngleRad);
+}
+
+/**
  * Rough surface temperature estimate for a latitude at a given orbit position.
  * Annual mean from the energy balance; the seasonal excursion is damped; the
  * day/night values add the diurnal swing. A teaching aid, not a climate model.

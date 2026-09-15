@@ -11,9 +11,10 @@
  * where the colour ramp turns hostile, so livable values stay a tint the map
  * shows through – plus a livable-region view that darkens the latitudes that are
  * not livable all year. Small temperature labels sit on the globe itself: the day
- * value at local noon of the selected latitude, the night value at local midnight
- * and, on the sun ray label, the temperature where the ray lands – each with its
- * own toggle.
+ * value at local noon of the selected latitude, the night value at local midnight –
+ * or, once a place is pinned, one live value on the pin, the temperature it has at
+ * this hour – and, on the sun ray label, the temperature where the ray lands, each
+ * with its own toggle.
  * Tropics, polar circles, the subsolar point, a readout
  * (day length, insolation, temperature estimate, seasonal extremes, climate
  * zone) for a selectable latitude and the year-round
@@ -349,12 +350,16 @@ export default function mount(container, meta) {
   // temperature labels on the globe: the day value of the selected latitude at its local noon, its
   // night value at local midnight, and the temperature where the sun ray lands (the subsolar point,
   // where the Sun stands in the zenith). Small, world-positioned, placed anew every frame.
+  // A pinned place replaces the pair with a single label on the pin: one place has one temperature –
+  // the one it has at this hour – so the day/night pair would only say what the hour already decides.
   const tempLabels = {
     day: createLabel(COLORS.dayTemp, labelFont, TEMP_LABEL_SIZE),
     night: createLabel(COLORS.nightTemp, labelFont, TEMP_LABEL_SIZE),
+    pin: createLabel(COLORS.selected, labelFont, TEMP_LABEL_SIZE),
     subsolar: createLabel(COLORS.subsolar, labelFont, TEMP_LABEL_SIZE),
   };
-  scene.add(tempLabels.day.sprite, tempLabels.night.sprite, tempLabels.subsolar.sprite);
+  for (const [id, label] of Object.entries(tempLabels)) label.sprite.name = `temp-${id}`; // named like the Sun and Earth meshes, for the automated checks
+  scene.add(tempLabels.day.sprite, tempLabels.night.sprite, tempLabels.pin.sprite, tempLabels.subsolar.sprite);
 
   // hit sphere for dragging Earth along its orbit
   const earthHit = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), new THREE.MeshBasicMaterial());
@@ -371,6 +376,8 @@ export default function mount(container, meta) {
   const tmpUp = new THREE.Vector3();
   const tmpCamDir = new THREE.Vector3(); // Earth → camera (unit), for the far-side fade of the temperature labels
   const tmpMeridian = new THREE.Vector3();
+  const tmpPin = new THREE.Vector3();
+  const tmpPinDir = new THREE.Vector3();
   const dayDirWorld = new THREE.Vector3(); // Earth's centre → local noon at the selected latitude
   const nightDirWorld = new THREE.Vector3(); // … → local midnight
   const tiltQuat = new THREE.Quaternion();
@@ -411,15 +418,37 @@ export default function mount(container, meta) {
    * midnight, the coldest): where the day and night temperatures of that latitude belong.
    */
   function meridianDirection(out, latitudeDeg, toward) {
-    tiltGroup.getWorldQuaternion(tiltQuat); // the tilted frame – its +y is the rotation axis
-    tiltQuatInv.copy(tiltQuat).invert();
-    tmpMeridian.copy(sunDir).applyQuaternion(tiltQuatInv);
-    tmpMeridian.y = 0; // the Sun's meridian: its direction projected onto the equatorial plane
-    if (tmpMeridian.lengthSq() < 1e-8) tmpMeridian.set(1, 0, 0); // Sun straight above a pole – any meridian will do
-    tmpMeridian.normalize().multiplyScalar(toward ? 1 : -1);
+    sunMeridian();
+    if (!toward) tmpMeridian.multiplyScalar(-1);
     const phi = latitudeDeg * DEG;
     const c = Math.cos(phi);
     return out.set(tmpMeridian.x * c, Math.sin(phi), tmpMeridian.z * c).applyQuaternion(tiltQuat);
+  }
+
+  /** The Sun's meridian in Earth's tilted frame (unit, in the equatorial plane) – written to tmpMeridian. */
+  function sunMeridian() {
+    tiltGroup.getWorldQuaternion(tiltQuat); // the tilted frame – its +y is the rotation axis
+    tiltQuatInv.copy(tiltQuat).invert();
+    tmpMeridian.copy(sunDir).applyQuaternion(tiltQuatInv);
+    tmpMeridian.y = 0; // the Sun's direction projected onto the equatorial plane
+    if (tmpMeridian.lengthSq() < 1e-8) tmpMeridian.set(1, 0, 0); // Sun straight above a pole – any meridian will do
+    return tmpMeridian.normalize();
+  }
+
+  /**
+   * The pinned place's local solar hour angle (rad): 0 at its local noon, ±π at local midnight – the
+   * angle between its own meridian and the Sun's. The spin group turns about the axis, so the pin's
+   * meridian is its direction turned by the spin. Over a pole, where a meridian means nothing, the
+   * day–night swing is zero anyway, so any hour gives the same temperature.
+   */
+  function pinHourAngle() {
+    tmpPin.copy(pin.dirLocal).applyAxisAngle(UP, spinGroup.rotation.y);
+    const horizontal = Math.hypot(tmpPin.x, tmpPin.z);
+    if (horizontal < 1e-6) return 0;
+    const px = tmpPin.x / horizontal;
+    const pz = tmpPin.z / horizontal;
+    sunMeridian();
+    return Math.atan2(tmpMeridian.z * px - tmpMeridian.x * pz, tmpMeridian.x * px + tmpMeridian.z * pz);
   }
 
   // temperature where the sun ray lands: the subsolar latitude is the declination, and the Sun stands
@@ -522,12 +551,17 @@ export default function mount(container, meta) {
     // temperature labels: day and night of the selected latitude on the two sides of the globe.
     // The zenith value rides with the sun ray label (see below); its own sprite only stands in when
     // that label is switched off, so the toggle never does nothing.
-    const showDayNightTemps = state.showTemps && state.showLabels;
+    const showTemps = state.showTemps && state.showLabels;
     const zenithTemp = state.showSubsolarTemp ? formatTemperature(subsolarTempC(declDeg)) : null;
-    tempLabels.day.sprite.visible = showDayNightTemps;
-    tempLabels.night.sprite.visible = showDayNightTemps;
+    tempLabels.day.sprite.visible = showTemps && !pin;
+    tempLabels.night.sprite.visible = showTemps && !pin;
+    tempLabels.pin.sprite.visible = showTemps && !!pin;
     tempLabels.subsolar.sprite.visible = !!zenithTemp && state.showLabels && !state.showSubsolar;
-    if (showDayNightTemps) {
+    if (showTemps && pin) {
+      // the pinned place, at the hour it is having: the value runs from its night to its day and back
+      // as Earth turns under the Sun
+      tempLabels.pin.setText(formatTemperature(S.temperatureAtHour(model.temps, pinHourAngle())));
+    } else if (showTemps) {
       meridianDirection(dayDirWorld, state.latitudeDeg, true);
       meridianDirection(nightDirWorld, state.latitudeDeg, false);
       tempLabels.day.setText(t(`${KEYS}.labels.dayTemp`, { value: formatTemperature(model.temps.dayC) }));
@@ -554,10 +588,15 @@ export default function mount(container, meta) {
     dragMarker.scale.setScalar(clamp((EARTH_RADIUS * 2.6) / earthDist, 0.04, 0.5));
     dragMarker.visible = dragging; // hovering only changes the cursor – no ring around Earth
     subsolarLabel.sprite.position.copy(subsolarMarker.position).addScaledVector(tmpUp, -earthDist * 0.028);
-    if (tempLabels.day.sprite.visible) {
+    if (tempLabels.day.sprite.visible || tempLabels.pin.sprite.visible) {
       tmpCamDir.copy(camera.position).sub(earthPos).normalize();
-      placeTempLabel(tempLabels.day, dayDirWorld, 0.035, earthDist);
-      placeTempLabel(tempLabels.night, nightDirWorld, -0.058, earthDist);
+      if (pin) {
+        // above the pin's head, on the direction the marker itself stands on
+        placeTempLabel(tempLabels.pin, pinMarker.getWorldPosition(tmpPinDir).sub(earthPos).normalize(), 0.05, earthDist);
+      } else {
+        placeTempLabel(tempLabels.day, dayDirWorld, 0.035, earthDist);
+        placeTempLabel(tempLabels.night, nightDirWorld, -0.058, earthDist);
+      }
     }
     if (tempLabels.subsolar.sprite.visible) {
       tempLabels.subsolar.sprite.position.copy(subsolarMarker.position).addScaledVector(tmpUp, -earthDist * 0.028);
@@ -1317,7 +1356,7 @@ export default function mount(container, meta) {
 
   // dev-only hook for automated checks; stripped from production builds
   if (import.meta.env.DEV) {
-    window.__lpAxialTilt = { sim, state, get model() { return model; }, get pin() { return pin; }, get habitability() { return habitability; }, setTilt, setPeriod, setDayOfYear, setLatitude, setPlaying, applyPreset, setPin, unpin, cameraPresets, frame, refresh, presets: S.WHAT_IF_PRESETS };
+    window.__lpAxialTilt = { sim, state, get model() { return model; }, get pin() { return pin; }, get pinHourAngle() { return pin ? pinHourAngle() : null; }, get habitability() { return habitability; }, setTilt, setPeriod, setDayOfYear, setLatitude, setPlaying, applyPreset, setPin, unpin, cameraPresets, frame, refresh, presets: S.WHAT_IF_PRESETS };
   }
 
   return () => {
