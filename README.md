@@ -227,7 +227,8 @@ disposers.push(viewShift.dispose);
   instead of popping. The shader reads the texture at a latitude jittered by noise (≈ ±4.5°) plus ±2 K of
   local weather and applies the ramps of `C.SURFACE`, mirrored into the GLSL from the same constants: dormant
   vegetation 8 → −4 °C, snow on land 2 → −8 °C, sea ice −2 → −12 °C (seawater freezes at −1.8 °C, the seasonal
-  mean is already ocean-damped), parched land 30 → 45 °C (complete at the livable limit), seas falling dry
+  mean is already ocean-damped; in polar night, when nothing melts by day, the pack closes at −5 °C already – the
+  two ends blended by the daily insolation, which the shader computes per fragment anyway for the heat map), parched land 30 → 45 °C (complete at the livable limit), seas falling dry
   45 → 80 °C (shelves first, deep basins only half – schematic; only high-tilt polar summers get there), and the
   ice the map itself paints (bright, unsaturated pixels beyond ~58° – the Sahara is bright but yellow) melts away
   where the *annual* mean sits at 2 → 10 °C: the Arctic to the map's own deep-water blue, Greenland, the Canadian
@@ -237,6 +238,9 @@ disposers.push(viewShift.dispose);
   shelf, green and relief masks come from the day map as in the magnetosphere sim. On top: blowing snow over ice
   and steam off hot seas (`uTime`), city lights × the lights channel, a sun glint on open water, the rim.
   The "Surface conditions" toggle (default on) blends it all in via `uSurfaceMix`; off, Earth is the plain map.
+- The Sun's screen-space corona sprite ignores depth (so the Sun keeps a halo at any distance); when Earth stands
+  between the camera and the Sun it is faded out by how far behind the limb the Sun sits, so it no longer shows
+  through the night side.
 - `climate.js` derives the headline numbers: seasonal extremes are the solstice means; a latitude band counts
   as livable when its winter mean stays above −25 °C and its summer mean between 0 and 45 °C; the habitable
   fraction is the area-weighted share of livable bands. The model peaks near Earth's tilt (~100 % livable at

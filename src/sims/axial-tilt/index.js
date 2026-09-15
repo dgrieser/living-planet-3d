@@ -184,7 +184,9 @@ export default function mount(container, meta) {
   const glowTexture = createGlowTexture();
   const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: 0xffc46a, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
   sunGlow.scale.setScalar(SUN_RADIUS * 6);
-  const sunCorona = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: 0xffd9a0, transparent: true, opacity: 0.5, depthWrite: false, depthTest: false, sizeAttenuation: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  // the screen-space corona ignores depth so the Sun keeps its halo at any distance – Earth has to hide it by hand (see updateOverlay)
+  const CORONA_OPACITY = 0.5;
+  const sunCorona = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: 0xffd9a0, transparent: true, opacity: CORONA_OPACITY, depthWrite: false, depthTest: false, sizeAttenuation: false, blending: THREE.AdditiveBlending, toneMapped: false }));
   sunCorona.scale.set(0.1, 0.1, 1);
   sunCorona.renderOrder = 5;
   scene.add(sunGlow, sunCorona);
@@ -652,6 +654,15 @@ export default function mount(container, meta) {
   function updateOverlay() {
     tmpUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
     const earthDist = Math.max(camera.position.distanceTo(earthPos), 1e-6);
+    // the corona draws over everything, so when Earth stands between the camera and the Sun it is faded
+    // out by how far behind the limb the Sun sits (the Sun is at the origin)
+    tmpCamDir.copy(camera.position).negate(); // camera → Sun
+    const toSun = tmpCamDir.length();
+    tmpCamDir.divideScalar(Math.max(toSun, 1e-6));
+    const along = tmpV.copy(earthPos).sub(camera.position).dot(tmpCamDir); // Earth's centre along that ray
+    const miss = along > 0 && along < toSun ? Math.sqrt(Math.max(0, earthPos.distanceToSquared(camera.position) - along * along)) : Infinity;
+    sunCorona.material.opacity = CORONA_OPACITY * clamp((miss - EARTH_RADIUS) / (EARTH_RADIUS * 0.12) + 1, 0, 1);
+    sunCorona.visible = sunCorona.material.opacity > 0.005;
     earthHit.position.copy(earthPos);
     earthHit.scale.setScalar(Math.max(EARTH_RADIUS * 1.3, earthDist * 0.02));
     dragMarker.position.copy(earthPos);
@@ -1860,6 +1871,14 @@ const EARTH_FRAGMENT = /* glsl */ `
     float lat = asin(sinLat);
     float v = lat / PI + 0.5; // texture row of this latitude (row 0 = south pole)
 
+    // daily mean insolation at this latitude (fraction of the solar constant)
+    float cosLat = cos(lat);
+    float sd = sin(uDecl);
+    float cd = cos(uDecl);
+    float cosH0 = clamp(-(sinLat * sd) / max(cosLat * cd, 1e-4), -1.0, 1.0);
+    float H0 = acos(cosH0);
+    float q = (H0 * sinLat * sd + cosLat * cd * sin(H0)) / PI;
+
     // --- the surface of the moment -------------------------------------------------------------
     // what the map shows: land is where blue does not dominate, the paler blues are the shelves,
     // green is the vegetation, brightness a stand-in for relief
@@ -1881,7 +1900,10 @@ const EARTH_FRAGMENT = /* glsl */ `
     float thaw = smoothstep(${glslFloat(SURF.thaw.onsetC)}, ${glslFloat(SURF.thaw.fullC)}, annualC);
     float dormant = ${coldRamp(SURF.dormant)};
     float snow = max(${coldRamp(SURF.snow)}, permIce);
-    float seaIce = max(${coldRamp(SURF.seaIce)}, permIce);
+    // the pack closes just under freezing once the Sun no longer rises (C.seaIceDarkness / seaIceFullC)
+    float darkness = 1.0 - smoothstep(0.0, ${glslFloat(SURF.seaIce.darkBelowWm2 / S.SOLAR_CONSTANT_W_M2)}, q);
+    float seaIceFull = mix(${glslFloat(SURF.seaIce.fullC)}, ${glslFloat(SURF.seaIce.darkFullC)}, darkness);
+    float seaIce = max(1.0 - smoothstep(seaIceFull, ${glslFloat(SURF.seaIce.onsetC)}, tC), permIce);
     float parch = ${hotRamp(SURF.parch)};
     float dry = ${hotRamp(SURF.dry)};
 
@@ -1948,13 +1970,7 @@ const EARTH_FRAGMENT = /* glsl */ `
     vec3 nightColor = surf * vec3(0.030, 0.040, 0.075);
     vec3 color = mix(nightColor, dayColor, day);
 
-    // daily mean insolation at this latitude (fraction of the solar constant)
-    float cosLat = cos(lat);
-    float sd = sin(uDecl);
-    float cd = cos(uDecl);
-    float cosH0 = clamp(-(sinLat * sd) / max(cosLat * cd, 1e-4), -1.0, 1.0);
-    float H0 = acos(cosH0);
-    float q = (H0 * sinLat * sd + cosLat * cd * sin(H0)) / PI;
+    // the insolation heat map
     float heatT = clamp(q / uHeatScale, 0.0, 1.0);
     vec3 heat = ramp(heatT) * (0.35 + 0.65 * day);
     color = mix(color, heat, uHeatMix * 0.88 * overlayAlpha(heatT));

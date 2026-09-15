@@ -35,6 +35,9 @@ export const LIVABLE = Object.freeze({
  * - snow: seasonal snow on land; permanent ice (iceCoverFraction) is the floor for both snow and sea ice.
  * - seaIce: seawater freezes at −1.8 °C, and a pack needs a sustained cold season; the seasonal mean
  *   is already damped for the oceans' heat storage (EBM.seasonalDamping), so no extra lag is added.
+ *   While the Sun is up for part of the day the pack only closes well below freezing (`fullC`), the
+ *   afternoons eating at it; in polar night nothing melts, so it closes just under the freezing point
+ *   (`darkFullC`), the two blended by how little daily sunshine is left (`darkBelowWm2`).
  * - dormant: vegetation shuts down for the cold season – the land goes brown before the snow arrives.
  * - parch: heat kills the vegetation and the land goes to sand, complete at the livable limit.
  * - dry: evaporation outruns what rain returns – the shallow shelves fall dry, the deep water turns to
@@ -50,7 +53,7 @@ export const LIVABLE = Object.freeze({
 export const SURFACE = Object.freeze({
   tempRangeC: Object.freeze({ min: -60, max: 100 }), // 8-bit encoding of the seasonal mean in the surface texture (0.63 K per step)
   snow: Object.freeze({ onsetC: 2, fullC: -8 }),
-  seaIce: Object.freeze({ onsetC: -2, fullC: -12 }),
+  seaIce: Object.freeze({ onsetC: -2, fullC: -12, darkFullC: -5, darkBelowWm2: 60 }),
   dormant: Object.freeze({ onsetC: 8, fullC: -4 }),
   parch: Object.freeze({ onsetC: 30, fullC: LIVABLE.maxSummerC }),
   dry: Object.freeze({ onsetC: 45, fullC: 80 }),
@@ -159,6 +162,16 @@ export function lightsFactor({ summerC, winterC }) {
   return smoothstep(minWinterC - fade, minWinterC, winterC) * smoothstep(minSummerC - fade, minSummerC, summerC) * (1 - smoothstep(maxSummerC, maxSummerC + fade, summerC));
 }
 
+/** How far a latitude is into polar night, 0 (daily sunshine) … 1 (none) – from its daily mean insolation (W/m²). */
+export function seaIceDarkness(insolationWm2) {
+  return 1 - smoothstep(0, SURFACE.seaIce.darkBelowWm2, insolationWm2);
+}
+
+/** The seasonal mean (°C) at which the pack closes completely: `fullC` under the Sun, `darkFullC` in polar night. */
+export function seaIceFullC(darkness) {
+  return SURFACE.seaIce.fullC + (SURFACE.seaIce.darkFullC - SURFACE.seaIce.fullC) * darkness;
+}
+
 /**
  * The surface of a latitude at a date, as 0 … 1 factors (see SURFACE): the seasonal mean of the
  * energy-balance model drives snow, sea ice, dormant and parched vegetation and drying seas;
@@ -167,17 +180,18 @@ export function lightsFactor({ summerC, winterC }) {
  * latitude. The rotation period does not enter (the mean is independent of it).
  */
 export function surfaceState(latitudeDeg, tiltDeg, declinationDeg, annualInsolation = annualMeanInsolation(latitudeDeg, tiltDeg)) {
-  const { meanC, annualC } = temperatureEstimate(latitudeDeg, tiltDeg, declinationDeg, EARTH_ROTATION_H, annualInsolation);
+  const { meanC, annualC, insolation } = temperatureEstimate(latitudeDeg, tiltDeg, declinationDeg, EARTH_ROTATION_H, annualInsolation);
   const permIce = iceCoverFraction(annualInsolation);
   const cold = (ramp) => smoothstep(ramp.onsetC, ramp.fullC, meanC);
   const hot = (ramp) => smoothstep(ramp.onsetC, ramp.fullC, meanC);
+  const darkness = seaIceDarkness(insolation);
   return {
     meanC,
     annualC,
     permIce,
     thaw: smoothstep(SURFACE.thaw.onsetC, SURFACE.thaw.fullC, annualC),
     snow: Math.max(cold(SURFACE.snow), permIce),
-    seaIce: Math.max(cold(SURFACE.seaIce), permIce),
+    seaIce: Math.max(smoothstep(SURFACE.seaIce.onsetC, seaIceFullC(darkness), meanC), permIce),
     dormant: cold(SURFACE.dormant),
     parch: hot(SURFACE.parch),
     dry: hot(SURFACE.dry),

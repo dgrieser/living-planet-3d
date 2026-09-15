@@ -201,6 +201,14 @@ between('tilt 90 June: snow at 60° S', surf(-60, 90, JUNE).snow, 0.3, 1);
 check('tilt 90: no lights at the equator', surf(0, 90, JUNE).lights, 0, 1e-9);
 between('tilt 90: lights in the 7–34° band', surf(20, 90, JUNE).lights, 0.5, 1);
 check('tilt 90: lights are hemispherically symmetric', surf(20, 90, JUNE).lights, surf(-20, 90, JUNE).lights, 1e-9);
+// long polar nights: with the Sun gone nothing melts by day, so the pack closes just under the freezing point
+between('tilt 90 June: the dark pole freezes over (−4.5 °C, six months of night)', surf(-89.5, 90, JUNE).seaIce, 0.85, 1);
+between('tilt 70 December: the dark pole freezes over', surf(89.5, 70, DEC).seaIce, 0.85, 1);
+check('polar night: darkness is 1 without sunshine', C.seaIceDarkness(0), 1, 1e-9);
+check('polar night: darkness is 0 in daily sunshine', C.seaIceDarkness(200), 0, 1e-9);
+check('the pack closes at darkFullC in polar night', C.seaIceFullC(1), C.SURFACE.seaIce.darkFullC, 1e-12);
+check('the pack closes at fullC under the Sun', C.seaIceFullC(0), C.SURFACE.seaIce.fullC, 1e-12);
+between('Earth tilt: no sea ice at 45° S in June despite the ramp change', surf(-45, EARTH_TILT_DEG, JUNE).seaIce, 0, 0.1);
 check('tilt 90 equinox: nothing dry', Math.max(...[-60, 0, 60].map((lat) => surf(lat, 90, SEPT).dry)), 0, 1e-9);
 check('tilt 90 equinox: nothing parched', Math.max(...[-60, 0, 60].map((lat) => surf(lat, 90, SEPT).parch)), 0, 1e-9);
 assert('the texture encoding is monotone and clamped', (() => {
