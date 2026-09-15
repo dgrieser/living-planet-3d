@@ -189,11 +189,20 @@ function ebmTemperatureC(insolation, albedo) {
   return (insolation * (1 - albedo) - EBM.A + EBM.C * GLOBAL_MEAN_C) / (EBM.B + EBM.C);
 }
 
+/**
+ * The model's permanent ice: the fraction of a latitude under ice sheets (0 … 1) from the
+ * ice-free annual-mean temperature – none at 0 °C, complete at −5 °C (EBM.iceOnsetC / iceFullC).
+ * Ice cover is a slow variable, so it follows the annual mean, not the season. This is the same
+ * ramp the albedo uses, so what the surface shows as ice caps is what the temperatures assumed.
+ */
+export function iceCoverFraction(annualMeanInsolationWm2) {
+  const tFree = ebmTemperatureC(annualMeanInsolationWm2, EBM.albedo);
+  return clamp((tFree - EBM.iceOnsetC) / (EBM.iceFullC - EBM.iceOnsetC), 0, 1);
+}
+
 /** Surface albedo from the ice-free annual-mean temperature (ice cover is a slow variable). */
 export function albedoFor(annualMeanInsolationWm2) {
-  const tFree = ebmTemperatureC(annualMeanInsolationWm2, EBM.albedo);
-  const ice = clamp((tFree - EBM.iceOnsetC) / (EBM.iceFullC - EBM.iceOnsetC), 0, 1);
-  return EBM.albedo + (EBM.albedoIce - EBM.albedo) * ice;
+  return EBM.albedo + (EBM.albedoIce - EBM.albedo) * iceCoverFraction(annualMeanInsolationWm2);
 }
 
 /**

@@ -5,7 +5,12 @@
  * (6–300 h) are adjustable; Earth can be dragged along its orbit (in the views
  * that look at the whole orbit – the two close-ups spend the gesture on the
  * camera and on the pinned place) or animated through the year. A shader lights the textured Earth with a soft day/night
- * terminator and city lights on the night side, and can overlay either a heat
+ * terminator and city lights on the night side, and paints the climate of the moment onto the
+ * surface itself: from each latitude's seasonal mean it lays snow and sea ice over the cold parts,
+ * turns the land brown and then to sand where it is hot, lets the shallow seas fall dry to brine
+ * and salt in a high-tilt polar summer, and keeps the city lights only where a latitude is livable
+ * all year – fronts made ragged by noise, eased over half a second so the picture flows with the
+ * slider (./climate.js, SURFACE). It can also overlay either a heat
  * map of the daily mean insolation or temperature bands of the seasonal-mean
  * energy-balance temperature per latitude – both painted at full strength only
  * where the colour ramp turns hostile, so livable values stay a tint the map
@@ -47,7 +52,8 @@ const HEAT_SCALE_W_M2 = 550; // heat-map colour ramp saturates at this daily mea
 const HIT_LAYER = 1;
 const TEXTURE_BASE = `${import.meta.env.BASE_URL}textures/`;
 const SPEED_RANGE = Object.freeze({ min: 1, max: 60 }); // days per second
-const CLIMATE_ROWS = 128; // latitude rows of the temperature-band texture
+const CLIMATE_ROWS = 128; // latitude rows of the temperature-band and surface textures
+const VISUAL_EASE = 0.45; // s – the surface follows the climate with this lag, so tilt drags and season jumps flow instead of popping
 const MAX_LIVABLE_BANDS = 4; // shader uniform slots; the model never produces more than 2 bands
 const BORDER_RING_POOL = 2 * MAX_LIVABLE_BANDS; // one ring per band edge
 const CLICK_THRESHOLD_PX = 6; // pointer travel below which a press counts as a click (pin) rather than a drag
@@ -98,11 +104,13 @@ const DEFAULTS = Object.freeze({
 });
 
 /** Display toggles – remembered per visitor, see ../../lib/prefs.js. Earth arrives with the
- *  climate story already on – temperature bands, the livable region, the subsolar point and the
- *  temperature labels that put numbers on all three – and everything else is one tap away in the panel. */
+ *  climate story already on – the surface conditions painted on the globe, the livable region, the
+ *  subsolar point and the temperature labels that put numbers on it – and everything else, the
+ *  colour overlays included, is one tap away in the panel. */
 const VIEW_DEFAULTS = Object.freeze({
+  showSurface: true, // ice, snow, browning and drying painted per latitude and season
   showHeat: false, // insolation heat map – exclusive with showClimate
-  showClimate: true, // seasonal-mean temperature bands
+  showClimate: false, // seasonal-mean temperature bands – off by default, they would paint over the ice caps
   showLivable: true, // livable-region view (darkened hostile bands + border rings)
   showTerminator: false,
   showEquator: false,
@@ -176,7 +184,9 @@ export default function mount(container, meta) {
   const glowTexture = createGlowTexture();
   const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: 0xffc46a, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
   sunGlow.scale.setScalar(SUN_RADIUS * 6);
-  const sunCorona = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: 0xffd9a0, transparent: true, opacity: 0.5, depthWrite: false, depthTest: false, sizeAttenuation: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  // the screen-space corona ignores depth so the Sun keeps its halo at any distance – Earth has to hide it by hand (see updateOverlay)
+  const CORONA_OPACITY = 0.5;
+  const sunCorona = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, color: 0xffd9a0, transparent: true, opacity: CORONA_OPACITY, depthWrite: false, depthTest: false, sizeAttenuation: false, blending: THREE.AdditiveBlending, toneMapped: false }));
   sunCorona.scale.set(0.1, 0.1, 1);
   sunCorona.renderOrder = 5;
   scene.add(sunGlow, sunCorona);
@@ -238,12 +248,24 @@ export default function mount(container, meta) {
   climateTexture.colorSpace = THREE.SRGBColorSpace;
   climateTexture.minFilter = climateTexture.magFilter = THREE.LinearFilter;
   climateTexture.needsUpdate = true;
+  // surface conditions: one texel row per latitude again, but data rather than colour (so it stays in
+  // linear/no colour space): R = seasonal mean encoded on SURFACE.tempRangeC, G = permanent ice,
+  // B = city lights (year-round livability), A = annual mean (same encoding – it thaws the map's own
+  // ice sheets). The shader turns the means into snow, sea ice, dormant or parched land, dry seas and
+  // melted caps with the ramps of C.SURFACE, on a noise-jittered latitude.
+  const surfaceData = new Uint8Array(CLIMATE_ROWS * 4);
+  const surfaceTexture = new THREE.DataTexture(surfaceData, 1, CLIMATE_ROWS, THREE.RGBAFormat);
+  surfaceTexture.minFilter = surfaceTexture.magFilter = THREE.LinearFilter;
+  surfaceTexture.needsUpdate = true;
   const earthMaterial = new THREE.ShaderMaterial({
     uniforms: {
       uMap: { value: placeholder },
       uNightMap: { value: nightPlaceholder },
       uSunPos: { value: new THREE.Vector3() },
       uDecl: { value: 0 },
+      uSurfTex: { value: surfaceTexture },
+      uSurfaceMix: { value: 0 },
+      uTime: { value: 0 },
       uHeatMix: { value: 0 },
       uHeatScale: { value: HEAT_SCALE_W_M2 / S.SOLAR_CONSTANT_W_M2 },
       uClimateTex: { value: climateTexture },
@@ -483,19 +505,29 @@ export default function mount(container, meta) {
     return habitability;
   }
 
-  // temperature bands: annual-mean insolation per row depends only on the tilt – cache it; the rest on the declination
-  const climateAnnual = { tilt: NaN, values: new Float64Array(CLIMATE_ROWS) };
+  // per-row quantities that depend on the tilt alone – annual-mean insolation, permanent ice and the
+  // year-round lights – are cached per tilt; the seasonal rest is recomputed on the declination
+  const climateAnnual = { tilt: NaN, values: new Float64Array(CLIMATE_ROWS), annualC: new Float32Array(CLIMATE_ROWS), permIce: new Float32Array(CLIMATE_ROWS), lights: new Float32Array(CLIMATE_ROWS) };
   const rowLatitude = (row) => -90 + ((row + 0.5) / CLIMATE_ROWS) * 180; // row 0 = south pole (texture v = 0)
+  function ensureClimateAnnual() {
+    if (climateAnnual.tilt === state.tiltDeg) return;
+    climateAnnual.tilt = state.tiltDeg;
+    for (let row = 0; row < CLIMATE_ROWS; row++) {
+      const lat = rowLatitude(row);
+      const annual = S.annualMeanInsolation(lat, state.tiltDeg, 90);
+      climateAnnual.values[row] = annual;
+      climateAnnual.annualC[row] = S.temperatureEstimate(lat, state.tiltDeg, 0, S.EARTH_ROTATION_H, annual).annualC;
+      climateAnnual.permIce[row] = S.iceCoverFraction(annual);
+      climateAnnual.lights[row] = C.lightsFactor(C.seasonalExtremes(lat, state.tiltDeg, annual));
+    }
+  }
   let climateKey = '';
   function updateClimateTexture(declDeg) {
     if (!state.showClimate) return;
     const key = `${state.tiltDeg}|${state.periodH}|${declDeg.toFixed(2)}`;
     if (key === climateKey) return;
     climateKey = key;
-    if (climateAnnual.tilt !== state.tiltDeg) {
-      climateAnnual.tilt = state.tiltDeg;
-      for (let row = 0; row < CLIMATE_ROWS; row++) climateAnnual.values[row] = S.annualMeanInsolation(rowLatitude(row), state.tiltDeg, 90);
-    }
+    ensureClimateAnnual();
     for (let row = 0; row < CLIMATE_ROWS; row++) {
       const { meanC } = S.temperatureEstimate(rowLatitude(row), state.tiltDeg, declDeg, state.periodH, climateAnnual.values[row]);
       const [r, g, b] = C.temperatureColor(meanC);
@@ -503,6 +535,44 @@ export default function mount(container, meta) {
       climateData.set([r, g, b, Math.round(C.temperatureOverlayAlpha(meanC) * 255)], row * 4);
     }
     climateTexture.needsUpdate = true;
+  }
+
+  // surface conditions: the model's seasonal mean per row is the target; the picture eases towards it
+  const surfaceTarget = { key: '', tempC: new Float32Array(CLIMATE_ROWS) };
+  const surfaceVis = { ready: false, tempC: new Float32Array(CLIMATE_ROWS), annualC: new Float32Array(CLIMATE_ROWS), permIce: new Float32Array(CLIMATE_ROWS), lights: new Float32Array(CLIMATE_ROWS) };
+  function updateSurfaceTargets(declDeg) {
+    const key = `${state.tiltDeg}|${declDeg.toFixed(2)}`; // the mean does not depend on the rotation period
+    if (key === surfaceTarget.key) return;
+    surfaceTarget.key = key;
+    ensureClimateAnnual();
+    for (let row = 0; row < CLIMATE_ROWS; row++) {
+      surfaceTarget.tempC[row] = S.temperatureEstimate(rowLatitude(row), state.tiltDeg, declDeg, state.periodH, climateAnnual.values[row]).meanC;
+    }
+  }
+  /** Ease every row towards the model and rewrite the texture only where a byte changed; `dt = null` snaps (start-up, reduced motion, paused). */
+  function syncSurface(dt) {
+    const k = dt === null || !surfaceVis.ready ? 1 : 1 - Math.exp(-dt / VISUAL_EASE);
+    surfaceVis.ready = true;
+    let changed = false;
+    for (let row = 0; row < CLIMATE_ROWS; row++) {
+      surfaceVis.tempC[row] += (surfaceTarget.tempC[row] - surfaceVis.tempC[row]) * k;
+      surfaceVis.permIce[row] += (climateAnnual.permIce[row] - surfaceVis.permIce[row]) * k;
+      surfaceVis.lights[row] += (climateAnnual.lights[row] - surfaceVis.lights[row]) * k;
+      surfaceVis.annualC[row] += (climateAnnual.annualC[row] - surfaceVis.annualC[row]) * k;
+      const r = Math.round(C.encodeSurfaceTemp(surfaceVis.tempC[row]) * 255);
+      const g = Math.round(surfaceVis.permIce[row] * 255);
+      const b = Math.round(surfaceVis.lights[row] * 255);
+      const a = Math.round(C.encodeSurfaceTemp(surfaceVis.annualC[row]) * 255);
+      const i = row * 4;
+      if (surfaceData[i] !== r || surfaceData[i + 1] !== g || surfaceData[i + 2] !== b || surfaceData[i + 3] !== a) {
+        surfaceData[i] = r;
+        surfaceData[i + 1] = g;
+        surfaceData[i + 2] = b;
+        surfaceData[i + 3] = a;
+        changed = true;
+      }
+    }
+    if (changed) surfaceTexture.needsUpdate = true;
   }
 
   /** Push the model into the scene graph (camera-independent). */
@@ -517,7 +587,9 @@ export default function mount(container, meta) {
     earthMaterial.uniforms.uHeatMix.value = state.showHeat ? 1 : 0;
     earthMaterial.uniforms.uClimateMix.value = state.showClimate ? 1 : 0;
     earthMaterial.uniforms.uLivableMix.value = state.showLivable ? 1 : 0;
+    earthMaterial.uniforms.uSurfaceMix.value = state.showSurface ? 1 : 0;
     updateClimateTexture(declDeg);
+    updateSurfaceTargets(declDeg);
     const { rings } = ensureHabitability();
     livableLines.forEach((line, i) => (line.visible = state.showLivable && i < rings));
     pinMarker.visible = !!pin;
@@ -582,6 +654,15 @@ export default function mount(container, meta) {
   function updateOverlay() {
     tmpUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
     const earthDist = Math.max(camera.position.distanceTo(earthPos), 1e-6);
+    // the corona draws over everything, so when Earth stands between the camera and the Sun it is faded
+    // out by how far behind the limb the Sun sits (the Sun is at the origin)
+    tmpCamDir.copy(camera.position).negate(); // camera → Sun
+    const toSun = tmpCamDir.length();
+    tmpCamDir.divideScalar(Math.max(toSun, 1e-6));
+    const along = tmpV.copy(earthPos).sub(camera.position).dot(tmpCamDir); // Earth's centre along that ray
+    const miss = along > 0 && along < toSun ? Math.sqrt(Math.max(0, earthPos.distanceToSquared(camera.position) - along * along)) : Infinity;
+    sunCorona.material.opacity = CORONA_OPACITY * clamp((miss - EARTH_RADIUS) / (EARTH_RADIUS * 0.12) + 1, 0, 1);
+    sunCorona.visible = sunCorona.material.opacity > 0.005;
     earthHit.position.copy(earthPos);
     earthHit.scale.setScalar(Math.max(EARTH_RADIUS * 1.3, earthDist * 0.02));
     dragMarker.position.copy(earthPos);
@@ -632,6 +713,7 @@ export default function mount(container, meta) {
   function refresh() {
     model = derive();
     updateScene();
+    if (sim.reducedMotion || sim.paused || !surfaceVis.ready) syncSurface(null); // no frames run to ease it, so snap
     syncCamera();
     updateOverlay();
     updateReadouts();
@@ -953,6 +1035,8 @@ export default function mount(container, meta) {
     spinGroup.rotation.y = (spinGroup.rotation.y + spinStep) % (2 * Math.PI);
     model = derive();
     updateScene();
+    earthMaterial.uniforms.uTime.value += dt;
+    syncSurface(dt);
     syncCamera();
     stepTween(dt);
     updateOverlay();
@@ -1144,6 +1228,7 @@ export default function mount(container, meta) {
   const viewToggle = (name, labelKey, onChange = refresh) => view.toggle(name, labelKey, onChange);
   // the two colour overlays share the hue ramp but mean different things (W/m² vs °C) – only one at a time
   const toggles = {
+    showSurface: viewToggle('showSurface', `${KEYS}.view.surface`),
     showHeat: viewToggle('showHeat', `${KEYS}.view.heatMap`, (v) => {
       if (v && state.showClimate) toggles.showClimate.setChecked(false);
       heatLegend.el.hidden = !v;
@@ -1210,7 +1295,7 @@ export default function mount(container, meta) {
   if (sim.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
   moreControls.add(
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`), cameraRow,
-    toggles.showHeat, heatLegend, toggles.showClimate, climateLegend, toggles.showLivable,
+    toggles.showSurface, toggles.showHeat, heatLegend, toggles.showClimate, climateLegend, toggles.showLivable,
     toggles.showTerminator, toggles.showEquator, toggles.showCircles, toggles.showAxis, toggles.showSubsolar,
     toggles.showTemps, toggles.showSubsolarTemp, toggles.showGrid, toggles.showLabels,
   );
@@ -1356,7 +1441,7 @@ export default function mount(container, meta) {
 
   // dev-only hook for automated checks; stripped from production builds
   if (import.meta.env.DEV) {
-    window.__lpAxialTilt = { sim, state, get model() { return model; }, get pin() { return pin; }, get pinHourAngle() { return pin ? pinHourAngle() : null; }, get habitability() { return habitability; }, setTilt, setPeriod, setDayOfYear, setLatitude, setPlaying, applyPreset, setPin, unpin, cameraPresets, frame, refresh, presets: S.WHAT_IF_PRESETS };
+    window.__lpAxialTilt = { sim, state, get model() { return model; }, get pin() { return pin; }, get pinHourAngle() { return pin ? pinHourAngle() : null; }, get habitability() { return habitability; }, get surface() { return { target: surfaceTarget, vis: surfaceVis }; }, setTilt, setPeriod, setDayOfYear, setLatitude, setPlaying, applyPreset, setPin, unpin, cameraPresets, frame, refresh, presets: S.WHAT_IF_PRESETS };
   }
 
   return () => {
@@ -1373,6 +1458,7 @@ export default function mount(container, meta) {
     placeholder.dispose();
     nightPlaceholder.dispose();
     climateTexture.dispose();
+    surfaceTexture.dispose();
     sim.dispose();
     viewport.remove();
   };
@@ -1489,7 +1575,7 @@ function createPhysicsCard() {
   summary.append(bindText(el('span', 'lp-info__title'), `${KEYS}.physics.title`));
   const body = el('div', 'lp-info__body');
   details.append(summary, body);
-  const entries = ['declination', 'dayLength', 'insolation', 'temperature', 'swing', 'seasonalMeans', 'livable', 'livableFraction', 'tiers'];
+  const entries = ['declination', 'dayLength', 'insolation', 'temperature', 'surface', 'swing', 'seasonalMeans', 'livable', 'livableFraction', 'tiers'];
   function render() {
     body.replaceChildren();
     // the caveat that qualifies every temperature the panel shows
@@ -1615,16 +1701,75 @@ function createRingTexture(size = 128) {
 // shaders
 // ============================================================================================================
 const FADE = C.OVERLAY_FADE; // overlay opacity fade, shared with climate.js
+const SURF = C.SURFACE; // surface-condition ramps, shared with climate.js
 const glslFloat = (v) => v.toFixed(4);
+const coldRamp = (ramp) => `(1.0 - smoothstep(${glslFloat(ramp.fullC)}, ${glslFloat(ramp.onsetC)}, tC))`; // edges must ascend in GLSL
+const hotRamp = (ramp) => `smoothstep(${glslFloat(ramp.onsetC)}, ${glslFloat(ramp.fullC)}, tC)`;
+
+/**
+ * The day map has no land under the ice it paints, so the two ice-covered lands of the far north are
+ * outlined here as coarse coastline polygons in (longitude, latitude) degrees – Greenland, and the
+ * Canadian Arctic islands – and everything else the map paints white north of ~70° is the Arctic Ocean
+ * (in the far south it is all Antarctica). Padded ~0.3° outwards so the coast itself stays inside.
+ */
+const ICE_LANDS = Object.freeze({
+  greenland: [[-43.5, 59.3], [-50.5, 63], [-53.5, 67], [-55.5, 71], [-58.5, 75.5], [-70.5, 76.3], [-73.5, 78.5], [-68.5, 80.7], [-60, 82.5], [-45, 83.5], [-33, 84.0], [-20, 83.2], [-11, 81.7], [-16.5, 79], [-17.5, 75], [-20.5, 70.5], [-24.5, 68.3], [-32, 66.2], [-40, 64.2], [-42, 61]],
+  canadianArctic: [[-128.5, 69.5], [-125.5, 74], [-122.5, 77.8], [-112, 79.3], [-100, 79.8], [-92, 81.8], [-80, 83.4], [-61.5, 82.6], [-59.5, 78], [-64, 75.5], [-61, 67], [-70, 63.5], [-82, 63.5], [-95, 67], [-115, 68]],
+});
+const lonLatToUv = ([lon, lat]) => `vec2(${glslFloat((lon + 180) / 360)}, ${glslFloat((lat + 90) / 180)})`;
+/** GLSL: `float <name>(vec2 uv)` – 1 inside the polygon (even–odd rule), 0 outside. */
+const glslPolygon = (name, points) => `
+  float ${name}(vec2 uv) {
+    const int n = ${points.length};
+    vec2 poly[${points.length}] = vec2[${points.length}](${points.map(lonLatToUv).join(', ')});
+    bool inside = false;
+    for (int i = 0, j = n - 1; i < n; j = i++) {
+      vec2 a = poly[i];
+      vec2 b = poly[j];
+      if ((a.y > uv.y) != (b.y > uv.y) && uv.x < (b.x - a.x) * (uv.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside ? 1.0 : 0.0;
+  }`;
+
+/** Value noise for the surface – the same construction the habitable-zone and magnetosphere shaders use. */
+const NOISE_GLSL = /* glsl */ `
+  float hash(vec3 p) {
+    p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3));
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+  }
+  float noise(vec3 x) {
+    vec3 i = floor(x);
+    vec3 f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(mix(hash(i + vec3(0, 0, 0)), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
+      mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y),
+      f.z);
+  }
+  float fbm(vec3 p, int octaves) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 6; i++) {
+      if (i >= octaves) break;
+      v += a * noise(p);
+      p = p * 2.02 + vec3(1.7, 9.2, 3.1);
+      a *= 0.5;
+    }
+    return v;
+  }
+`;
 
 const EARTH_VERTEX = /* glsl */ `
   varying vec2 vUv;
   varying vec3 vWorldPos;
   varying vec3 vWorldNormal;
+  varying vec3 vLocal;
   varying float vSinLat;
   void main() {
     vUv = uv;
-    vSinLat = normal.y; // object space: the sphere spins about its local y axis, so y = sin(latitude)
+    vLocal = position; // object space: the sphere spins about its local y axis, so the noise rides with the map
+    vSinLat = normal.y; // … and y = sin(latitude)
     vec4 worldPos = modelMatrix * vec4(position, 1.0);
     vWorldPos = worldPos.xyz;
     vWorldNormal = normalize(mat3(modelMatrix) * normal);
@@ -1632,6 +1777,21 @@ const EARTH_VERTEX = /* glsl */ `
   }
 `;
 
+/**
+ * Earth's surface. The day map is first taken through the climate of the moment – per latitude, from
+ * the surface texture's seasonal mean, on the ramps of C.SURFACE: the ice the map itself paints melts
+ * off Greenland, Antarctica and the Arctic where the annual mean has climbed above freezing for good
+ * (the map has no land under its ice, so Greenland and the Canadian islands are told from the Arctic
+ * Ocean by coarse coastline polygons), the land loses its green for the cold season, goes to sand in the heat,
+ * the shallow seas fall dry to brine and salt in a high-tilt polar summer, and snow and sea ice with
+ * leads settle over everything cold, thick and blue-white where the ice is permanent. Ice is always a
+ * layer over the world that is there, never a swap. The
+ * latitude the texture is read at is jittered by noise, so every front is ragged and the same way
+ * ragged – a locally colder spot is both snowier and browner. Then the Sun lights it with a soft
+ * terminator, the optional heat / temperature-band overlays and the livable darkening paint over
+ * it, blowing snow and steam drift over ice and hot sea, the city lights come up on the night side
+ * only where the latitude is livable all year, the open water glints, and the rim glows.
+ */
 const EARTH_FRAGMENT = /* glsl */ `
   uniform sampler2D uMap;
   uniform sampler2D uNightMap;   // city lights, night side only
@@ -1644,11 +1804,37 @@ const EARTH_FRAGMENT = /* glsl */ `
   uniform float uLivableMix;     // 1 = darken latitudes outside the livable bands
   uniform vec2 uBands[4];        // livable latitude bands [lo, hi] (rad)
   uniform int uBandCount;
+  uniform sampler2D uSurfTex;    // 1 × N rows: R seasonal mean (encoded), G permanent ice, B city lights, A annual mean (encoded)
+  uniform float uSurfaceMix;     // 1 = paint the surface conditions
+  uniform float uTime;
   varying vec2 vUv;
   varying vec3 vWorldPos;
   varying vec3 vWorldNormal;
+  varying vec3 vLocal;
   varying float vSinLat;
   const float PI = 3.141592653589793;
+  ${NOISE_GLSL}
+  // palette in linear RGB
+  const vec3 SOIL_DARK = vec3(0.16, 0.11, 0.06);
+  const vec3 SOIL_PALE = vec3(0.36, 0.25, 0.12);
+  const vec3 DORMANT = vec3(0.30, 0.22, 0.10);
+  const vec3 SAND = vec3(0.55, 0.44, 0.26);
+  const vec3 ICE = vec3(0.80, 0.86, 0.92);
+  const vec3 ICE_SHADE = vec3(0.45, 0.58, 0.72);
+  const vec3 SEA_ICE = vec3(0.60, 0.72, 0.84);
+  const vec3 SEA_ICE_DARK = vec3(0.40, 0.54, 0.70);
+  const vec3 LEAD = vec3(0.04, 0.09, 0.18);
+  const vec3 BRINE = vec3(0.05, 0.07, 0.10);
+  const vec3 SEABED = vec3(0.075, 0.058, 0.042);
+  const vec3 SEABED_PALE = vec3(0.26, 0.20, 0.13);
+  const vec3 SALT = vec3(0.72, 0.68, 0.60);
+  const vec3 OCEAN = vec3(0.013, 0.045, 0.18); // the map's own deep water, for a thawed Arctic
+  const vec3 ROCK = vec3(0.20, 0.18, 0.15);    // bedrock under a melted ice sheet
+  const vec3 TUNDRA = vec3(0.22, 0.27, 0.11);  // … greening once the year is warm enough
+  // where the map paints ice in the far north it is the Arctic Ocean, except inside the coastlines of
+  // Greenland and the Canadian Arctic islands (ICE_LANDS) – in the far south it is Antarctica
+  ${glslPolygon('inGreenland', ICE_LANDS.greenland)}
+  ${glslPolygon('inCanadianArctic', ICE_LANDS.canadianArctic)}
 
   vec3 ramp(float x) {
     // deep blue → blue → green → yellow → red (linear RGB)
@@ -1674,31 +1860,124 @@ const EARTH_FRAGMENT = /* glsl */ `
   }
 
   void main() {
+    vec3 p = normalize(vLocal);
     vec3 N = normalize(vWorldNormal);
     vec3 L = normalize(uSunPos - vWorldPos);
+    vec3 V = normalize(cameraPosition - vWorldPos);
     float ndl = dot(N, L);
     float day = smoothstep(-0.03, 0.10, ndl);
     vec3 base = texture2D(uMap, vUv).rgb;
-    vec3 dayColor = base * (0.10 + 1.05 * clamp(ndl, 0.0, 1.0));
-    vec3 nightColor = base * vec3(0.030, 0.040, 0.075);
-    vec3 color = mix(nightColor, dayColor, day);
-
-    // daily mean insolation at this latitude (fraction of the solar constant)
     float sinLat = clamp(vSinLat, -1.0, 1.0);
     float lat = asin(sinLat);
+    float v = lat / PI + 0.5; // texture row of this latitude (row 0 = south pole)
+
+    // daily mean insolation at this latitude (fraction of the solar constant)
     float cosLat = cos(lat);
     float sd = sin(uDecl);
     float cd = cos(uDecl);
     float cosH0 = clamp(-(sinLat * sd) / max(cosLat * cd, 1e-4), -1.0, 1.0);
     float H0 = acos(cosH0);
     float q = (H0 * sinLat * sd + cosLat * cd * sin(H0)) / PI;
+
+    // --- the surface of the moment -------------------------------------------------------------
+    // what the map shows: land is where blue does not dominate, the paler blues are the shelves,
+    // green is the vegetation, brightness a stand-in for relief
+    float land = 1.0 - smoothstep(0.15, 0.5, (base.b - max(base.r, base.g)) / (base.b + 0.002));
+    float lum = dot(base, vec3(0.333));
+    float shelf = smoothstep(0.10, 0.34, lum) * (1.0 - land);
+    float green = clamp((base.g - max(base.r, base.b)) * 5.0, 0.0, 1.0);
+    float relief = clamp(lum * 4.0, 0.0, 1.0);
+    float detail = fbm(p * 6.5 + vec3(7.0), 4);
+    // the climate is read at a latitude the noise pushes about ±4.5° – that makes every front ragged,
+    // and ragged the same way – with a little local weather (±2 K) inside the fronts
+    float jitter = (fbm(p * 3.4 + vec3(17.0, 2.0, 41.0), 4) - 0.5) * 0.05;
+    vec4 s = texture2D(uSurfTex, vec2(0.5, clamp(v + jitter, 0.0, 1.0)));
+    float tC = s.r * ${glslFloat(SURF.tempRangeC.max - SURF.tempRangeC.min)} + ${glslFloat(SURF.tempRangeC.min)} + (detail - 0.5) * 4.0;
+    float annualC = s.a * ${glslFloat(SURF.tempRangeC.max - SURF.tempRangeC.min)} + ${glslFloat(SURF.tempRangeC.min)};
+    float permIce = s.g;
+    float lights = s.b;
+    // the ramps of C.surfaceState(), mirrored
+    float thaw = smoothstep(${glslFloat(SURF.thaw.onsetC)}, ${glslFloat(SURF.thaw.fullC)}, annualC);
+    float dormant = ${coldRamp(SURF.dormant)};
+    float snow = max(${coldRamp(SURF.snow)}, permIce);
+    // the pack closes just under freezing once the Sun no longer rises (C.seaIceDarkness / seaIceFullC)
+    float darkness = 1.0 - smoothstep(0.0, ${glslFloat(SURF.seaIce.darkBelowWm2 / S.SOLAR_CONSTANT_W_M2)}, q);
+    float seaIceFull = mix(${glslFloat(SURF.seaIce.fullC)}, ${glslFloat(SURF.seaIce.darkFullC)}, darkness);
+    float seaIce = max(1.0 - smoothstep(seaIceFull, ${glslFloat(SURF.seaIce.onsetC)}, tC), permIce);
+    float parch = ${hotRamp(SURF.parch)};
+    float dry = ${hotRamp(SURF.dry)};
+
+    // 0. the ice the map itself paints melts away where the year has turned warm for good: the Arctic to open
+    //    water, Greenland and Antarctica to bedrock that greens into tundra as the annual mean climbs. In the
+    //    polar zone a map pixel is ice when it is bright and cool-tinted (blue ≥ red): that takes the white, the
+    //    pale-blue rim and the texels the ice edge blends with the sea, and leaves tundra, rock and sand alone.
+    //    Sea ice is only looked for north of ~70°, so the glaciers of Iceland, Alaska and Scandinavia stay.
+    float north = step(0.0, p.y);
+    float landBox = max(inGreenland(vUv), inCanadianArctic(vUv));
+    float iceLand = mix(1.0, landBox, north);
+    float polarGate = smoothstep(0.82, 0.88, abs(p.y));
+    float seaGate = smoothstep(0.90, 0.95, p.y);
+    float gate = mix(polarGate, mix(seaGate, polarGate, landBox), north);
+    float cool = smoothstep(-0.06, 0.0, base.b - base.r);
+    float mapIce = smoothstep(0.12, 0.45, lum) * cool * gate;
+    shelf *= 1.0 - mapIce; // the pale rim of the map's ice is ice, not shallow water
+    float melted = mapIce * thaw;
+    float warm = smoothstep(2.0, 15.0, annualC);
+    vec3 thawed = mix(OCEAN, mix(ROCK, TUNDRA, warm * (0.6 + 0.4 * detail)) * (0.8 + 0.4 * detail), iceLand);
+    vec3 ground = mix(base, thawed, melted);
+    land = mix(land, iceLand, melted);
+    green = max(green, 0.5 * warm * melted * iceLand);
+    relief = mix(relief, 0.5, melted);
+
+    // 1. vegetation: brown for the cold season, sand where it is scorched – land only, most where the map is green
+    vec3 soil = mix(SOIL_DARK, SOIL_PALE, smoothstep(0.3, 0.75, detail));
+    ground = mix(ground, mix(ground * vec3(0.9, 0.7, 0.45), DORMANT, 0.5), dormant * land * (0.3 + 0.7 * green));
+    ground = mix(ground, mix(SAND, soil, 0.35) * (0.8 + 0.4 * detail), parch * land * (0.35 + 0.65 * green));
+
+    // 2. hot seas: the water darkens to brine, the shelves fall dry first, the deep basins only half – one
+    //    summer cannot evaporate an ocean – with salt where the last water stood
+    float dried = 0.0;
+    if (dry > 0.001) {
+      float basin = smoothstep(0.42, 0.62, fbm(p * 1.7 + vec3(19.0, 4.0, 27.0), 4)) * (1.0 - shelf);
+      float pans = smoothstep(0.58, 0.72, fbm(p * 11.0 + vec3(13.0, 2.0, 6.0), 3)) * (0.35 + 0.65 * basin);
+      float shelfDry = smoothstep(0.15, 0.7, dry) * shelf;
+      float deepDry = smoothstep(0.5, 1.0, dry) * basin * 0.5;
+      dried = clamp(shelfDry + deepDry, 0.0, 1.0) * (1.0 - land);
+      vec3 brine = mix(ground, BRINE, 0.6 * dry);
+      vec3 seabed = mix(mix(SEABED, SEABED_PALE, shelf) * (0.8 + 0.4 * detail), SALT, pans * 0.7);
+      ground = mix(ground, mix(brine, seabed, dried), (1.0 - land) * max(dried, 0.6 * dry));
+    }
+
+    // 3. ice over everything: sea ice criss-crossed by leads that close under permanent ice, snow on the
+    //    land – patchy at the front, complete when deep – and a blue cast where the ice is old and thick
+    float iceAny = max(snow, seaIce);
+    vec3 conditioned = ground;
+    if (iceAny > 0.001) {
+      float leadField = fbm(p * 7.0 + vec3(21.0, 3.0, 8.0), 4);
+      float leads = pow(1.0 - abs(leadField * 2.0 - 1.0), 18.0) * (1.0 - permIce * 0.7);
+      vec3 seaIceCol = mix(SEA_ICE, SEA_ICE_DARK, smoothstep(0.4, 0.7, fbm(p * 3.5 + vec3(9.0), 3)) * 0.6);
+      float pack = seaIce * mix(0.78, 1.0, permIce) * (1.0 - leads * 0.85);
+      vec3 icedSea = mix(mix(ground, LEAD, leads * 0.5 * seaIce), seaIceCol, pack);
+      float cover = clamp(snow * (0.7 + 0.3 * relief) + (snow - 0.5) * (detail - 0.5) * 0.6, 0.0, 1.0);
+      vec3 snowy = mix(ground, mix(ICE_SHADE, ICE, 0.45 + 0.55 * relief), cover);
+      conditioned = mix(icedSea, snowy, land);
+      conditioned = mix(conditioned, vec3(0.62, 0.74, 0.92), permIce * 0.25);
+    }
+    vec3 surf = mix(base, conditioned, uSurfaceMix);
+
+    // --- lighting ---------------------------------------------------------------------------------------
+    vec3 dayColor = surf * (0.10 + 1.05 * clamp(ndl, 0.0, 1.0));
+    vec3 nightColor = surf * vec3(0.030, 0.040, 0.075);
+    vec3 color = mix(nightColor, dayColor, day);
+
+    // the insolation heat map
     float heatT = clamp(q / uHeatScale, 0.0, 1.0);
     vec3 heat = ramp(heatT) * (0.35 + 0.65 * day);
     color = mix(color, heat, uHeatMix * 0.88 * overlayAlpha(heatT));
 
     // seasonal-mean temperature bands (energy-balance model, −40 … +60 °C ramp);
     // alpha carries the overlay strength for that temperature (climate.js)
-    vec4 bandTex = texture2D(uClimateTex, vec2(0.5, lat / PI + 0.5));
+    vec4 bandTex = texture2D(uClimateTex, vec2(0.5, v));
     vec3 band = bandTex.rgb * (0.35 + 0.65 * day);
     color = mix(color, band, uClimateMix * 0.7 * bandTex.a);
 
@@ -1709,11 +1988,25 @@ const EARTH_FRAGMENT = /* glsl */ `
     }
     color *= 1.0 - uLivableMix * (1.0 - livable) * 0.6;
 
-    // city lights, fading in across the terminator
-    color += texture2D(uNightMap, vUv).rgb * (1.0 - day) * 1.6;
+    // weather over the extremes: blowing snow over the ice, steam off the hot seas
+    if (uSurfaceMix > 0.001) {
+      float gust = smoothstep(0.55, 0.8, fbm(p * 5.0 + vec3(uTime * 0.25, uTime * 0.12, 0.0), 3));
+      color += vec3(0.92, 0.95, 1.0) * gust * iceAny * 0.22 * (0.2 + 0.8 * day) * uSurfaceMix;
+      float puff = smoothstep(0.42, 0.7, fbm(p * 4.5 + vec3(uTime * 0.45, uTime * 0.3, 0.0), 3));
+      color += vec3(0.9, 0.92, 0.95) * puff * dry * (1.0 - land) * 0.28 * (0.25 + 0.75 * day) * uSurfaceMix;
+    }
+
+    // city lights, fading in across the terminator – only where the latitude is livable all year
+    color += texture2D(uNightMap, vUv).rgb * (1.0 - day) * 1.6 * mix(1.0, lights, uSurfaceMix);
+
+    // glints: the Sun on open water – a bright core in a soft halo, as the waves spread it – a little on sea ice, none on dry sea floor
+    vec3 H = normalize(L + V);
+    float open = (1.0 - land) * (1.0 - seaIce) * (1.0 - dried);
+    float ndh = clamp(dot(N, H), 0.0, 1.0);
+    float spec = (0.55 * pow(ndh, 260.0) + 0.10 * pow(ndh, 24.0)) * step(0.0, ndl);
+    color += vec3(1.0, 0.95, 0.85) * spec * uSurfaceMix * (open + 0.35 * seaIce * (1.0 - land));
 
     // thin atmospheric rim
-    vec3 V = normalize(cameraPosition - vWorldPos);
     float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
     color += vec3(0.25, 0.5, 1.0) * rim * (0.15 + 0.5 * day);
 

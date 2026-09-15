@@ -209,6 +209,7 @@
         "extreme": "Uranus-like: months of midnight sun roast one hemisphere while the other freezes in darkness – most of the planet is uninhabitable."
       },
       "view": {
+        "surface": "Surface conditions: ice, snow, drought",
         "heatMap": "Heat map: incident solar energy",
         "climateBands": "Temperature bands: seasonal mean",
         "livable": "Livable region (year-round)",
@@ -275,6 +276,9 @@
         "temperatureLabel": "Temperature estimate (energy-balance model after North 1975)",
         "temperatureFormula": "T = (Q̄ · (1 − α) − A + C · T̄) / (B + C)",
         "temperatureNote": "A = 203.3 W/m², B = 2.09 W/m²/K, C = 3.8 W/m²/K (heat transport), T̄ = 15 °C. Albedo α = 0.31, rising to 0.62 where the annual mean would fall below 0 °C (ice). The seasonal excursion is damped to 60 % to mimic heat storage in the oceans. A rough guide, not a climate model.",
+        "surfaceLabel": "Surface conditions (per latitude and season)",
+        "surfaceFormula": "snow 2 → −8 °C · sea ice −2 → −12 °C (−5 °C in polar night) · dormant 8 → −4 °C · parched 30 → 45 °C · dry 45 → 80 °C · caps melt at an annual mean of 2 → 10 °C",
+        "surfaceNote": "Painted from each latitude's seasonal mean at the current date: the land loses its green for the cold season and goes to sand in the heat, snow and sea ice settle over the cold parts, and only the polar summers of a high tilt get hot enough for the shallow seas to fall dry to brine and salt (schematic – one summer cannot evaporate an ocean). Ice sheets are slow: permanent ice follows the model's own albedo ramp (annual mean 0 → −5 °C), and Greenland, Antarctica and the Arctic cap melt away – to bedrock and tundra, or to open water – only once the annual mean stays above freezing. City lights stay only where the latitude is livable year-round, fading out 8 K past the limits. Noise makes the fronts ragged.",
         "swingLabel": "Day–night temperature swing",
         "swingFormula": "ΔT ≈ 14 K · √(P / 24 h) · (sin h_noon − sin h_midnight)",
         "swingNote": "h = height of the Sun above the horizon. Longer days let the ground heat up and cool down more; there is no swing during polar day or polar night.",
