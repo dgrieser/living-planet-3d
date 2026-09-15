@@ -541,6 +541,7 @@ a:hover { color: #a9d9ff; }
 
 .lp-canvas.is-grab { cursor: grab; }
 .lp-canvas.is-dragging { cursor: grabbing; }
+.lp-canvas.is-pin { cursor: pointer; }
 .lp-toggle--sub { margin-left: 28px; padding: 4px 0; }
 .lp-toggle--sub .lp-toggle__text { font-size: 0.9rem; }
 .lp-toggle--sub .lp-toggle__track { width: 36px; height: 20px; }

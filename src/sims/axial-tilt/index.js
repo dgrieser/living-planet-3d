@@ -2,7 +2,8 @@
  * Simulation: Axial tilt, seasons & day length ("axial-tilt").
  *
  * Earth orbits an emissive Sun. The axial tilt (0–90°) and rotation period
- * (6–300 h) are adjustable; Earth can be dragged along its orbit or animated
+ * (6–300 h) are adjustable; Earth can be dragged along its orbit (in every view
+ * but the Earth camera, where that gesture turns the camera) or animated
  * through the year. A shader lights the textured Earth with a soft day/night
  * terminator and city lights on the night side, and can overlay either a heat
  * map of the daily mean insolation or temperature bands of the seasonal-mean
@@ -698,6 +699,7 @@ export default function mount(container, meta) {
       if (state.cameraMode !== 'pin') pinReturnMode = state.cameraMode;
       state.cameraMode = 'pin';
       controls.enableRotate = false;
+      syncEarthGestures();
       const distance = clamp(camera.position.distanceTo(earthPos), PIN_DISTANCE.min, PIN_DISTANCE.max);
       const track = (toPos, toTarget) => {
         pinCameraPosition(toPos, distance);
@@ -710,6 +712,7 @@ export default function mount(container, meta) {
     state.cameraMode = mode;
     pinReturnMode = mode;
     controls.enableRotate = true;
+    syncEarthGestures();
   }
   /** Fly to a camera view and keep the panel – its preset row and its header button – in step. */
   function setCamera(id, { announce = false } = {}) {
@@ -785,6 +788,7 @@ export default function mount(container, meta) {
   const surfaceRaycaster = new THREE.Raycaster(); // default layer: the visible Earth surface
   const pointer = new THREE.Vector2();
   const eclipticPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  let hintAction = null; // the second half of the hint line under the canvas – it names the gestures Earth answers to
   let pressing = false; // pointer down on Earth, not (yet) moved past the click threshold
   let dragging = false;
   let hovering = false;
@@ -807,6 +811,12 @@ export default function mount(container, meta) {
     return surfaceRaycaster.intersectObject(earthMesh, false)[0]?.point ?? null;
   }
   const pressTravelPx = (e) => Math.hypot(e.clientX - pressStart.x, e.clientY - pressStart.y);
+  /**
+   * Dragging Earth along its orbit belongs to the views that look at the whole orbit. In the Earth
+   * camera the planet fills the screen and the very same gesture is how one turns the camera around
+   * it, so there the drag is left to OrbitControls and only the click – pin a place – stays Earth's.
+   */
+  const canDragOrbit = () => state.cameraMode !== 'earth';
   function dragTo(e) {
     setPointer(e);
     if (!raycaster.ray.intersectPlane(eclipticPlane, tmpV)) return;
@@ -820,12 +830,13 @@ export default function mount(container, meta) {
     pressStart.y = e.clientY;
     if (!pick(e)) return; // the sky: OrbitControls takes over
     pressing = true;
+    if (!canDragOrbit()) return; // Earth camera: let the drag rotate the view, the click still pins
     controls.enabled = false; // registered in the capture phase, so OrbitControls sees `enabled === false`
     canvas.setPointerCapture?.(e.pointerId);
     e.stopPropagation();
   };
   const onPointerMove = (e) => {
-    if (pressing && !dragging && pressTravelPx(e) > CLICK_THRESHOLD_PX) {
+    if (pressing && !dragging && canDragOrbit() && pressTravelPx(e) > CLICK_THRESHOLD_PX) {
       dragging = true;
       canvas.classList.add('is-dragging');
     }
@@ -836,7 +847,7 @@ export default function mount(container, meta) {
     const over = pick(e);
     if (over !== hovering) {
       hovering = over;
-      canvas.classList.toggle('is-grab', over); // cursor only – nothing in the scene changes
+      setEarthCursor(over); // cursor only – nothing in the scene changes
     }
   };
   const endPress = (e) => {
@@ -852,7 +863,8 @@ export default function mount(container, meta) {
     canvas.classList.remove('is-dragging');
     if (e && canvas.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
     if (!wasDragging) {
-      if (e?.type === 'pointerup') {
+      // in the Earth camera the press may have rotated the view instead – that is not a click
+      if (e?.type === 'pointerup' && pressTravelPx(e) <= CLICK_THRESHOLD_PX) {
         const point = pickSurface(e);
         if (point) setPin(point);
         else if (pin) unpin(); // inside the enlarged hit sphere but past the surface
@@ -868,6 +880,16 @@ export default function mount(container, meta) {
     updateOverlay();
     sim.requestRender();
   };
+  /** Over Earth: grab where dragging moves it along the orbit, pointer where only the pin is left. */
+  function setEarthCursor(over) {
+    canvas.classList.toggle('is-grab', over && canDragOrbit());
+    canvas.classList.toggle('is-pin', over && !canDragOrbit());
+  }
+  /** Keeps the cursor and the hint line in step with what Earth currently answers to. */
+  function syncEarthGestures() {
+    setEarthCursor(hovering);
+    if (hintAction) bindText(hintAction, canDragOrbit() ? `${KEYS}.hint` : `${KEYS}.hintNoDrag`);
+  }
   canvas.addEventListener('pointerdown', onPointerDown, { capture: true });
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', endPress);
@@ -1211,7 +1233,9 @@ export default function mount(container, meta) {
   disposers.push(viewShift.dispose);
 
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
-  hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), bindText(el('span'), `${KEYS}.hint`));
+  hintAction = el('span');
+  hint.append(bindText(el('span'), 'panel.hint'), document.createTextNode(' · '), hintAction);
+  syncEarthGestures();
   const credit = el('div', 'lp-sim__credit');
   const creditLink = el('a', '', { href: 'https://www.solarsystemscope.com/textures/', target: '_blank', rel: 'noopener noreferrer license' });
   bindText(creditLink, `${KEYS}.credit`);

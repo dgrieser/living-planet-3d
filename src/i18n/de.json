@@ -293,6 +293,7 @@
         "scaleNote": "Größen und Abstände sind nicht maßstabsgetreu; die Erdrotation wird weit langsamer gezeigt, als es die Jahresbewegung erfordern würde."
       },
       "hint": "Erde entlang ihrer Bahn ziehen · Auf die Erde klicken, um einen Ort anzuheften",
+      "hintNoDrag": "Auf die Erde klicken, um einen Ort anzuheften",
       "credit": "Texturen: Solar System Scope (CC BY 4.0)"
     },
     "solarOrbit": {

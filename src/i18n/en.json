@@ -293,6 +293,7 @@
         "scaleNote": "Sizes and distances are not to scale, and Earth's spin is shown far slower than the annual motion would require."
       },
       "hint": "Drag Earth along its orbit · Click Earth to pin a place",
+      "hintNoDrag": "Click Earth to pin a place",
       "credit": "Textures: Solar System Scope (CC BY 4.0)"
     },
     "solarOrbit": {
