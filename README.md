@@ -217,7 +217,26 @@ disposers.push(viewShift.dispose);
   at the fragment's latitude: each row is coloured by the seasonal-mean temperature of the energy-balance model
   at the current declination on a −40 … +60 °C ramp matching the legend. Annual-mean insolation per row is cached
   per tilt; the texture is only rewritten when tilt, rotation period or declination change. Heat map and
-  temperature bands are exclusive toggles (same hue ramp, different meaning).
+  temperature bands are exclusive toggles (same hue ramp, different meaning), and both are off by default –
+  the surface itself now tells the climate story.
+- The surface conditions are a second 1 × 128 `DataTexture`, this one data rather than colour (linear, not sRGB):
+  R = the row's seasonal mean encoded on −60 … +100 °C, G = permanent ice (the model's own albedo ramp,
+  `iceCoverFraction()`: annual mean 0 → −5 °C), B = city lights (the soft-edged year-round livability,
+  `lightsFactor()`, fading out 8 K past a LIVABLE limit), A = the annual mean (same encoding). The CPU eases every row towards the model with a
+  0.45 s time constant (snapped under reduced motion, when paused and at start-up), so a tilt drag flows
+  instead of popping. The shader reads the texture at a latitude jittered by noise (≈ ±4.5°) plus ±2 K of
+  local weather and applies the ramps of `C.SURFACE`, mirrored into the GLSL from the same constants: dormant
+  vegetation 8 → −4 °C, snow on land 2 → −8 °C, sea ice −2 → −12 °C (seawater freezes at −1.8 °C, the seasonal
+  mean is already ocean-damped), parched land 30 → 45 °C (complete at the livable limit), seas falling dry
+  45 → 80 °C (shelves first, deep basins only half – schematic; only high-tilt polar summers get there), and the
+  ice the map itself paints (bright, unsaturated pixels beyond ~58° – the Sahara is bright but yellow) melts away
+  where the *annual* mean sits at 2 → 10 °C: the Arctic to the map's own deep-water blue, Greenland, the Canadian
+  Arctic islands (two coarse coastline polygons tested in the shader – the map has no land/sea information under
+  its ice) and Antarctica to bedrock that greens into tundra. Today's Earth keeps its caps (annual means ≤ 3 °C there); 45° of tilt clears them. Layer
+  order: melted caps → vegetation → hot seas → ice, so ice is always a layer over the world that is there; land,
+  shelf, green and relief masks come from the day map as in the magnetosphere sim. On top: blowing snow over ice
+  and steam off hot seas (`uTime`), city lights × the lights channel, a sun glint on open water, the rim.
+  The "Surface conditions" toggle (default on) blends it all in via `uSurfaceMix`; off, Earth is the plain map.
 - `climate.js` derives the headline numbers: seasonal extremes are the solstice means; a latitude band counts
   as livable when its winter mean stays above −25 °C and its summer mean between 0 and 45 °C; the habitable
   fraction is the area-weighted share of livable bands. The model peaks near Earth's tilt (~100 % livable at
