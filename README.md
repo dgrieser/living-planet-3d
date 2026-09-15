@@ -254,14 +254,15 @@ disposers.push(viewShift.dispose);
   the Sun keeps its place on screen while the tilt geometry changes through the year – the planet-centric view
   in which the Sun appears to circle Earth once a year; "overview" and "top" look at the whole orbit. Dragging
   Earth along the orbit freezes the follow and catches up with a short tween afterwards. That drag belongs to
-  the views that look at the whole orbit: in the Earth camera the planet fills the screen and the same gesture
-  is how the camera is turned around it, so there the press is left to OrbitControls and only the click – pin
-  a place – stays Earth's. The cursor (grab vs. pointer) and the hint line under the canvas follow the camera
-  mode; a press that turned the view is not a click, so it pins nothing.
+  those two views only: in the Earth camera the planet fills the screen and the same gesture is how the camera
+  is turned around it, and while the camera rides on a pinned place the drag would pull that place out from
+  under it – so in both close-ups the press is left to OrbitControls and only the click – pin a place – stays
+  Earth's. The cursor (grab vs. pointer) and the hint line under the canvas follow the camera mode; a press
+  that turned the view is not a click, so it pins nothing.
 - Clicking Earth (a press that moves less than 6 px) raycasts the surface and pins that place: a marker in the
   spinning group, the latitude slider and every per-latitude figure jump to it, and the fourth camera mode
-  "pinned place" holds the camera above the point every frame (zoom preserved, orbit rotation disabled, follow
-  frozen during an orbit drag). The latitude slider and presets slide the pin along its meridian; a click on
+  "pinned place" holds the camera above the point every frame (zoom preserved, orbit rotation disabled, no orbit
+  drag – the date is scrubbed from the slider or an orbit-wide view, never by dragging the place away). The latitude slider and presets slide the pin along its meridian; a click on
   the sky, the Unpin button or Reset release it and return to the previous camera mode.
 - Earth's visual spin (one turn in ≈ 6.7 s at 24 h, scaled by 24 h/P, capped at 30°/s while the camera rides on
   a pin) is decoupled from the annual animation.

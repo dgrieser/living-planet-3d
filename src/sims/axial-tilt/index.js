@@ -2,9 +2,9 @@
  * Simulation: Axial tilt, seasons & day length ("axial-tilt").
  *
  * Earth orbits an emissive Sun. The axial tilt (0–90°) and rotation period
- * (6–300 h) are adjustable; Earth can be dragged along its orbit (in every view
- * but the Earth camera, where that gesture turns the camera) or animated
- * through the year. A shader lights the textured Earth with a soft day/night
+ * (6–300 h) are adjustable; Earth can be dragged along its orbit (in the views
+ * that look at the whole orbit – the two close-ups spend the gesture on the
+ * camera and on the pinned place) or animated through the year. A shader lights the textured Earth with a soft day/night
  * terminator and city lights on the night side, and can overlay either a heat
  * map of the daily mean insolation or temperature bands of the seasonal-mean
  * energy-balance temperature per latitude – both painted at full strength only
@@ -812,11 +812,12 @@ export default function mount(container, meta) {
   }
   const pressTravelPx = (e) => Math.hypot(e.clientX - pressStart.x, e.clientY - pressStart.y);
   /**
-   * Dragging Earth along its orbit belongs to the views that look at the whole orbit. In the Earth
-   * camera the planet fills the screen and the very same gesture is how one turns the camera around
-   * it, so there the drag is left to OrbitControls and only the click – pin a place – stays Earth's.
+   * Dragging Earth along its orbit belongs to the views that look at the whole orbit. The two
+   * close-ups leave the gesture alone: in the Earth camera it is how one turns the camera around the
+   * planet, and while the camera rides on a pinned place the drag would pull that place out from
+   * under it. In both only the click – pin a place – stays Earth's.
    */
-  const canDragOrbit = () => state.cameraMode !== 'earth';
+  const canDragOrbit = () => state.cameraMode !== 'earth' && state.cameraMode !== 'pin';
   function dragTo(e) {
     setPointer(e);
     if (!raycaster.ray.intersectPlane(eclipticPlane, tmpV)) return;
@@ -869,8 +870,6 @@ export default function mount(container, meta) {
         if (point) setPin(point);
         else if (pin) unpin(); // inside the enlarged hit sphere but past the surface
       }
-    } else if (state.cameraMode === 'pin' && pin) {
-      cameraPresets.pin(0.6); // catch up with the place that moved on during the drag
     } else if (following) {
       // catch up with Earth: same offset, rotated by the angle Earth moved during the drag
       followOffset.copy(camera.position).sub(controls.target);
