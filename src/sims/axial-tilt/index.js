@@ -104,14 +104,14 @@ const DEFAULTS = Object.freeze({
 });
 
 /** Display toggles – remembered per visitor, see ../../lib/prefs.js. Earth arrives with the
- *  climate story already on – the surface conditions painted on the globe, the livable region, the
- *  subsolar point and the temperature labels that put numbers on it – and everything else, the
- *  colour overlays included, is one tap away in the panel. */
+ *  climate story already on – the surface conditions painted on the globe, the subsolar point and the
+ *  temperature labels that put numbers on them – and everything drawn *over* the globe, the colour
+ *  overlays and the livable region's rings and darkening alike, is one tap away in the panel. */
 const VIEW_DEFAULTS = Object.freeze({
   showSurface: true, // ice, snow, browning and drying painted per latitude and season
   showHeat: false, // insolation heat map – exclusive with showClimate
   showClimate: false, // seasonal-mean temperature bands – off by default, they would paint over the ice caps
-  showLivable: true, // livable-region view (darkened hostile bands + border rings)
+  showLivable: false, // livable-region view – off by default, its darkening and border rings cover the surface
   showTerminator: false,
   showEquator: false,
   showCircles: false, // tropics + polar circles
