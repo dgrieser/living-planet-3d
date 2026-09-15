@@ -21,7 +21,7 @@
  * counter-clockwise seen from above (+y). All physics lives in ./physics.js.
  */
 import * as THREE from 'three';
-import { createScene } from '../../lib/scene.js';
+import { createScene, visibilityPastSphere } from '../../lib/scene.js';
 import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createViewToggles, createButton, createResetButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
@@ -203,7 +203,11 @@ export default function mount(container, meta) {
   scene.add(corona);
   const glowTexture = createGlowTexture();
   const starGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
-  const starHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, transparent: true, opacity: 0.4, depthWrite: false, depthTest: false, sizeAttenuation: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  // the halo and the drag ring ignore depth so the star stays visible as a point at any distance –
+  // which means the planet has to hide them by hand when it passes in front (see updateOverlay)
+  const STAR_HALO_OPACITY = 0.4;
+  const STAR_MARKER_OPACITY = 0.7;
+  const starHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture, transparent: true, opacity: STAR_HALO_OPACITY, depthWrite: false, depthTest: false, sizeAttenuation: false, blending: THREE.AdditiveBlending, toneMapped: false }));
   starHalo.scale.set(0.12, 0.12, 1);
   starHalo.renderOrder = 5;
   scene.add(starGlow, starHalo);
@@ -212,7 +216,7 @@ export default function mount(container, meta) {
   starHit.userData.kind = 'star';
   scene.add(starHit);
   const ringTexture = createRingTexture();
-  const starMarker = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTexture, color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false, depthTest: false, sizeAttenuation: false }));
+  const starMarker = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTexture, color: 0xffffff, transparent: true, opacity: STAR_MARKER_OPACITY, depthWrite: false, depthTest: false, sizeAttenuation: false }));
   starMarker.renderOrder = 9;
   scene.add(starMarker);
 
@@ -501,13 +505,21 @@ export default function mount(container, meta) {
     // sizeAttenuation is off: a scale of 2·r/d spans the star's apparent diameter, the ring sits at 0.42 of the sprite
     const starMarkerScale = Math.max(0.05, (3.1 * starRadius) / starDist);
     starMarker.scale.setScalar(starMarkerScale);
-    starMarker.visible = (drag?.kind === 'star' || hovering === 'star') && starMarkerScale < 0.6; // pointless once the disc fills the view
+    // with the planet in front of the star – the close-up the simulation opens on – the halo, the drag
+    // ring and the temperature label would shine through it: fade each out behind the planet's limb
+    const starVisible = visibilityPastSphere(camera.position, starMesh.position, planetPos, planetRadius);
+    starHalo.material.opacity = STAR_HALO_OPACITY * starVisible;
+    starHalo.visible = starVisible > 0.005;
+    starMarker.material.opacity = STAR_MARKER_OPACITY * starVisible;
+    starMarker.visible = (drag?.kind === 'star' || hovering === 'star') && starMarkerScale < 0.6 && starVisible > 0.005; // pointless once the disc fills the view
 
     labels.planetName.sprite.position.copy(planetPos).addScaledVector(tmpUp, planetRadius + planetDist * 0.03);
     labels.planetTemp.sprite.visible = state.showTempLabels;
     labels.planetTemp.sprite.position.copy(planetPos).addScaledVector(tmpUp, -(planetRadius + planetDist * 0.03));
-    labels.starTemp.sprite.visible = state.showTempLabels;
     labels.starTemp.sprite.position.copy(tmpUp).multiplyScalar(-(starRadius + starDist * 0.035));
+    const starLabelVisible = visibilityPastSphere(camera.position, labels.starTemp.sprite.position, planetPos, planetRadius);
+    labels.starTemp.sprite.material.opacity = starLabelVisible;
+    labels.starTemp.sprite.visible = state.showTempLabels && starLabelVisible > 0.005;
 
     labels.zoneInner.sprite.visible = labels.zoneOuter.sprite.visible = state.showZone && (state.showZoneSurface || state.showZoneShell);
     labels.zoneInner.sprite.position.copy(LABEL_DIRECTION).multiplyScalar(model.zone.inner * AU_UNITS).addScaledVector(tmpUp, -starDist * 0.012);
