@@ -227,12 +227,15 @@ disposers.push(viewShift.dispose);
   The readout also shows the summer/winter means and the livable verdict for the selected latitude.
 - Three small labels put the readout's temperatures on the globe: the day value of the selected latitude
   at its local noon, its night value at local midnight (both from the same `temperatureEstimate()` as the
-  "day / night" row, so the label is that row on the sphere) and, at the point the sun ray hits, the
-  local-noon value of the declination latitude – where the Sun stands in the zenith. The two meridian points
-  are found by projecting the Sun direction into Earth's tilted frame; the labels draw over everything, so
-  the one on the far side is dimmed rather than hidden and stays readable as the planet turns. Two toggles
-  ("Temperatures on Earth", "Temperature where the sun ray lands") switch them, both also folded into the
-  general "Labels" toggle.
+  "day / night" row, so the label is that row on the sphere) and, on the sun ray label itself, the
+  local-noon value of the declination latitude – where the Sun stands in the zenith. That label reads "Sun at
+  zenith · 32 °C": the subsolar latitude it used to carry is a readout row ("Sun at zenith over"), so the
+  label spends its width on what the picture cannot show. With the subsolar point switched off the zenith
+  value falls back to a small label of its own at the same point. The two meridian points are found by
+  projecting the Sun direction into Earth's tilted frame; the labels draw over everything, so the one on the
+  far side is dimmed rather than hidden and stays readable as the planet turns. Two toggles ("Temperatures on
+  Earth", "Temperature where the sun ray lands") switch them, both also folded into the general "Labels"
+  toggle.
 - The livable-region view passes `livableBands()` (contiguous livable latitude ranges, edges refined by
   bisection so they move smoothly with the tilt slider) to the shader as up to four `[lo, hi]` uniforms, which
   darken every latitude outside them, and draws the band edges as green latitude rings from a fixed pool; the

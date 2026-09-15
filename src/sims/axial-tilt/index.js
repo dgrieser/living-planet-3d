@@ -11,7 +11,8 @@
  * shows through – plus a livable-region view that darkens the latitudes that are
  * not livable all year. Small temperature labels sit on the globe itself: the day
  * value at local noon of the selected latitude, the night value at local midnight
- * and the temperature where the sun ray lands, each with its own toggle.
+ * and, on the sun ray label, the temperature where the ray lands – each with its
+ * own toggle.
  * Tropics, polar circles, the subsolar point, a readout
  * (day length, insolation, temperature estimate, seasonal extremes, climate
  * zone) for a selectable latitude and the year-round
@@ -517,28 +518,29 @@ export default function mount(container, meta) {
     rayPos.setXYZ(1, tmpV.x, tmpV.y, tmpV.z);
     rayPos.needsUpdate = true;
 
-    // temperature labels: day and night of the selected latitude on the two sides of the globe,
-    // plus the value at the point the sun ray hits
+    // temperature labels: day and night of the selected latitude on the two sides of the globe.
+    // The zenith value rides with the sun ray label (see below); its own sprite only stands in when
+    // that label is switched off, so the toggle never does nothing.
     const showDayNightTemps = state.showTemps && state.showLabels;
+    const zenithTemp = state.showSubsolarTemp ? formatTemperature(subsolarTempC(declDeg)) : null;
     tempLabels.day.sprite.visible = showDayNightTemps;
     tempLabels.night.sprite.visible = showDayNightTemps;
-    tempLabels.subsolar.sprite.visible = state.showSubsolarTemp && state.showLabels;
+    tempLabels.subsolar.sprite.visible = !!zenithTemp && state.showLabels && !state.showSubsolar;
     if (showDayNightTemps) {
       meridianDirection(dayDirWorld, state.latitudeDeg, true);
       meridianDirection(nightDirWorld, state.latitudeDeg, false);
       tempLabels.day.setText(t(`${KEYS}.labels.dayTemp`, { value: formatTemperature(model.temps.dayC) }));
       tempLabels.night.setText(t(`${KEYS}.labels.nightTemp`, { value: formatTemperature(model.temps.nightC) }));
     }
-    if (tempLabels.subsolar.sprite.visible) {
-      tempLabels.subsolar.setText(t(`${KEYS}.labels.zenithTemp`, { value: formatTemperature(subsolarTempC(declDeg)) }));
-    }
+    if (tempLabels.subsolar.sprite.visible) tempLabels.subsolar.setText(t(`${KEYS}.labels.zenithTemp`, { value: zenithTemp }));
 
     gridGroup.visible = state.showGrid;
     stopGroup.visible = state.showGrid;
     stopLabels.forEach(({ stop, label }) => label.setText(t(`${KEYS}.stopLabels.${stop.id}`)));
     poleLabels.north.setText(t(`${KEYS}.labels.north`));
     poleLabels.south.setText(t(`${KEYS}.labels.south`));
-    subsolarLabel.setText(`${t(`${KEYS}.labels.subsolar`)} · ${formatLatitude(declDeg, 1)}`);
+    const subsolarText = t(`${KEYS}.labels.subsolar`);
+    subsolarLabel.setText(zenithTemp ? `${subsolarText} · ${zenithTemp}` : subsolarText);
   }
 
   /** Camera-dependent bits: hit sphere, drag marker, label offsets, near plane. */
@@ -553,13 +555,11 @@ export default function mount(container, meta) {
     subsolarLabel.sprite.position.copy(subsolarMarker.position).addScaledVector(tmpUp, -earthDist * 0.028);
     if (tempLabels.day.sprite.visible) {
       tmpCamDir.copy(camera.position).sub(earthPos).normalize();
-      placeTempLabel(tempLabels.day, dayDirWorld, 1, earthDist);
-      placeTempLabel(tempLabels.night, nightDirWorld, -1, earthDist);
+      placeTempLabel(tempLabels.day, dayDirWorld, 0.035, earthDist);
+      placeTempLabel(tempLabels.night, nightDirWorld, -0.058, earthDist);
     }
     if (tempLabels.subsolar.sprite.visible) {
-      // under the subsolar label when that one is on, otherwise right under the marker
-      const drop = state.showSubsolar && state.showLabels ? 0.055 : 0.028;
-      tempLabels.subsolar.sprite.position.copy(subsolarMarker.position).addScaledVector(tmpUp, -earthDist * drop);
+      tempLabels.subsolar.sprite.position.copy(subsolarMarker.position).addScaledVector(tmpUp, -earthDist * 0.028);
     }
     for (const { label, anchor } of stopLabels) {
       // offset along screen-up so the text never sits on its marker, whatever the camera angle
@@ -575,16 +575,17 @@ export default function mount(container, meta) {
   }
 
   /**
-   * Puts a temperature label on the surface point it describes, lifted along screen-up so it clears
-   * the globe (day up, night down – at a pole the two points nearly meet). The labels draw over
+   * Puts a temperature label on the surface point it describes, lifted along screen-up by `up` (a
+   * fraction of the camera's distance, so the offset holds at any zoom): the day value above its
+   * point, the night value further below, where it clears the sun ray label. The labels draw over
    * everything, so the one on Earth's far side is dimmed instead of hidden: it is still the
    * temperature of the side turned away, and it stays readable while the planet turns.
    */
-  function placeTempLabel(label, dir, upSign, earthDist) {
+  function placeTempLabel(label, dir, up, earthDist) {
     label.sprite.position
       .copy(earthPos)
       .addScaledVector(dir, EARTH_RADIUS * 1.04)
-      .addScaledVector(tmpUp, upSign * earthDist * 0.03);
+      .addScaledVector(tmpUp, up * earthDist);
     label.sprite.material.opacity = 0.35 + 0.65 * clamp((dir.dot(tmpCamDir) + 0.2) / 0.4, 0, 1);
   }
 
