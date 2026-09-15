@@ -233,8 +233,12 @@ disposers.push(viewShift.dispose);
   ice the map itself paints (bright, unsaturated pixels beyond ~58° – the Sahara is bright but yellow) melts away
   where the *annual* mean sits at 2 → 10 °C: the Arctic to the map's own deep-water blue, Greenland, the Canadian
   Arctic islands (two coarse coastline polygons tested in the shader – the map has no land/sea information under
-  its ice) and Antarctica to bedrock that greens into tundra. Today's Earth keeps its caps (annual means ≤ 3 °C there); 45° of tilt clears them. Layer
-  order: melted caps → vegetation → baked land → hot seas → ice → air, so ice is always a layer over the world that
+  its ice) and Antarctica to bedrock that greens into tundra. Today's Earth keeps its caps (annual means ≤ 3 °C there); 45° of tilt clears them. Perennial vegetation is
+  gated by the lights channel, i.e. year-round livability: where a latitude fails it the map's green is stripped
+  to bare soil in every season (the forest does not grow back each autumn), and only an ephemeral flush of
+  annuals greens the bare ground while the seasonal mean sits between 5 and 40 °C, at most a third of a living
+  landscape's green and patchy. Layer
+  order: melted caps → dead perennials / ephemeral flush → vegetation → baked land → hot seas → ice → air, so ice is always a layer over the world that
   is there; land, shelf, green and relief masks come from the day map as in the magnetosphere sim. The air layer is
   the moist-greenhouse answer to a 60–90 °C ocean: a dense two-scale animated cloud deck whose coverage rises with
   the drying ramp, and dust over the baked land (storm cells, zonal streaks, thickest at the limb); it sits in the

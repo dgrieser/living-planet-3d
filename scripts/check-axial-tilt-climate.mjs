@@ -231,6 +231,26 @@ assert('baked never runs ahead of parched, drying never ahead of baked', (() => 
   }
   return true;
 })());
+// perennial vegetation needs the whole year; ephemeral life flushes the bare ground in the shoulder seasons
+check('Earth tilt: perennial vegetation everywhere', Math.min(...[-89.5, -60, -30, 0, 30, 60, 89.5].map((lat) => surf(lat, EARTH_TILT_DEG, JUNE).perennial)), 1, 1e-9);
+check('Earth tilt: no ephemeral flush (nothing is bare)', Math.max(...[-60, 0, 60].flatMap((lat) => [surf(lat, EARTH_TILT_DEG, JUNE).bloom, surf(lat, EARTH_TILT_DEG, SEPT).bloom])), 0, 1e-9);
+check('tilt 90: 60° N has lost its perennial vegetation', surf(60, 90, JUNE).perennial, 0, 1e-9);
+check('tilt 90 June: 60° N too hot for a flush', surf(60, 90, JUNE).bloom, 0, 1e-9);
+between('tilt 90 equinox: 60° N flushes green (9 °C)', surf(60, 90, SEPT).bloom, 0.2, 0.8);
+check('tilt 90 December: 60° N too cold for a flush', surf(60, 90, DEC).bloom, 0, 1e-9);
+check('tilt 90: the 20° band keeps its forests', surf(20, 90, JUNE).perennial, 1, 1e-9);
+check('the perennial factor is the lights factor', surf(45, 90, JUNE).perennial, surf(45, 90, JUNE).lights, 1e-12);
+assert('the flush never exceeds what the perennial cover is missing', (() => {
+  for (const tilt of [23.4, 45, 70, 90]) {
+    for (let angle = 0; angle < 360; angle += 45) {
+      for (let lat = -90; lat <= 90; lat += 7.5) {
+        const { perennial, bloom } = surf(lat, tilt, angle);
+        if (bloom > 1 - perennial + 1e-12) return false;
+      }
+    }
+  }
+  return true;
+})());
 check('tilt 90 equinox: nothing dry', Math.max(...[-60, 0, 60].map((lat) => surf(lat, 90, SEPT).dry)), 0, 1e-9);
 check('tilt 90 equinox: nothing parched', Math.max(...[-60, 0, 60].map((lat) => surf(lat, 90, SEPT).parch)), 0, 1e-9);
 assert('the texture encoding is monotone and clamped', (() => {

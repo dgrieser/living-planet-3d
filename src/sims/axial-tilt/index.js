@@ -1812,7 +1812,9 @@ const EARTH_VERTEX = /* glsl */ `
  * the shallow seas fall dry to brine and salt in a high-tilt polar summer, and snow and sea ice with
  * leads settle over everything cold, thick and blue-white where the ice is permanent, and beyond the
  * livable limit the dead land bakes to red earth, cracks and salt flats under dust storms while the hot
- * seas disappear under a moist-greenhouse cloud deck. Ice is always a layer over the world that is
+ * seas disappear under a moist-greenhouse cloud deck. Perennial vegetation needs the whole year, so
+ * where a latitude is not livable year-round the map's green is stripped to bare soil for good and
+ * only an ephemeral flush greens it in the mild seasons. Ice is always a layer over the world that is
  * there, never a swap. The
  * latitude the texture is read at is jittered by noise, so every front is ragged and the same way
  * ragged – a locally colder spot is both snowier and browner. Then the Sun lights it with a soft
@@ -1869,6 +1871,7 @@ const EARTH_FRAGMENT = /* glsl */ `
   const vec3 OCEAN = vec3(0.013, 0.045, 0.18); // the map's own deep water, for a thawed Arctic
   const vec3 ROCK = vec3(0.20, 0.18, 0.15);    // bedrock under a melted ice sheet
   const vec3 TUNDRA = vec3(0.22, 0.27, 0.11);  // … greening once the year is warm enough
+  const vec3 FLUSH = vec3(0.20, 0.30, 0.10);   // the ephemeral green of a desert after rain
   // where the map paints ice in the far north it is the Arctic Ocean, except inside the coastlines of
   // Greenland and the Canadian Arctic islands (ICE_LANDS) – in the far south it is Antarctica
   ${glslPolygon('inGreenland', ICE_LANDS.greenland)}
@@ -1934,6 +1937,7 @@ const EARTH_FRAGMENT = /* glsl */ `
     float annualC = s.a * ${glslFloat(SURF.tempRangeC.max - SURF.tempRangeC.min)} + ${glslFloat(SURF.tempRangeC.min)};
     float permIce = s.g;
     float lights = s.b;
+    float perennial = lights; // year-round livability – what the map's forests, savanna and tundra need to persist
     // the ramps of C.surfaceState(), mirrored
     float thaw = smoothstep(${glslFloat(SURF.thaw.onsetC)}, ${glslFloat(SURF.thaw.fullC)}, annualC);
     float dormant = ${coldRamp(SURF.dormant)};
@@ -1963,14 +1967,24 @@ const EARTH_FRAGMENT = /* glsl */ `
     shelf *= 1.0 - mapIce; // the pale rim of the map's ice is ice, not shallow water
     float melted = mapIce * thaw;
     float warm = smoothstep(2.0, 15.0, annualC);
-    vec3 thawed = mix(OCEAN, mix(ROCK, TUNDRA, warm * (0.6 + 0.4 * detail)) * (0.8 + 0.4 * detail), iceLand);
+    vec3 thawed = mix(OCEAN, mix(ROCK, TUNDRA, warm * perennial * (0.6 + 0.4 * detail)) * (0.8 + 0.4 * detail), iceLand);
     vec3 ground = mix(base, thawed, melted);
     land = mix(land, iceLand, melted);
-    green = max(green, 0.5 * warm * melted * iceLand);
+    green = max(green, 0.5 * warm * perennial * melted * iceLand);
     relief = mix(relief, 0.5, melted);
 
-    // 1. vegetation: brown for the cold season, sand where it is scorched – land only, most where the map is green
+    // 0b. perennial vegetation needs the whole year. Where the latitude is not livable year-round the
+    //     map's green is dead for good – bare soil whatever the season – and only ephemeral life flushes
+    //     it faintly green in the mild shoulder seasons, the way a desert blooms after rain.
     vec3 soil = mix(SOIL_DARK, SOIL_PALE, smoothstep(0.3, 0.75, detail));
+    float barren = (1.0 - perennial) * land;
+    ground = mix(ground, soil * (0.85 + 0.3 * detail), barren * (0.35 + 0.65 * green));
+    float bloom = ${'(1.0 - perennial) * smoothstep(' + glslFloat(SURF.bloom.onsetC) + ', ' + glslFloat(SURF.bloom.fullC) + ', tC) * (1.0 - smoothstep(' + glslFloat(SURF.bloom.fadeC) + ', ' + glslFloat(SURF.bloom.goneC) + ', tC))'};
+    float flush = bloom * land * (0.3 + 0.7 * green) * smoothstep(0.3, 0.7, fbm(p * 5.0 + vec3(31.0, 3.0, 17.0), 3));
+    ground = mix(ground, mix(ground, FLUSH, ${glslFloat(SURF.bloom.strength)}), flush);
+    green *= perennial; // what the seasons below still have to work with
+
+    // 1. vegetation: brown for the cold season, sand where it is scorched – land only, most where the map is green
     ground = mix(ground, mix(ground * vec3(0.9, 0.7, 0.45), DORMANT, 0.5), dormant * land * (0.3 + 0.7 * green));
     vec3 parched = mix(OCHRE, BLEACH, smoothstep(0.3, 0.75, detail)) * (0.85 + 0.3 * relief);
     ground = mix(ground, parched, parch * land * (0.55 + 0.45 * green));
