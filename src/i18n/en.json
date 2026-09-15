@@ -217,6 +217,8 @@
         "circles": "Tropics & polar circles",
         "axis": "Rotation axis",
         "subsolar": "Subsolar point & sun ray",
+        "temps": "Temperatures on Earth (day / night)",
+        "subsolarTemp": "Temperature where the sun ray lands",
         "grid": "Ecliptic plane & season stops",
         "labels": "Labels",
         "cameraEarth": "Earth",
@@ -231,6 +233,8 @@
         "terminator": "Day/night boundary",
         "selected": "Selected latitude",
         "subsolar": "Subsolar point (Sun at zenith)",
+        "dayTemp": "Day temperature (local noon, selected latitude)",
+        "nightTemp": "Night temperature (local midnight, selected latitude)",
         "heatTitle": "Daily mean insolation per latitude",
         "heatLow": "0 W/m²",
         "heatHigh": "≥ 550 W/m²",
@@ -242,7 +246,10 @@
       "labels": {
         "north": "N",
         "south": "S",
-        "subsolar": "Sun at zenith"
+        "subsolar": "Sun at zenith",
+        "dayTemp": "Day {value}",
+        "nightTemp": "Night {value}",
+        "zenithTemp": "Zenith {value}"
       },
       "info": {
         "title": "What is axial tilt – and why 23.4° matters",
