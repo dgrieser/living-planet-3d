@@ -34,7 +34,7 @@
  * planet-centric view in which the Sun appears to circle Earth once per year.
  */
 import * as THREE from 'three';
-import { createScene } from '../../lib/scene.js';
+import { createScene, visibilityPastSphere } from '../../lib/scene.js';
 import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createViewToggles, createButton, createResetButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
@@ -668,14 +668,8 @@ export default function mount(container, meta) {
   function updateOverlay() {
     tmpUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
     const earthDist = Math.max(camera.position.distanceTo(earthPos), 1e-6);
-    // the corona draws over everything, so when Earth stands between the camera and the Sun it is faded
-    // out by how far behind the limb the Sun sits (the Sun is at the origin)
-    tmpCamDir.copy(camera.position).negate(); // camera → Sun
-    const toSun = tmpCamDir.length();
-    tmpCamDir.divideScalar(Math.max(toSun, 1e-6));
-    const along = tmpV.copy(earthPos).sub(camera.position).dot(tmpCamDir); // Earth's centre along that ray
-    const miss = along > 0 && along < toSun ? Math.sqrt(Math.max(0, earthPos.distanceToSquared(camera.position) - along * along)) : Infinity;
-    sunCorona.material.opacity = CORONA_OPACITY * clamp((miss - EARTH_RADIUS) / (EARTH_RADIUS * 0.12) + 1, 0, 1);
+    // the corona draws over everything, so Earth standing between the camera and the Sun has to hide it
+    sunCorona.material.opacity = CORONA_OPACITY * visibilityPastSphere(camera.position, sunMesh.position, earthPos, EARTH_RADIUS);
     sunCorona.visible = sunCorona.material.opacity > 0.005;
     earthHit.position.copy(earthPos);
     earthHit.scale.setScalar(Math.max(EARTH_RADIUS * 1.3, earthDist * 0.02));

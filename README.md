@@ -248,7 +248,8 @@ disposers.push(viewShift.dispose);
   latitude `uAxis` (the world-space rotation axis) gives, so its limb warms and broadens along the hot latitudes.
   The "Surface conditions" toggle (default on) blends it all in via `uSurfaceMix`; off, Earth is the plain map.
 - The Sun's screen-space corona sprite ignores depth (so the Sun keeps a halo at any distance); when Earth stands
-  between the camera and the Sun it is faded out by how far behind the limb the Sun sits, so it no longer shows
+  between the camera and the Sun it is faded out by how far behind the limb the Sun sits (`visibilityPastSphere()`
+  in `src/lib/scene.js`, shared with the magnetosphere and habitable-zone simulations), so it no longer shows
   through the night side. The subsolar marker is a screen-space sprite too: it fades out once the subsolar point
   leans away from the camera by more than the limb's angle, and its "Sun at zenith" label dims on the far side
   exactly like the day/night temperature labels do.
@@ -322,6 +323,10 @@ disposers.push(viewShift.dispose);
 
 ### habitable-zone notes
 
+- The star's halo and drag ring ignore depth so the star stays a visible point however far away it is, and its
+  temperature label is drawn over everything. In the planet close-up the star is usually straight behind the
+  planet, so all three are faded out by how far behind the planet's limb the star sits
+  (`visibilityPastSphere()` in `src/lib/scene.js`): the star no longer shines through the planet's night side.
 - Zone edges (conservative limits, Kopparapu et al. 2014, Table 1, 1 M⊕): `d = √(L / S_eff) AU` with the
   flux limit itself a quartic in the star's temperature, `S_eff = S_☉ + a·T* + b·T*² + c·T*³ + d·T*⁴`,
   `T* = T_eff − 5780 K` — runaway greenhouse (inner) and maximum greenhouse (outer), 1.107 and 0.356 S☉ for
@@ -510,6 +515,9 @@ disposers.push(viewShift.dispose);
 
 ### magnetosphere notes
 
+- The Sun is a screen-space sprite 400 Earth radii out along +x, ignoring depth so it stays one crisp point at
+  any zoom; it and the label riding with it are faded out by how far behind Earth's limb each sits
+  (`visibilityPastSphere()` in `src/lib/scene.js`), so the Sun no longer shines through the night side.
 - Frame: +x points at the Sun (the wind flows towards −x), +y is the dipole axis, +z is dusk. One scene
   unit is one Earth radius and Earth is drawn to scale (radius 1). All three camera views (side, polar,
   tail) orbit the origin, so Earth sits in the middle of the picture and dragging turns the planet instead

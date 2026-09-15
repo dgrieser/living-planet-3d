@@ -34,7 +34,7 @@
  * All quantitative work lives in ./physics.js; this module only maps it to pixels.
  */
 import * as THREE from 'three';
-import { createScene } from '../../lib/scene.js';
+import { createScene, visibilityPastSphere } from '../../lib/scene.js';
 import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createToggle, createViewToggles, createButton, createResetButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
@@ -422,9 +422,12 @@ export default function mount(container, meta) {
   scene.add(wind.points, cmeCloud.points, erosion.points);
 
   // --- Sun + labels -----------------------------------------------------------------------------
+  // The Sun is a screen-space sprite far out along +x: it ignores depth so it stays one crisp point at
+  // any zoom, which means Earth has to hide it by hand on the night side (see updateOverlay).
+  const SUN_SPRITE_OPACITY = 0.95;
   const glowTexture = createGlowTexture();
   const sunSprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({ map: glowTexture, color: COLORS.sun, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false, sizeAttenuation: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+    new THREE.SpriteMaterial({ map: glowTexture, color: COLORS.sun, transparent: true, opacity: SUN_SPRITE_OPACITY, depthWrite: false, depthTest: false, sizeAttenuation: false, blending: THREE.AdditiveBlending, toneMapped: false }),
   );
   sunSprite.scale.set(0.12, 0.12, 1);
   sunSprite.position.set(SUN_SPRITE_DISTANCE, 0, 0);
@@ -598,6 +601,14 @@ export default function mount(container, meta) {
     tmpUp.setFromMatrixColumn(camera.matrixWorld, 1).normalize();
     const camDist = camera.position.distanceTo(controls.target);
     labels.sun.sprite.position.copy(sunSprite.position).addScaledVector(tmpUp, -SUN_SPRITE_DISTANCE * 0.045);
+    // the Sun and the label riding with it are behind Earth on the night side: fade each out by how far
+    // behind the limb it sits, so neither shines through the planet
+    const sunVisible = visibilityPastSphere(camera.position, sunSprite.position, earthSpin.position, EARTH_RADIUS);
+    sunSprite.material.opacity = SUN_SPRITE_OPACITY * sunVisible;
+    sunSprite.visible = sunVisible > 0.005;
+    const sunLabelVisible = visibilityPastSphere(camera.position, labels.sun.sprite.position, earthSpin.position, EARTH_RADIUS);
+    labels.sun.sprite.material.opacity = sunLabelVisible;
+    labels.sun.sprite.visible = state.showLabels && sunLabelVisible > 0.005;
     const near = clamp(camDist * 0.008, 0.05, 3);
     if (Math.abs(camera.near - near) / near > 0.2) {
       camera.near = near;

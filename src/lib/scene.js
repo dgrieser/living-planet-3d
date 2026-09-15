@@ -291,6 +291,32 @@ export function createStarfield({ count = 2500, radius = 900 } = {}) {
   return points;
 }
 
+const occlusionRay = new THREE.Vector3();
+const occlusionToCentre = new THREE.Vector3();
+/**
+ * How much of a point behind a sphere the camera still sees: 1 in the clear, 0 once the sphere
+ * covers it, fading over `softness` of a radius at the limb. Sprites that ignore depth – a glow, a
+ * marker, the label riding with it – are drawn over everything, so a body standing between the
+ * camera and what they mark has to hide them by hand.
+ *
+ * @param {THREE.Vector3} cameraPos
+ * @param {THREE.Vector3} targetPos    what the sprite marks (the Sun, a star, a point on a globe)
+ * @param {THREE.Vector3} sphereCentre the body that may stand in front of it
+ * @param {number} radius              that body's radius
+ * @param {number} [softness]          width of the fade at the limb, as a fraction of the radius
+ * @returns {number} 0 … 1
+ */
+export function visibilityPastSphere(cameraPos, targetPos, sphereCentre, radius, softness = 0.12) {
+  const distance = occlusionRay.copy(targetPos).sub(cameraPos).length();
+  if (distance < 1e-6) return 1;
+  occlusionRay.divideScalar(distance);
+  occlusionToCentre.copy(sphereCentre).sub(cameraPos);
+  const along = occlusionToCentre.dot(occlusionRay); // the sphere's centre, projected onto the ray
+  if (along <= 0 || along >= distance) return 1; // the sphere is behind the camera, or beyond the target
+  const miss = Math.sqrt(Math.max(0, occlusionToCentre.lengthSq() - along * along)); // how far the ray passes from that centre
+  return Math.min(1, Math.max(0, (miss - radius) / (radius * softness) + 1));
+}
+
 /** Recursively free geometries, materials and textures. */
 export function disposeSceneGraph(root) {
   root.traverse((obj) => {
