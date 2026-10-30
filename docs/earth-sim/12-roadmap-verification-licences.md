@@ -92,7 +92,41 @@ past construction states (the buildings are "as surveyed").
 
 ## 5. Licence & attribution matrix
 
-*Filled from the research in files 02–04; every tileset produced by the pipeline carries
-its licence and attribution string in its manifest.*
+Every tileset produced by the pipeline carries its licence and attribution string in its
+manifest; the client shows the attributions of everything visible
+([10 §2.5](10-time-ui-interaction.md#25-attribution)). The app's **code stays 0BSD**;
+data keep their own terms (as `public/textures/` already does).
 
-<!-- LICENCE_MATRIX -->
+| Data | Licence | Attribution / condition | Redistribute derived tiles? |
+|---|---|---|---|
+| NRW Geobasis open data (DGM1, DOP, LiDAR, LoD2, ALKIS …) | dl-de/zero-2.0 (see [03](03-data-luebbecke.md)) | none required (courtesy credit "Geobasis NRW") | yes |
+| DWD open data (ICON, radar, stations, phenology) | CC BY 4.0 | "Deutscher Wetterdienst" | yes |
+| Danish geodata (DHM, orthophotos, skråfoto, GeoDanmark) | CC BY 4.0 | "Klimadatastyrelsen" / "© GeoDanmark" | yes |
+| DMI open data (weather, ocean, radar, gauges) | CC BY 4.0 | "DMI" | yes |
+| Danmarks Dybdemodel | own terms (?) | Geodatastyrelsen | check |
+| Landbrugsstyrelsen *Marker* | CC0-1.0 (per fiboa catalogue; ?) | – | yes |
+| BBR, §3 nature, AIS | free data, exact terms (?) | – | check |
+| Copernicus DEM | Copernicus DEM licence (free incl. commercial) | mandatory DLR/Airbus notice | yes, with notice |
+| GEDTM30 | CC BY 4.0 | OpenGeoHub | yes |
+| Mapterhorn | per source (list in `attribution.json`) | per source | yes, with all source credits |
+| GEBCO_2026 | public domain | acknowledgement + citation, no endorsement | yes |
+| EMODnet Bathymetry | (CC BY 4.0 ?) | EMODnet Bathymetry Consortium | check |
+| Copernicus Sentinel / CDSE mosaics | Copernicus Sentinel notice | "Contains modified Copernicus Sentinel data [year]" | yes |
+| EOX Sentinel-2 cloudless 2018–2025 | **CC BY-NC-SA 4.0** | "EOxCloudless … by EOX IT Services GmbH (Contains modified Copernicus Sentinel data …)" | only NC-SA (non-commercial) |
+| NASA (Blue Marble, Black Marble, GIBS, LRO) | no copyright | "NASA" | yes |
+| ESA WorldCover | CC BY 4.0 | "© ESA WorldCover project …" | yes |
+| CLMS (HRL, HR-VPP, snow) | CLMS data policy | "Generated using European Union's Copernicus Land Monitoring Service information" | yes |
+| Meta/WRI canopy height v2 | CC BY 4.0 | Meta / WRI | yes |
+| Thünen / DLR tree species maps | CC BY 4.0 | Thünen-Institut / DLR | yes |
+| OpenStreetMap, Overture buildings | **ODbL 1.0** | "© OpenStreetMap contributors" (+ Overture source list) | derived *databases* (3D building tiles) under ODbL |
+| IMS snow & ice | US government | cite DOI 10.7265/N52R3PMC | yes |
+| OSI SAF sea ice | CC BY 4.0 | "EUMETSAT OSI SAF" | yes |
+| ECMWF open data, ERA5 | CC BY 4.0 | "ECMWF" / "Copernicus Climate Change Service" | yes |
+| NOAA GFS, GOES | public | NOAA | yes |
+| EUMETSAT derived products (MTG cloud mask/CTTH, LI) | CC BY 4.0 (core data) | "EUMETSAT" | yes |
+| OPERA radar | CC BY 4.0 | EUMETNET OPERA | yes |
+| FES2022b | AVISO+ licence (registration; any purpose) | required citation | constituent maps: check |
+| TPXO10 | academic / non-commercial | – | avoid in shipped data |
+| Open-Meteo API | data CC BY 4.0; API free only non-commercial | "Open-Meteo" | point queries only |
+| Google Photorealistic 3D Tiles | Google Maps Platform terms | logo + aggregated copyrights | **never** (no caching; EEA-blocked) |
+| CC0 assets (ambientCG, Poly Haven, Quaternius) | CC0 | – | yes |
