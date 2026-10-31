@@ -185,6 +185,36 @@ cloud shadow are evaluated per building vertex). Batching draw calls is M9 work.
 **Deviations:** no own building tileset, no roofer reconstruction, no orthophoto roofs or facade
 photos, no building shadows; the window pattern ignores real facades.
 
+### 1.5 M4 outcome (31 Oct 2026)
+
+**Built** (`data/trees.js`, `data/treeWorker.js`, `render/trees.js`) – for North Rhine-Westphalia, at
+runtime instead of a baked inventory:
+
+| M4 item | State |
+|---|---|
+| single-tree inventory from LiDAR | done in the browser: 500 m cells around the camera (and the view centre) fetch NRW's normalised surface model (nDOM, `wcs_nw_ndom`, CORS, 1 m via `SCALESIZE`, ≈ 1 MB per cell); a worker finds tops with a height-dependent window, rejects roofs (plateaus, level towards their inside), measures crown radii. ≈ 20 000 trees in the 20 cells around the Reineberg |
+| species assignment | conifer / broadleaf only, from the leaf-off colour-infrared iDOP 2025 (`wms_nw_idop`, CORS) at the tree top; no species, no DLR tree-species map yet |
+| procedural species models, LOD, impostors | two generated forms (broadleaf: icosahedron crown, conifer: two cones), near and far geometry per cell by distance; no impostors |
+| wind animation | done – crown sway per tree in the vertex stage (fixed westerly, not yet the GFS wind) |
+| season | fixed lowland calendar for broadleaves (leaves mid April, autumn colours October, bare in winter as dithered twig crowns); the phenology models are M7 |
+| ground cover, hedges | **not built** |
+| Fanø | **not built** – needs the DHM point cloud / DSM (token) |
+
+**Exit criteria:**
+
+- *≥ 90 % of trees > 3 m found, crown tops within 1 m (against hand-mapped sample plots)* – **not verified**:
+  no hand-mapped plots exist yet. `check-earth-trees.mjs` verifies the detector on a synthetic canopy with
+  known crowns (all found once, heights within 8 %, no false tops, flat and gable roofs rejected); on a
+  real 500 m town-edge cell it finds 987 tops.
+- *Forest edges match the orthophoto* – by construction (same 2023/24 surface model as the imagery era);
+  the clearings of the spruce dieback on the Wiehengebirge show as clearings.
+- *60 fps at High over the Wiehengebirge forest* – **not met** on the development machine: ≈ 50 fps with
+  ≈ 21 000 trees, 2.2 M triangles; CPU-bound in three's per-draw submit (12–15 ms) like M3, not the GPU.
+  Batching (one instanced mesh per species across cells) is the M9 fix.
+
+**Deviations:** runtime detection instead of a baked inventory, no species beyond conifer/broadleaf, no
+impostors, no ground cover or hedges, no trees on Fanø.
+
 ---
 
 ## 2. Verification (keep the repo's `scripts/check-*.mjs` culture)

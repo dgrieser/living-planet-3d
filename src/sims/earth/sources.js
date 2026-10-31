@@ -80,6 +80,17 @@ export const BUILDINGS_OSM = Object.freeze({
   notices: ['Footprints measured by mappers; heights and roofs are generated from the tags or typical values until the LoD2 reconstruction from the Danish point cloud exists. The baked footprint file is a derived database under ODbL.'],
 });
 
+export const TREES_NRW = Object.freeze({
+  id: 'geobasis-nrw-trees',
+  name: 'Trees from Geobasis NRW: normalised surface model (nDOM) and leaf-off colour-infrared orthophoto (iDOP 2025)',
+  provenance: 'measured',
+  licence: 'dl-de/zero-2.0',
+  attribution: '© Geobasis NRW (nDOM, iDOP, dl-de/zero-2.0); single trees detected in the browser',
+  short: '© Geobasis NRW nDOM',
+  href: 'https://www.wcs.nrw.de/geobasis/wcs_nw_ndom',
+  notices: ['Tree positions, heights and crown widths come from the canopy height model; the species group (conifer/broadleaf) from the March 2025 colour-infrared photos; the tree shapes are generated.'],
+});
+
 export const HERO_HEIGHTS = Object.freeze({
   id: 'national-geoids',
   name: 'National height references: GCG2016 (Germany), DVR90(2023) (Denmark)',
@@ -170,4 +181,4 @@ export const EPHEMERIS = Object.freeze({
   href: 'https://github.com/cosinekitty/astronomy',
 });
 
-export const SOURCES = Object.freeze([TERRAIN, BATHYMETRY, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, GEOID, HERO_HEIGHTS, EPHEMERIS]);
+export const SOURCES = Object.freeze([TERRAIN, BATHYMETRY, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, TREES_NRW, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, GEOID, HERO_HEIGHTS, EPHEMERIS]);
