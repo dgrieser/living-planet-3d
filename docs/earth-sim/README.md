@@ -1,11 +1,11 @@
 # Living Earth – plan for a digital-twin Earth simulation
 
-*Status: researched October 2026. **Milestones M0–M3 built on 31 Oct 2026** (foundations; the whole Earth
-from a distance; hero terrain & imagery; buildings) – the `earth` simulation runs behind the
+*Status: researched October 2026. **Milestones M0–M4 built on 31 Oct 2026** (foundations; the whole Earth
+from a distance; hero terrain & imagery; buildings; trees) – the `earth` simulation runs behind the
 work-in-progress flag (`#/sim/earth`); outcomes, measurements and deviations in
-[12 §1.1–1.4](12-roadmap-verification-licences.md#11-m0-outcome-31-oct-2026). Open from M1–M3: the tide
+[12 §1.1–1.5](12-roadmap-verification-licences.md#11-m0-outcome-31-oct-2026). Open from M1–M4: the tide
 overlay (→ M5), the Danish orthophotos, point cloud and BBR (tokens), baked tilesets on the mittwald server,
-facade/roof photos. M4 (vegetation) is next.*
+facade/roof photos, ground cover, hand-mapped tree plots, draw-call batching (M9). M5 (water) is next.*
 
 A new simulation for Living Planet 3D: **the real Earth, zoomable from space down to the
 ground**. Real terrain, real satellite and aerial imagery, a real sea floor revealed when

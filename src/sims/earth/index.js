@@ -29,7 +29,7 @@ import { applyPose, readPose, createFlight, rayEllipsoid } from './render/camera
 import { createWalk } from './render/walk.js';
 import { PLACES, VIEWS, HERO_BOXES, findPlace, placeAt } from './places.js';
 import { NRW_DOP } from './regions.js';
-import { TERRAIN, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SOURCES } from './sources.js';
+import { TERRAIN, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, TREES_NRW, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SOURCES } from './sources.js';
 import { createClock, RATE_PRESETS, placeTimeZone, localDayStart, localMinuteOfDay, MS_PER_DAY } from './clock.js';
 import { bodyEcef, eqjToEcefMatrix, topocentric, riseSet, moonPhase } from './ephemeris.js';
 import { ecefToGeodetic, geodeticToEcef, wrapLongitudeDeg, DEG } from './geodesy.js';
@@ -42,7 +42,7 @@ const READOUT_INTERVAL_MS = 250;
 const DEFAULTS = Object.freeze({ place: 'globe', view: 'globe', rate: 'realtime', seaLevel: 0 });
 /** Display settings – remembered per visitor. */
 const VIEW_DEFAULTS = Object.freeze({
-  showAtmosphere: true, showBuildings: true, showClouds: true, showSnowIce: true, showLights: true, showStars: true, showMoon: true, showLabels: true, showDepthTint: false, quality: 'auto',
+  showAtmosphere: true, showBuildings: true, showTrees: true, showClouds: true, showSnowIce: true, showLights: true, showStars: true, showMoon: true, showLabels: true, showDepthTint: false, quality: 'auto',
 });
 /** Altitudes (m) between which the far view fades from the tile imagery to the seasonal Blue Marble. */
 const FAR_IMAGERY_FADE = [1.2e6, 4e6];
@@ -139,6 +139,15 @@ export default async function mount(container, meta) {
   });
   scene.add(buildings.group);
   disposers.push(() => buildings.dispose());
+  // trees: found in NRW's canopy height model around the camera (own chunk, like the buildings)
+  const { createTrees } = await import('./render/trees.js');
+  const trees = createTrees({
+    u, toSun, sunShadow: layers.sunShadow, nightFloor, camera,
+    groundHeight: (lat, lon) => globe.sampleElevation(lat, lon),
+    onChange: () => view.requestRender(),
+  });
+  scene.add(trees.group);
+  disposers.push(() => trees.dispose());
 
   const sky = createSky({ sunIlluminance: u.sunIlluminance, sunDirection: u.sunDirection, starBrightness: u.starBrightness });
   scene.add(sky.group);
@@ -199,7 +208,10 @@ export default async function mount(container, meta) {
   globe.tiles.addEventListener('needs-render', onTilesUpdate);
   globe.tiles.addEventListener('needs-update', onTilesUpdate);
   globe.tiles.addEventListener('load-model', onTilesUpdate);
-  const onTerrainLoaded = () => buildings.terrainChanged();
+  const onTerrainLoaded = () => {
+    buildings.terrainChanged();
+    trees.terrainChanged();
+  };
   globe.tiles.addEventListener('load-model', onTerrainLoaded);
   disposers.push(() => globe.tiles.removeEventListener('load-model', onTerrainLoaded));
 
@@ -392,6 +404,7 @@ export default async function mount(container, meta) {
   const toggles = {
     showAtmosphere: viewToggles.toggle('showAtmosphere', `${KEYS}.view.atmosphere`),
     showBuildings: viewToggles.toggle('showBuildings', `${KEYS}.view.buildings`),
+    showTrees: viewToggles.toggle('showTrees', `${KEYS}.view.trees`),
     showClouds: viewToggles.toggle('showClouds', `${KEYS}.view.clouds`),
     showSnowIce: viewToggles.toggle('showSnowIce', `${KEYS}.view.snowIce`),
     showLights: viewToggles.toggle('showLights', `${KEYS}.view.lights`),
@@ -404,7 +417,7 @@ export default async function mount(container, meta) {
     bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`), cameraRow, walkBtn.el,
     bindText(el('p', 'lp-subheading'), `${KEYS}.controls.quality`), qualityRow,
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`),
-    toggles.showAtmosphere, toggles.showBuildings, toggles.showClouds, toggles.showSnowIce, toggles.showLights, toggles.showStars, toggles.showMoon, toggles.showLabels, toggles.showDepthTint,
+    toggles.showAtmosphere, toggles.showBuildings, toggles.showTrees, toggles.showClouds, toggles.showSnowIce, toggles.showLights, toggles.showStars, toggles.showMoon, toggles.showLabels, toggles.showDepthTint,
   );
   if (view.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
 
@@ -565,6 +578,7 @@ export default async function mount(container, meta) {
       if (c.latDeg > NRW_DOP.south && c.latDeg < NRW_DOP.north && c.lonDeg > NRW_DOP.west && c.lonDeg < NRW_DOP.east) onScreen.push(BUILDINGS_NRW);
       if (c.latDeg > lb.south && c.latDeg < lb.north && c.lonDeg > lb.west && c.lonDeg < lb.east) onScreen.push(BUILDINGS_OSM);
     }
+    if (state.showTrees && trees.stats.trees > 0 && cameraAltitude() < 2500) onScreen.push(TREES_NRW);
     const key = onScreen.map((x) => x.id).join('|');
     if (key === attributionKey) return;
     attributionKey = key;
@@ -864,9 +878,15 @@ export default async function mount(container, meta) {
     const fb = HERO_BOXES.fanoe;
     const nearFanoe = camGeoNow.lat / DEG > fb.south - 0.3 && camGeoNow.lat / DEG < fb.north + 0.3 && camGeoNow.lon / DEG > fb.west - 0.5 && camGeoNow.lon / DEG < fb.east + 0.5;
     const buildingsBusy = buildings.update({ active: state.showBuildings && altitude < 60000, nearOsm: nearFanoe && altitude < 80000 });
+    // trees around the centre of the view (the walker's feet when walking), in NRW, below 2.5 km
+    const tc = lastCentre ?? { latDeg: camGeoNow.lat / DEG, lonDeg: camGeoNow.lon / DEG };
+    const inNrw = camGeoNow.lat / DEG > NRW_DOP.south && camGeoNow.lat / DEG < NRW_DOP.north && camGeoNow.lon / DEG > NRW_DOP.west && camGeoNow.lon / DEG < NRW_DOP.east && tc.latDeg > NRW_DOP.south && tc.latDeg < NRW_DOP.north && tc.lonDeg > NRW_DOP.west && tc.lonDeg < NRW_DOP.east;
+    const localNow = new Date(clock.simTime + placeZone().offsetMinutes(clock.simTime) * 60000);
+    const doy = Math.floor((localNow - Date.UTC(localNow.getUTCFullYear(), 0, 1)) / MS_PER_DAY) + 1;
+    const treesBusy = trees.update({ active: state.showTrees && inNrw && altitude < 2500, latDeg: tc.latDeg, lonDeg: tc.lonDeg, camLatDeg: camGeoNow.lat / DEG, camLonDeg: camGeoNow.lon / DEG, doy, seconds: view.reducedMotion ? 0 : performance.now() / 1000 });
     const stats = globe.tiles.stats;
     const loading = stats.downloading + stats.parsing + stats.queued > 0;
-    view.setContinuous(loading || buildingsBusy || !!flight || walk.moving || (clock.playing && !clock.live && clock.effectiveRate !== 0));
+    view.setContinuous(loading || buildingsBusy || treesBusy || (!view.reducedMotion && state.showTrees && trees.stats.trees > 0 && altitude < 2500) || !!flight || walk.moving || (clock.playing && !clock.live && clock.effectiveRate !== 0));
     updateLabels();
     updateReadouts(performance.now());
     return changed || loading;
@@ -895,7 +915,7 @@ export default async function mount(container, meta) {
 
   if (import.meta.env.DEV) {
     window.__lpEarth = {
-      view, globe, controls, clock, state, u, surface, geoid, bathymetry, globalLayers, gfs, clouds, exposure, sky, VIEWS,
+      view, globe, controls, clock, state, u, surface, geoid, bathymetry, globalLayers, gfs, clouds, trees, exposure, sky, VIEWS,
       setCamera, setPlace, setQuality, goLive, setPlaying, setWaterLevel, setWalking, walk, buildings,
       pickBuilding: (x, y) => { const info = buildings.pick(new THREE.Vector2(x, y)); renderBuildingCard(info); return info; },
       setTime: (ms) => { clock.setTime(ms); onClockChanged(); },
