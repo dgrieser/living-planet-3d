@@ -45,6 +45,9 @@ export const ATMOSPHERE = Object.freeze({
   zScale: WGS84.a / WGS84.b, // ellipsoid → sphere
 });
 
+/** Size (m) of the finest generated ground detail; see detailOrigin. */
+export const DETAIL_SCALE = 0.12;
+
 const LUT_WIDTH = 256; // μ
 const LUT_HEIGHT = 64; // r
 
@@ -132,6 +135,9 @@ export function createAtmosphereUniforms() {
     cameraWorld: uniform(new THREE.Vector3(0, 0, 2e7)),
     viewRotation: uniform(new THREE.Matrix3()), // world → view (rotation only), same reason as cameraWorld
     viewToWorld: uniform(new THREE.Matrix3()),
+    // the camera position modulo DETAIL_PERIOD, in units of DETAIL_SCALE, computed in double precision:
+    // positionWorld is only good to ≈ 0.5 m in float32, too coarse for centimetre detail near the camera
+    detailOrigin: uniform(new THREE.Vector3()),
     sunIlluminance: uniform(new THREE.Color(1, 0.985, 0.96)),
     haze: uniform(1), // 0 = no atmosphere drawn (the display toggle), 1 = on
     starBrightness: uniform(1),
@@ -147,6 +153,9 @@ export function updateAtmosphereUniforms(u, { cameraPosition, sunDirection, came
   _v.z *= ATMOSPHERE.zScale;
   u.cameraKm.value.copy(_v);
   u.cameraWorld.value.copy(cameraPosition);
+  const period = DETAIL_SCALE * 65536;
+  const wrap = (v) => (((v % period) + period) % period) / DETAIL_SCALE;
+  u.detailOrigin.value.set(wrap(cameraPosition.x), wrap(cameraPosition.y), wrap(cameraPosition.z));
   if (camera) {
     u.viewRotation.value.setFromMatrix4(camera.matrixWorldInverse);
     u.viewToWorld.value.setFromMatrix4(camera.matrixWorld);

@@ -12,8 +12,9 @@ export const TERRAIN = Object.freeze({
   url: 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp',
   tileDimension: 512,
   // global coverage ends at z12 (≈ 19 m per pixel at 52° N); the national 1 m / 0.4 m models of NRW and
-  // Denmark reach z16/z17 but only inside their regions – they arrive with the hero tilesets in M2
-  maxZoom: 12,
+  // Denmark reach z16/z17 inside their regions – read to z16 (≈ 0.7 m per pixel) inside the hero boxes
+  // only (regions.js caps every other place at z12)
+  maxZoom: 16,
   encoding: 'terrarium',
   name: 'Mapterhorn',
   provenance: 'measured',
@@ -39,6 +40,29 @@ export const IMAGERY = Object.freeze({
   attribution: 'EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2025)',
   // the strip keeps the full credit – CC BY-NC-SA asks for it where the imagery is shown
   href: 'https://cloudless.eox.at',
+});
+
+export const IMAGERY_NRW = Object.freeze({
+  id: 'geobasis-nrw-dop',
+  // WMTS tile matrix set EPSG_3857_16: matrix m = Web-Mercator zoom − 5, down to 7.5 cm per pixel (z21)
+  url: 'https://www.wmts.nrw.de/geobasis/wmts_nw_dop/tiles/nw_dop/EPSG_3857_16/{m}/{x}/{y}',
+  levels: 22,
+  name: 'Geobasis NRW digital orthophotos (DOP10, 2024)',
+  provenance: 'measured',
+  licence: 'dl-de/zero-2.0',
+  attribution: '© Geobasis NRW (DOP, dl-de/zero-2.0)',
+  short: '© Geobasis NRW',
+  href: 'https://www.bezreg-koeln.nrw.de/geobasis-nrw/produkte-und-dienste/luftbild-und-satellitenbildinformationen/aktuelle-luftbild-und-0',
+  notices: ['Lübbecke: the south part (town, ridge) was flown leaf-off on 8 Mar 2024, the north part leaf-on on 1 May 2024 – the seam shows near 52.31° N.'],
+});
+
+export const HERO_HEIGHTS = Object.freeze({
+  id: 'national-geoids',
+  name: 'National height references: GCG2016 (Germany), DVR90(2023) (Denmark)',
+  provenance: 'measured',
+  licence: 'CC BY 4.0',
+  attribution: 'GCG2016 © BKG (2023) CC BY 4.0; DVR90(2023) © Klimadatastyrelsen CC BY 4.0; via the PROJ data CDN',
+  href: 'https://cdn.proj.org',
 });
 
 export const BATHYMETRY = Object.freeze({
@@ -122,4 +146,4 @@ export const EPHEMERIS = Object.freeze({
   href: 'https://github.com/cosinekitty/astronomy',
 });
 
-export const SOURCES = Object.freeze([TERRAIN, BATHYMETRY, IMAGERY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, GEOID, EPHEMERIS]);
+export const SOURCES = Object.freeze([TERRAIN, BATHYMETRY, IMAGERY, IMAGERY_NRW, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, GEOID, HERO_HEIGHTS, EPHEMERIS]);

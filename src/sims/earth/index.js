@@ -1,6 +1,6 @@
 /**
- * Living Earth – the real Earth, zoomable from space down to the ground (milestones M0 foundations and
- * M1 the whole Earth from a distance).
+ * Living Earth – the real Earth, zoomable from space down to the ground (milestones M0 foundations,
+ * M1 the whole Earth from a distance, M2 hero terrain & imagery with walk mode).
  *
  * One clock and one place drive everything (docs/earth-sim/10): the clock gives the instant, the
  * ephemeris turns it into the Sun's and the Moon's positions in the Earth-fixed frame, the globe streams
@@ -26,8 +26,10 @@ import { createGfsClouds } from './data/gfs.js';
 import { createClouds, createCloudShadow, createCloudUniforms } from './render/clouds.js';
 import { createSky } from './render/sky.js';
 import { applyPose, readPose, createFlight, rayEllipsoid } from './render/camera.js';
+import { createWalk } from './render/walk.js';
 import { PLACES, VIEWS, findPlace, placeAt } from './places.js';
-import { TERRAIN, IMAGERY, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SOURCES } from './sources.js';
+import { NRW_DOP } from './regions.js';
+import { TERRAIN, IMAGERY, IMAGERY_NRW, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SOURCES } from './sources.js';
 import { createClock, RATE_PRESETS, placeTimeZone, localDayStart, localMinuteOfDay, MS_PER_DAY } from './clock.js';
 import { bodyEcef, eqjToEcefMatrix, topocentric, riseSet, moonPhase } from './ephemeris.js';
 import { ecefToGeodetic, geodeticToEcef, wrapLongitudeDeg, DEG } from './geodesy.js';
@@ -117,10 +119,10 @@ export default async function mount(container, meta) {
   const clouds = createClouds({ u, toSun, nodes: cloudNodes, nightFloor, cover: cloudCover });
   scene.add(clouds.group);
   disposers.push(unsubscribeGfs, () => gfs.dispose(), () => clouds.dispose());
-  const colorNode = createSurfaceColorNode(u, toSun, surface, { nightFloor, geoidTexture: geoid.texture, layers });
+  const colorNode = createSurfaceColorNode(u, toSun, surface, { nightFloor, geoid, layers });
   const quality = () => QUALITY[state.quality === 'auto' ? 'high' : state.quality];
   const globe = createGlobe({
-    terrain: TERRAIN, imagery: IMAGERY, colorNode, camera, renderer, bathymetry, geoid,
+    terrain: TERRAIN, imagery: IMAGERY, hero: IMAGERY_NRW, colorNode, camera, renderer, bathymetry, geoid,
     errorTarget: quality().errorTarget, cacheBytes: quality().cacheBytes,
   });
   scene.add(globe.tiles.group);
@@ -173,6 +175,14 @@ export default async function mount(container, meta) {
     controls.removeEventListener('start', onControlsStart);
     controls.dispose();
   });
+  // walk mode (first person on the terrain): the globe controls rest while it runs
+  const walk = createWalk({
+    camera,
+    dom: renderer.domElement,
+    groundHeight: (lat, lon) => globe.sampleElevation(lat, lon),
+    onChange: () => view.requestRender(),
+  });
+  disposers.push(() => walk.dispose());
   const onTilesUpdate = () => view.requestRender();
   globe.tiles.addEventListener('needs-render', onTilesUpdate);
   globe.tiles.addEventListener('needs-update', onTilesUpdate);
@@ -200,6 +210,7 @@ export default async function mount(container, meta) {
   function setCamera(id, { animate = true } = {}) {
     const preset = VIEWS[id];
     if (!preset) return;
+    if (walk.state.active) setWalking(false);
     const target = fitPose(preset);
     state.view = id;
     if (target.place !== state.place) setPlace(target.place, { fly: false });
@@ -350,6 +361,9 @@ export default async function mount(container, meta) {
     });
   }
   renderCameraRow();
+  // walking is a camera mode, not a step of the view cycle – its own button (docs/earth-sim/10 §2.2)
+  const walkBtn = createButton({ labelKey: `${KEYS}.controls.walk`, icon: '🚶', onClick: () => setWalking(!walk.state.active) });
+  walkBtn.el.classList.add('lp-earth-walk');
   const qualityRow = el('div', 'lp-presets lp-presets--tight lp-presets--compact', { role: 'group' });
   bindAttr(qualityRow, { 'aria-label': `${KEYS}.controls.quality` });
   const qualityButtons = QUALITY_IDS.map((id) => {
@@ -370,7 +384,7 @@ export default async function mount(container, meta) {
     showDepthTint: viewToggles.toggle('showDepthTint', `${KEYS}.view.depthTint`),
   };
   moreControls.add(
-    bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`), cameraRow,
+    bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`), cameraRow, walkBtn.el,
     bindText(el('p', 'lp-subheading'), `${KEYS}.controls.quality`), qualityRow,
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`),
     toggles.showAtmosphere, toggles.showClouds, toggles.showSnowIce, toggles.showLights, toggles.showStars, toggles.showMoon, toggles.showLabels, toggles.showDepthTint,
@@ -415,19 +429,45 @@ export default async function mount(container, meta) {
   });
   attribution.append(attributionText, sourcesBtn);
   const hint = el('div', 'lp-sim__hint', { 'aria-hidden': 'true' });
-  hint.append(bindText(el('span'), `${KEYS}.hint`));
+  const hintGlobe = bindText(el('span'), `${KEYS}.hint`);
+  const hintWalk = bindText(el('span', null, { hidden: true }), `${KEYS}.hintWalk`);
+  hint.append(hintGlobe, hintWalk);
+  // on-screen pad for touch screens while walking
+  const walkPad = el('div', 'lp-earth-walkpad', { hidden: true, role: 'group' });
+  bindAttr(walkPad, { 'aria-label': `${KEYS}.controls.walk` });
+  for (const [name, icon] of [['turnLeft', '↶'], ['forward', '▲'], ['turnRight', '↷'], ['back', '▼']]) {
+    const b = el('button', `lp-earth-walkpad__btn lp-earth-walkpad__btn--${name}`, { type: 'button' });
+    b.textContent = icon;
+    bindAttr(b, { 'aria-label': `${KEYS}.walk.${name}`, title: `${KEYS}.walk.${name}` });
+    const on = (e) => {
+      e.preventDefault();
+      walk.press(name, true);
+    };
+    const off = () => walk.press(name, false);
+    b.addEventListener('pointerdown', on);
+    b.addEventListener('pointerup', off);
+    b.addEventListener('pointerleave', off);
+    b.addEventListener('pointercancel', off);
+    walkPad.append(b);
+  }
+  viewport.append(walkPad);
   container.append(attribution, sourcesList, hint);
   disposers.push(() => {
     attribution.remove();
     sourcesList.remove();
     hint.remove();
     labelLayer.remove();
+    walkPad.remove();
   });
   let attributionKey = '';
+  let lastCentre = null; // the centre of the view from the last readout update
   /** The strip names the providers of what is on screen right now (cheap; called with the readouts). */
   function updateAttributionStrip() {
     // the far view shows the Blue Marble month, closer the EOX tiles; snow, ice and lights are on top
     const onScreen = [TERRAIN, surface.farBlend.value > 0.5 ? BLUE_MARBLE : IMAGERY];
+    // the state's orthophotos once the view is over North Rhine-Westphalia and close enough for them
+    const c = lastCentre;
+    if (c && cameraAltitude() < 300000 && c.latDeg > NRW_DOP.south && c.latDeg < NRW_DOP.north && c.lonDeg > NRW_DOP.west && c.lonDeg < NRW_DOP.east) onScreen.push(IMAGERY_NRW);
     if (state.seaLevel < 0 || state.showDepthTint) onScreen.push(BATHYMETRY);
     if (state.showSnowIce) onScreen.push(SNOW, SEA_ICE);
     if (state.showLights) onScreen.push(NIGHT_LIGHTS);
@@ -466,6 +506,7 @@ export default async function mount(container, meta) {
 
   // --- state changes ------------------------------------------------------------------------------------------------
   function setPlace(id, { fly = true } = {}) {
+    if (fly && walk.state.active) setWalking(false);
     state.place = findPlace(id).id;
     renderCameraRow();
     panel.setCameraViews(cameraViewsFor(state.place), state.view);
@@ -479,6 +520,31 @@ export default async function mount(container, meta) {
     seaLevelSlider.setValue(seaLevelToPosition(level), { silent: true }); // a snapped level moves the thumb
     seaResetBtn.el.setAttribute('aria-pressed', String(level === 0));
     lastReadout = 0;
+    view.requestRender();
+  }
+  function setWalking(on) {
+    if (on && !walk.state.active) {
+      flight = null;
+      const centre = viewCentre();
+      const camGeo = ecefToGeodetic(camera.position.x, camera.position.y, camera.position.z);
+      const where = centre ?? { latDeg: camGeo.lat / DEG, lonDeg: camGeo.lon / DEG };
+      walk.enter({ latDeg: where.latDeg, lonDeg: where.lonDeg, headingDeg: readPose(camera).headingDeg });
+      controls.enabled = false;
+      state.view = null;
+      syncCameraButtons();
+    } else if (!on && walk.state.active) {
+      walk.exit();
+      // step back up a little, so the globe controls start above the ground
+      const pose = readPose(camera);
+      applyPose(camera, { ...pose, heightM: pose.heightM + 120, pitchDeg: -25 });
+      controls.enabled = true;
+    }
+    const walking = walk.state.active;
+    walkBtn.setLabel(walking ? `${KEYS}.controls.walkStop` : `${KEYS}.controls.walk`);
+    walkBtn.el.setAttribute('aria-pressed', String(walking));
+    walkPad.hidden = !walking;
+    hintGlobe.hidden = walking;
+    hintWalk.hidden = !walking;
     view.requestRender();
   }
   function setPlaying(v) {
@@ -517,6 +583,7 @@ export default async function mount(container, meta) {
     view.requestRender();
   }
   function resetAll() {
+    if (walk.state.active) setWalking(false);
     Object.assign(state, DEFAULTS);
     viewToggles.reset();
     state.quality = VIEW_DEFAULTS.quality;
@@ -566,6 +633,12 @@ export default async function mount(container, meta) {
   let sunTimes = null;
   const _fwd = new THREE.Vector3();
   function viewCentre() {
+    if (walk.state.active) {
+      // walking: the place under the walker's feet
+      const { latDeg, lonDeg } = walk.state;
+      const h = globe.sampleElevation(latDeg * DEG, lonDeg * DEG);
+      return { latDeg, lonDeg, elevation: h === null ? null : h - geoid.sample(latDeg, lonDeg) };
+    }
     camera.getWorldDirection(_fwd);
     let hit = rayEllipsoid(camera.position, _fwd, 0);
     if (!hit) return null;
@@ -602,6 +675,7 @@ export default async function mount(container, meta) {
     if (clock.playing) syncClockControls(); // the slider and the date follow a running clock
     const date = clock.date;
     const centre = viewCentre();
+    lastCentre = centre;
     const camGeo = ecefToGeodetic(camera.position.x, camera.position.y, camera.position.z);
     const where = centre ?? { latDeg: camGeo.lat / DEG, lonDeg: camGeo.lon / DEG, elevation: null };
     const hero = placeAt(where.latDeg, where.lonDeg);
@@ -646,7 +720,10 @@ export default async function mount(container, meta) {
     let changed = controlsMoved;
     controlsMoved = false;
     if (clock.tick(dt)) changed = true;
-    if (flight) {
+    if (walk.state.active) {
+      walk.update(dt);
+      if (walk.moving) changed = true;
+    } else if (flight) {
       flightTime += dt;
       applyPose(camera, flight.at(flightTime));
       controls.enabled = false;
@@ -691,7 +768,7 @@ export default async function mount(container, meta) {
     globe.tiles.update();
     const stats = globe.tiles.stats;
     const loading = stats.downloading + stats.parsing + stats.queued > 0;
-    view.setContinuous(loading || !!flight || (clock.playing && !clock.live && clock.effectiveRate !== 0));
+    view.setContinuous(loading || !!flight || walk.moving || (clock.playing && !clock.live && clock.effectiveRate !== 0));
     updateLabels();
     updateReadouts(performance.now());
     return changed || loading;
@@ -720,7 +797,7 @@ export default async function mount(container, meta) {
   if (import.meta.env.DEV) {
     window.__lpEarth = {
       view, globe, controls, clock, state, u, surface, geoid, bathymetry, globalLayers, gfs, clouds, exposure, sky, VIEWS,
-      setCamera, setPlace, setQuality, goLive, setPlaying, setWaterLevel,
+      setCamera, setPlace, setQuality, goLive, setPlaying, setWaterLevel, setWalking, walk,
       setTime: (ms) => { clock.setTime(ms); onClockChanged(); },
       readPose: () => readPose(camera),
       applyPose: (pose) => { applyPose(camera, typeof pose === 'string' ? VIEWS[pose] : pose); view.requestRender(); },

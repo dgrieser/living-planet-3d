@@ -766,3 +766,72 @@ a:hover { color: #a9d9ff; }
   .lp-earth-attribution { left: 8px; bottom: auto; top: 8px; max-width: calc(100vw - 16px); font-size: 0.65rem; }
   .lp-earth-sources { left: 8px; top: 40px; bottom: auto; }
 }
+
+/* living earth – walk mode: the pinned walk button and the on-screen pad for touch screens */
+.lp-earth-walk {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.lp-earth-walkpad {
+  position: absolute;
+  left: 16px;
+  bottom: 84px;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(3, 48px);
+  grid-template-rows: repeat(2, 48px);
+  gap: 6px;
+  touch-action: none;
+  user-select: none;
+}
+
+.lp-earth-walkpad[hidden] {
+  display: none;
+}
+
+.lp-earth-walkpad__btn {
+  border: 1px solid var(--lp-border, rgba(255, 255, 255, 0.18));
+  border-radius: 12px;
+  background: rgba(10, 16, 32, 0.72);
+  color: var(--lp-text, #e8eefc);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.lp-earth-walkpad__btn:active {
+  background: rgba(80, 140, 255, 0.45);
+}
+
+.lp-earth-walkpad__btn:focus-visible {
+  outline: 2px solid var(--lp-accent, #7cb7ff);
+  outline-offset: 2px;
+}
+
+.lp-earth-walkpad__btn--forward {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.lp-earth-walkpad__btn--turnLeft {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.lp-earth-walkpad__btn--back {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.lp-earth-walkpad__btn--turnRight {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+@media (max-width: 720px) {
+  .lp-earth-walkpad {
+    bottom: 120px;
+  }
+}

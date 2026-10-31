@@ -126,6 +126,37 @@ shipped base grid, product dates, Blue Marble months, colour maps, mip chains), 
 - Known rough edges: the sea mask's coastline follows Mapterhorn's 0 m texels (stair-steps at low zoom
   where the EOX coast is finer); the drained floor's colours are a generalisation, not a sediment map.
 
+### 1.3 M2 outcome (31 Oct 2026)
+
+**Built** – in the browser, from public services, without the pipeline-baked hero tilesets of the plan:
+
+| M2 item | State |
+|---|---|
+| hero terrain | done – Mapterhorn carries NRW DGM1 (1 m) and the Danish DHM (0.4 m); inside the hero boxes of `places.js` the tree reads its zoom-16 level (≈ 0.7 m per pixel), everywhere else it stays at z12 (`regions.js`: per-region depth limits in `createChild`, per-tile source level in `getUrl`/`parseToMesh`) |
+| vertical datum conversion | done – Mapterhorn keeps the national heights (DHHN2016 / DVR90), so the hero boxes use the national references: GCG2016 (Lübbecke) and DVR90(2023) (Fanø) from the PROJ CDN, cropped by `tools/earth-pipeline/build-hero-geoids.mjs` into `data/heroGeoids.js`; residuals to EGM2008 (0.20 m / 0.27 m) blended in over ±0.02° around each box, identically on the CPU (grids) and in the shader (waterline) |
+| NRW orthophotos | done – DOP10 2024 from the state's WMTS (dl-de/zero-2.0, CORS) over all of NRW from z10 to z21 (7.5 cm), drawn over EOX where the state's tiles are transparent; the leaf-off/leaf-on seam near 52.31° N is in the data |
+| Danish orthophotos | **not built** – GeoDanmark Ortofoto needs a Dataforsyningen token ([13](13-data-requests.md)); Fanø keeps EOX at 10 m |
+| walk mode (moved from M0) | done – first person at 1.7 m on the finest loaded terrain, 1.4 m/s (Shift 6 m/s), arrow keys/WASD, Q/E turn, drag to look, on-screen pad for touch; its own button next to the camera views |
+| ground detail | small step of [05 §2](05-terrain-imagery-buildings.md#2-ground-surface--from-orthophoto-to-living-material): generated fractal detail where a pixel is smaller than the imagery's (anchored with a double-precision camera offset); the material classification, de-shadowing and the merged Wadden Sea DEM (green LiDAR requested) remain |
+| hero tilesets on the mittwald server | **not built** – still hot-linked; needs the server |
+
+**Exit criteria:**
+
+- *Ground at 10 cm imagery / ≤ 1 m relief* – met for Lübbecke (DOP10, DGM1 at ≈ 0.7 m per pixel); Fanø has
+  the relief (0.4 m source) but 10 m imagery until the Danish token is in.
+- *Seams to the global layer invisible* – terrain: one pyramid, so the hero levels continue the global ones
+  without a step; the height reference blends over ±2 km. Imagery: the EOX → DOP change happens at the NRW
+  border from z10 on, not at the hero box; it is a colour change seen from regional heights (two different
+  mosaics), not a gap.
+- *Heights within ±0.2 m of the source at control points* – met for Lübbecke:
+  `tools/earth-pipeline/verify_hero_heights.py` compares Mapterhorn z16 with NRW's DGM1 from the state's WCS
+  at 400 points – mean 0.001 m, 5–95 % within −0.028 … +0.031 m; the national references reproduce PROJ to
+  0.1 mm (`check-earth-hero.mjs`). Fanø: not verified – the DHM WCS also needs the token.
+
+**Deviations and what they move:** baked hero tilesets, the Danish orthophoto, ground material
+classification, de-shadowing and the merged land–sea DEM of the Wadden Sea stay open (pipeline and data
+requests); buildings are flat until M3; walking does not collide with anything but the ground.
+
 ---
 
 ## 2. Verification (keep the repo's `scripts/check-*.mjs` culture)
