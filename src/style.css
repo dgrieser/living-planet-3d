@@ -835,3 +835,35 @@ a:hover { color: #a9d9ff; }
     bottom: 120px;
   }
 }
+
+/* living earth – the info card of a picked building */
+.lp-earth-building {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  z-index: 6;
+  width: min(300px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border: 1px solid var(--lp-border);
+  border-radius: 12px;
+  background: rgba(10, 16, 32, 0.86);
+  color: var(--lp-text);
+  backdrop-filter: blur(6px);
+}
+
+.lp-earth-building[hidden] {
+  display: none;
+}
+
+.lp-earth-building__title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.lp-earth-building .lp-facts {
+  margin-bottom: 8px;
+}
+
+.lp-earth-building dd {
+  overflow-wrap: anywhere;
+}

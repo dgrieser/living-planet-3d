@@ -27,9 +27,9 @@ import { createClouds, createCloudShadow, createCloudUniforms } from './render/c
 import { createSky } from './render/sky.js';
 import { applyPose, readPose, createFlight, rayEllipsoid } from './render/camera.js';
 import { createWalk } from './render/walk.js';
-import { PLACES, VIEWS, findPlace, placeAt } from './places.js';
+import { PLACES, VIEWS, HERO_BOXES, findPlace, placeAt } from './places.js';
 import { NRW_DOP } from './regions.js';
-import { TERRAIN, IMAGERY, IMAGERY_NRW, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SOURCES } from './sources.js';
+import { TERRAIN, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SOURCES } from './sources.js';
 import { createClock, RATE_PRESETS, placeTimeZone, localDayStart, localMinuteOfDay, MS_PER_DAY } from './clock.js';
 import { bodyEcef, eqjToEcefMatrix, topocentric, riseSet, moonPhase } from './ephemeris.js';
 import { ecefToGeodetic, geodeticToEcef, wrapLongitudeDeg, DEG } from './geodesy.js';
@@ -42,7 +42,7 @@ const READOUT_INTERVAL_MS = 250;
 const DEFAULTS = Object.freeze({ place: 'globe', view: 'globe', rate: 'realtime', seaLevel: 0 });
 /** Display settings – remembered per visitor. */
 const VIEW_DEFAULTS = Object.freeze({
-  showAtmosphere: true, showClouds: true, showSnowIce: true, showLights: true, showStars: true, showMoon: true, showLabels: true, showDepthTint: false, quality: 'auto',
+  showAtmosphere: true, showBuildings: true, showClouds: true, showSnowIce: true, showLights: true, showStars: true, showMoon: true, showLabels: true, showDepthTint: false, quality: 'auto',
 });
 /** Altitudes (m) between which the far view fades from the tile imagery to the seasonal Blue Marble. */
 const FAR_IMAGERY_FADE = [1.2e6, 4e6];
@@ -128,6 +128,18 @@ export default async function mount(container, meta) {
   scene.add(globe.tiles.group);
   disposers.push(() => globe.dispose(), () => lut.dispose(), () => geoid.dispose(), () => bathymetry.dispose(), unsubscribeLayers, () => globalLayers.dispose());
 
+  // buildings: NRW LoD2 (3D Tiles) and Fanø's OSM footprints, set onto the terrain
+  // (its own chunk: the LoD2 metadata plugins and the roof generator load with the simulation, not the app)
+  const { createBuildings } = await import('./render/buildings.js');
+  const buildings = createBuildings({
+    u, toSun, sunShadow: layers.sunShadow, nightFloor, camera, renderer,
+    groundHeight: (lat, lon) => globe.sampleElevation(lat, lon),
+    baseUrl: import.meta.env.BASE_URL, nrwUrl: BUILDINGS_NRW.url, osm: { file: BUILDINGS_OSM.file, box: HERO_BOXES.fanoe },
+    onChange: () => view.requestRender(),
+  });
+  scene.add(buildings.group);
+  disposers.push(() => buildings.dispose());
+
   const sky = createSky({ sunIlluminance: u.sunIlluminance, sunDirection: u.sunDirection, starBrightness: u.starBrightness });
   scene.add(sky.group);
   disposers.push(() => sky.dispose());
@@ -187,6 +199,9 @@ export default async function mount(container, meta) {
   globe.tiles.addEventListener('needs-render', onTilesUpdate);
   globe.tiles.addEventListener('needs-update', onTilesUpdate);
   globe.tiles.addEventListener('load-model', onTilesUpdate);
+  const onTerrainLoaded = () => buildings.terrainChanged();
+  globe.tiles.addEventListener('load-model', onTerrainLoaded);
+  disposers.push(() => globe.tiles.removeEventListener('load-model', onTerrainLoaded));
 
   // --- clock ----------------------------------------------------------------------------------------------------
   const clock = createClock();
@@ -211,6 +226,7 @@ export default async function mount(container, meta) {
     const preset = VIEWS[id];
     if (!preset) return;
     if (walk.state.active) setWalking(false);
+    buildingCard.hidden = true;
     const target = fitPose(preset);
     state.view = id;
     if (target.place !== state.place) setPlace(target.place, { fly: false });
@@ -375,6 +391,7 @@ export default async function mount(container, meta) {
   const viewToggles = createViewToggles({ state, prefs: viewPrefs, defaults: VIEW_DEFAULTS, onChange: () => applyDisplay() });
   const toggles = {
     showAtmosphere: viewToggles.toggle('showAtmosphere', `${KEYS}.view.atmosphere`),
+    showBuildings: viewToggles.toggle('showBuildings', `${KEYS}.view.buildings`),
     showClouds: viewToggles.toggle('showClouds', `${KEYS}.view.clouds`),
     showSnowIce: viewToggles.toggle('showSnowIce', `${KEYS}.view.snowIce`),
     showLights: viewToggles.toggle('showLights', `${KEYS}.view.lights`),
@@ -387,7 +404,7 @@ export default async function mount(container, meta) {
     bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`), cameraRow, walkBtn.el,
     bindText(el('p', 'lp-subheading'), `${KEYS}.controls.quality`), qualityRow,
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`),
-    toggles.showAtmosphere, toggles.showClouds, toggles.showSnowIce, toggles.showLights, toggles.showStars, toggles.showMoon, toggles.showLabels, toggles.showDepthTint,
+    toggles.showAtmosphere, toggles.showBuildings, toggles.showClouds, toggles.showSnowIce, toggles.showLights, toggles.showStars, toggles.showMoon, toggles.showLabels, toggles.showDepthTint,
   );
   if (view.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
 
@@ -451,6 +468,76 @@ export default async function mount(container, meta) {
     walkPad.append(b);
   }
   viewport.append(walkPad);
+
+  // building info card: a click (not a drag) on a building picks it
+  const buildingCard = el('div', 'lp-earth-building', { hidden: true, role: 'region', 'aria-live': 'polite' });
+  bindAttr(buildingCard, { 'aria-label': `${KEYS}.building.title` });
+  const buildingTitle = el('h3', 'lp-earth-building__title');
+  const buildingFacts = el('dl', 'lp-facts lp-facts--wrap');
+  const buildingClose = createButton({ labelKey: `${KEYS}.building.close`, slim: true, onClick: () => { buildingCard.hidden = true; } });
+  buildingCard.append(buildingTitle, buildingFacts, buildingClose.el);
+  viewport.append(buildingCard);
+  let lastPicked = null;
+  function renderBuildingCard(info) {
+    lastPicked = info;
+    if (!info) {
+      buildingCard.hidden = true;
+      return;
+    }
+    const row = (labelKey, value) => {
+      buildingFacts.append(bindText(el('dt'), labelKey));
+      const dd = el('dd');
+      dd.textContent = value;
+      buildingFacts.append(dd);
+    };
+    buildingFacts.replaceChildren();
+    if (info.source === 'nrw') {
+      const a = info.alkis;
+      const code = String(a?.code ?? '').replace(/^31001_/, '');
+      const use = a ? tOr(`${KEYS}.buildingFunctions.${code}`, a.functionText || t(`${KEYS}.building.alkisCode`, { code: a.code || '–' })) : t(`${KEYS}.building.${info.alkisFailed ? 'alkisUnavailable' : 'alkisLoading'}`);
+      buildingTitle.textContent = a?.name || info.name || (a ? use : t(`${KEYS}.building.title`));
+      row(`${KEYS}.building.use`, use);
+      if (a?.address) row(`${KEYS}.building.address`, a.address);
+      row(`${KEYS}.building.roof`, tOr(`${KEYS}.roofTypes.${info.roofType}`, String(info.roofType)));
+      row(`${KEYS}.building.height`, t(`${KEYS}.building.heightMeasured`, { h: fmt(info.height, 1) }));
+      row(`${KEYS}.building.source`, t(`${KEYS}.building.sourceNrw`, { id: info.id }));
+      if (!a && !info.alkisFailed && !info.alkisPending) {
+        info.alkisPending = true;
+        buildings.alkis(info).then((res) => {
+          info.alkis = res;
+          if (!res) info.alkisFailed = true;
+        }, () => {
+          info.alkisFailed = true;
+        }).finally(() => {
+          info.alkisPending = false;
+          if (lastPicked === info && !buildingCard.hidden) renderBuildingCard(info);
+        });
+      }
+    } else {
+      buildingTitle.textContent = tOr(`${KEYS}.osmTypes.${info.type}`, info.type);
+      row(`${KEYS}.building.use`, tOr(`${KEYS}.osmTypes.${info.type}`, info.type));
+      row(`${KEYS}.building.roof`, tOr(`${KEYS}.osmRoofs.${info.roof}`, info.roof) + (info.roofMaterial ? ` (${tOr(`${KEYS}.osmRoofMaterials.${info.roofMaterial}`, info.roofMaterial)})` : ''));
+      row(`${KEYS}.building.height`, t(`${KEYS}.building.${info.tagged ? 'heightMeasured' : 'heightGenerated'}`, { h: fmt(info.height, 1) }));
+      row(`${KEYS}.building.source`, t(`${KEYS}.building.sourceOsm`));
+    }
+    buildingCard.hidden = false;
+  }
+  let pressAt = null;
+  const onPickDown = (e) => {
+    pressAt = { x: e.clientX, y: e.clientY, t: performance.now() };
+  };
+  const onPickUp = (e) => {
+    if (!pressAt || Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) > 6 || performance.now() - pressAt.t > 500) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    renderBuildingCard(buildings.pick(ndc));
+  };
+  renderer.domElement.addEventListener('pointerdown', onPickDown);
+  renderer.domElement.addEventListener('pointerup', onPickUp);
+  disposers.push(() => {
+    renderer.domElement.removeEventListener('pointerdown', onPickDown);
+    renderer.domElement.removeEventListener('pointerup', onPickUp);
+  });
   container.append(attribution, sourcesList, hint);
   disposers.push(() => {
     attribution.remove();
@@ -458,6 +545,7 @@ export default async function mount(container, meta) {
     hint.remove();
     labelLayer.remove();
     walkPad.remove();
+    buildingCard.remove();
   });
   let attributionKey = '';
   let lastCentre = null; // the centre of the view from the last readout update
@@ -472,6 +560,11 @@ export default async function mount(container, meta) {
     if (state.showSnowIce) onScreen.push(SNOW, SEA_ICE);
     if (state.showLights) onScreen.push(NIGHT_LIGHTS);
     if (state.showClouds && gfs.state.available) onScreen.push(CLOUDS);
+    if (state.showBuildings && c && cameraAltitude() < 60000) {
+      const lb = HERO_BOXES.fanoe;
+      if (c.latDeg > NRW_DOP.south && c.latDeg < NRW_DOP.north && c.lonDeg > NRW_DOP.west && c.lonDeg < NRW_DOP.east) onScreen.push(BUILDINGS_NRW);
+      if (c.latDeg > lb.south && c.latDeg < lb.north && c.lonDeg > lb.west && c.lonDeg < lb.east) onScreen.push(BUILDINGS_OSM);
+    }
     const key = onScreen.map((x) => x.id).join('|');
     if (key === attributionKey) return;
     attributionKey = key;
@@ -576,6 +669,7 @@ export default async function mount(container, meta) {
     surface.depthTint.value = state.showDepthTint ? 1 : 0;
     surface.snowIce.value = state.showSnowIce ? 1 : 0;
     surface.nightLights.value = state.showLights ? 1 : 0;
+    if (!state.showBuildings) buildingCard.hidden = true;
     clouds.group.visible = state.showClouds;
     sky.setStarsVisible(state.showStars);
     sky.moon.visible = state.showMoon;
@@ -766,9 +860,13 @@ export default async function mount(container, meta) {
     sky.update({ cameraPosition: camera.position, eqjToEcef: m, moonPosition: moon.position });
     globe.tiles.setResolutionFromRenderer(camera, renderer);
     globe.tiles.update();
+    const camGeoNow = ecefToGeodetic(camera.position.x, camera.position.y, camera.position.z);
+    const fb = HERO_BOXES.fanoe;
+    const nearFanoe = camGeoNow.lat / DEG > fb.south - 0.3 && camGeoNow.lat / DEG < fb.north + 0.3 && camGeoNow.lon / DEG > fb.west - 0.5 && camGeoNow.lon / DEG < fb.east + 0.5;
+    const buildingsBusy = buildings.update({ active: state.showBuildings && altitude < 60000, nearOsm: nearFanoe && altitude < 80000 });
     const stats = globe.tiles.stats;
     const loading = stats.downloading + stats.parsing + stats.queued > 0;
-    view.setContinuous(loading || !!flight || walk.moving || (clock.playing && !clock.live && clock.effectiveRate !== 0));
+    view.setContinuous(loading || buildingsBusy || !!flight || walk.moving || (clock.playing && !clock.live && clock.effectiveRate !== 0));
     updateLabels();
     updateReadouts(performance.now());
     return changed || loading;
@@ -779,6 +877,7 @@ export default async function mount(container, meta) {
     onLanguageChange(() => {
       renderRateOptions();
       renderAttribution();
+      if (lastPicked && !buildingCard.hidden) renderBuildingCard(lastPicked);
       syncClockControls();
       lastReadout = 0;
       updateReadouts(performance.now());
@@ -797,7 +896,8 @@ export default async function mount(container, meta) {
   if (import.meta.env.DEV) {
     window.__lpEarth = {
       view, globe, controls, clock, state, u, surface, geoid, bathymetry, globalLayers, gfs, clouds, exposure, sky, VIEWS,
-      setCamera, setPlace, setQuality, goLive, setPlaying, setWaterLevel, setWalking, walk,
+      setCamera, setPlace, setQuality, goLive, setPlaying, setWaterLevel, setWalking, walk, buildings,
+      pickBuilding: (x, y) => { const info = buildings.pick(new THREE.Vector2(x, y)); renderBuildingCard(info); return info; },
       setTime: (ms) => { clock.setTime(ms); onClockChanged(); },
       readPose: () => readPose(camera),
       applyPose: (pose) => { applyPose(camera, typeof pose === 'string' ? VIEWS[pose] : pose); view.requestRender(); },
@@ -852,6 +952,21 @@ function formatSeaLevel(level) {
 }
 
 // ---------- formatting ----------------------------------------------------------------------------------------------------
+/** Codes that have a translated label (the rest shows the raw code – t() would warn on a missing key). */
+const LABELLED = Object.freeze({
+  buildingFunctions: new Set(['1000', '1010', '1020', '1100', '1120', '1313', '2000', '2020', '2050', '2100', '2463', '2700', '2723', '3000', '3021', '3041', '9998']),
+  roofTypes: new Set(['0', '1000', '2100', '2200', '3100', '3200', '3300', '3400', '3500', '3600', '3700', '3800', '3900', '4000', '5000', '9999']),
+  osmTypes: new Set(['yes', 'house', 'detached', 'bungalow', 'semidetached_house', 'terrace', 'apartments', 'residential', 'farm', 'cabin', 'allotment_house', 'garage', 'shed', 'barn', 'industrial', 'church', 'school', 'hotel', 'bunker', 'commercial', 'retail']),
+  osmRoofs: new Set(['gabled', 'hipped', 'half-hipped', 'flat', 'skillion', 'pyramidal', 'mansard']),
+  osmRoofMaterials: new Set(['thatch', 'roof_tiles', 'tar_paper', 'metal', 'concrete', 'glass', 'grass']),
+});
+
+/** A translation of a code, or the fallback when the code has no label. */
+function tOr(key, fallback) {
+  const [, group, code] = key.match(/\.(\w+)\.([^.]+)$/) ?? [];
+  return LABELLED[group]?.has(String(code)) ? t(key) : fallback;
+}
+
 function fmt(value, digits = 1) {
   return formatNumber(value, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
