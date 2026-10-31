@@ -90,7 +90,7 @@ Avoid in the default path: Obj2Tiles (AGPL), cesium-terrain-builder (unmaintaine
 | Splat spots (each 20–200 MB) | ~0.5 GB | ~0.5 GB |
 | Tide maps | – | ~50 MB |
 | **Total hosted** | **≈ 4–7 GB** | **≈ 3.5–6 GB** |
-| Raw sources kept for reprocessing (LAZ, TIFF) | ~50–150 GB (not served) | ~50–150 GB |
+| Raw sources kept for reprocessing | measured for the 90 municipality tiles: LiDAR 6.44 GB LAZ (1.03 billion points), DOP10 3.24 GB JP2, iDOP20 ~4.4 GB, bDOM50 1.23 GB, nDOM 1.44 GB, DGM1/DOM1 0.38 GB, LoD2 0.47 GB, ALKIS 0.46 GB → **≈ 20 GB** (+ the 153 GB mesh SLPK, which is streamed via I3S instead) | LiDAR ~4–6 GB LAZ, orthophotos ~1–3 GB (land), DHM rasters ~2–6 GB, AIS ~0.8 GB/day → **≈ 15–30 GB** |
 
 Global layers: Mapterhorn PMTiles extracts (tens of GB for Europe at z13–17),
 Blue Marble monthly (~10 GB tiled), S2 quarterly (self-hosted only for selected regions;

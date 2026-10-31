@@ -82,7 +82,7 @@ orthophoto (detected) or rules; drivable beach at Fanø Bad; forest tracks and t
 
 | Area | Source → model | |
 |---|---|---|
-| **Lübbecke** | **NRW 3D building models LoD2** (CityGML, open data, see [03](03-data-luebbecke.md)) → 3DCityDB 5 → **pg2b3dm** → 3D Tiles 1.1 with `EXT_mesh_features` (function, height, roof type) | ~ |
+| **Lübbecke** | **NRW LoD2** (CityGML 1.0, dl-de/zero-2.0, untextured, standard roof shapes ±1 m, ALKIS function codes – [03 §4](03-data-luebbecke.md#4-buildings-cadastre-topography)). Already served live as **3D Tiles 1.1** by `ogc-api.nrw.de/3dg/v1` – usable directly in M0/M1 for a first look; for the final product: CityGML → 3DCityDB 5 → **pg2b3dm** → own 3D Tiles 1.1 with `EXT_mesh_features` (function, height, roof type) + our roof textures, overhangs and details | ✓ |
 | **Fanø** | no national LoD2 → **roofer** (3DBAG, GPL-3, LoD2.2) from DHM point cloud (8 pts/m²) + GeoDanmark footprints → CityJSON → 3D Tiles | ✓ |
 | Hero buildings (St.-Andreas-Kirche, Burgmannshöfe, Rathaus / Sønderho Kirke, Sønderho Mølle, Nordby Kirke, ferry terminals) | LoD3 by hand (photos, plans) or photogrammetry (§5) | ~ |
 
@@ -99,7 +99,11 @@ point cloud, solar panels (from the orthophoto), roof windows.
   - **Fanø**: textured from the **oblique aerial photos** (skråfoto, CC BY 4.0, 4
     directions every 2 years): projective texturing with visibility tests using the
     published camera poses → per-building texture atlas, de-lit like the orthophoto.
-  - **Lübbecke**: procedural facades by building function (ALKIS), region and age –
+  - **Lübbecke**: NRW offers no oblique imagery, and the open **3D-Mesh NRW** (10 cm
+    texture) is 2.5D, so its facades are smeared – it serves as roof/colour reference
+    and as a far-LOD photoreal layer, not as a facade source. Roofs are textured from
+    the **DOP10 true orthophoto** (rectified on the surface model – roofs sit exactly on
+    their footprints). Facades are procedural by building function (ALKIS), region and age –
     East-Westphalian red brick and clinker, half-timbering (*Fachwerk*) in the old town,
     plaster, post-war and modern types – with window/door layouts fitted per building
     from street-level images where available (Mapillary/Panoramax, CC BY-SA; own photos

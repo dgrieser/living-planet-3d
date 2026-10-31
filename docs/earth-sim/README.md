@@ -9,7 +9,8 @@ observations, wind, shadows, seasons, snow, leaves changing colour and lying on 
 ground. The whole planet at globe scale, and **two places with every detail in true 3D**:
 
 - **Lübbecke** (NRW, Germany) – a small town at the foot of the Wiehengebirge ridge:
-  beech forest on the ridge, farmland and the Mittellandkanal in the lowland, a raised bog.
+  beech forest with large bark-beetle clearings on the ridge, farmland and the
+  Mittellandkanal in the lowland, a raised bog.
 - **Fanø** (Denmark) – a Wadden Sea island: a vast sand beach, dunes, heath, a dune pine
   forest, salt marsh and tidal flats that fall dry twice a day, thatched villages.
 

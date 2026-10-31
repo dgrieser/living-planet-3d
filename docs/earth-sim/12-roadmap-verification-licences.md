@@ -99,7 +99,12 @@ data keep their own terms (as `public/textures/` already does).
 
 | Data | Licence | Attribution / condition | Redistribute derived tiles? |
 |---|---|---|---|
-| NRW Geobasis open data (DGM1, DOP, LiDAR, LoD2, ALKIS …) | dl-de/zero-2.0 (see [03](03-data-luebbecke.md)) | none required (courtesy credit "Geobasis NRW") | yes |
+| NRW Geobasis open data (DGM1, DOM, LiDAR, DOP, 3D-Mesh, LoD2, ALKIS, Basis-DLM) | **dl-de/zero-2.0** ([03 §1](03-data-luebbecke.md#1-licences-at-a-glance)) | none required (courtesy "© Geobasis NRW") | yes |
+| Landbedeckung NRW | **dl-de/by-2.0** | **mandatory**: "Enthält modifizierte Copernicus Sentinel-2 Daten [2023], verarbeitet durch Geobasis NRW" | yes, with the notice |
+| NRW forest rasters (Baumartenklassifikation, Vitalitätsabnahme) | dl-de (variant ?) | Wald und Holz NRW (?) | check |
+| LWK field parcels (TSCHLAG) | probably dl-de/by-2.0 (?) | "Landwirtschaftskammer NRW" | check |
+| BKG quasigeoid GCG2016 | CC BY 4.0 | "© BKG (year) CC BY 4.0, Datenquellen: …" | yes |
+| PEGELONLINE (WSV gauges) | (?) – probably dl-de/zero-2.0 | WSV | check |
 | DWD open data (ICON, radar, stations, phenology) | CC BY 4.0 | "Deutscher Wetterdienst" | yes |
 | Danish geodata (DHM, orthophotos, skråfoto, GeoDanmark) | CC BY 4.0 | "Klimadatastyrelsen" / "© GeoDanmark" | yes |
 | DMI open data (weather, ocean, radar, gauges) | CC BY 4.0 | "DMI" | yes |

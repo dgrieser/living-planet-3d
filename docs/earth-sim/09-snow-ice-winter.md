@@ -16,7 +16,7 @@
 | Global | **IMS** daily snow & ice (NSIDC G02156) | 1 km, daily | snow mask from space | ✓ |
 | Global replay | ERA5-Land snow depth / SWE | 0.1°, hourly, 1950 → now | replay mode | ✓ |
 | Europe | Copernicus HR Snow & Ice: fractional snow cover (Sentinel-2) / gap-filled daily | 20 m (~5-day revisit) / 60 m daily | where snow is (and isn't) in the hero areas | ~ |
-| Germany | **DWD station snow depth & water equivalent** (daily), SNOWRAS 1 km grid (2026 preprint; access ?) | stations; 1 km | depth and density at Lübbecke | ✓/? |
+| Germany | **DWD station snow depth & water equivalent** (daily; nearest with snow: Rahden-Kleinendorf 04063, Bad Salzuflen 04371, Bielefeld-Deppendorf 07106), **SNOWRAS_DE** (daily snow depth 06 UTC, 1 km, Sep–May, from 1950, CDC `grids_germany/daily/snowras_de/`) | stations; 1 km | depth at Lübbecke, replay back to 1950 | ✓ |
 | Germany / Denmark forecast | **ICON-D2 `h_snow`, `freshsnw`, `rho_snow`** | 2.2 km, hourly | live/forecast snow | ✓ |
 | Denmark | DMI observations (snow depth), DINI forecast | stations; 2 km | Fanø | ~ |
 | Sea ice | **BSH ice charts** (German Bight, archive), DMI ice service (?), OSI SAF | daily in ice winters | Wadden Sea ice | ~ |

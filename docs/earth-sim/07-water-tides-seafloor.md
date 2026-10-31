@@ -152,8 +152,8 @@ flooding of the DEM. Good to ±20 cm / ±20 min, enough to get the flats falling
 
 | Water | Model |
 |---|---|
-| **Mittellandkanal** | fixed water level of its reach (level and profile from WSV data, [03](03-data-luebbecke.md)), standard canal cross-section as bed geometry, waves only from wind (short fetch) and passing ships (wakes) |
-| Streams (*Bäche*) from the Wiehengebirge | flowing water with flow maps along the stream centreline (ELWAS-WEB network), water depth from the DEM's channel + a typical profile; level and turbidity rise after heavy rain (DWD radar) |
+| **Mittellandkanal** | lock-free Westhaltung at ≈ 50.3 m NHN; live level from the **PEGELONLINE gauge "LÜBBECKE" (MLK-km 80.1)**; no open bathymetry → standard canal profile (trapezoid ≈ 55 m × 4 m, sheet-pile sections 42 m) as bed geometry ([03 §7](03-data-luebbecke.md#7-water)); waves only from wind (short fetch) and passing barges (wakes) |
+| Streams (*Bäche*) from the Wiehengebirge | Ronceva (mostly culverted through the town), Große Aue: flowing water with flow maps along the GSK3E centrelines, depth from the DEM's channel + a typical profile; level and turbidity rise after heavy rain (DWD radar, Fiestel river gauge) |
 | Ponds, Großes Torfmoor open water | still water, wind ripples, reeds; bog water dark brown (humic) |
 | Puddles | from the wetness model ([08 §6](08-atmosphere-weather-clouds.md#6-precipitation-wet-surfaces-rainbows-lightning)) |
 | Ice | [09 §5](09-snow-ice-winter.md#5-ice) |

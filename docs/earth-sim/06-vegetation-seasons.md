@@ -46,7 +46,7 @@ from photos (species, girth, crown form) and placed exactly.
 
 | Area | Source | Notes | |
 |---|---|---|---|
-| Lübbecke | **Thünen dominant tree species map** (Blickensdörfer et al. 2024, 10 m, 11 species groups, CC BY 4.0, 75.5 % overall / 87 % in pure stands) and **DLR Tree Species Germany 2022** (10 m, CC BY 4.0) | stand-level prior | ✓ |
+| Lübbecke | **Baumartenklassifikation NRW** (10 m, 10 classes incl. clearings, dl-de/zero) + **Vitalitätsabnahme Nadelwald** (bark-beetle loss 2017→2025) – [03 §5](03-data-luebbecke.md#5-forest-and-trees); cross-checks: Thünen dominant species map (Blickensdörfer et al. 2024, 10 m, CC BY 4.0, 75.5 % overall / 87 % in pure stands), DLR Tree Species Germany 2022 | stand-level prior; the ridge is 26 % beech, 23 % clearings, 15 % spruce | ✓ |
 | Fanø | no national species map found → own classifier: Sentinel-2 time series (10 m, phenology curves), CIR orthophoto NDVI, crown shape from LiDAR | the dune plantation is a small number of conifer species + birch/aspen/willow scrub ([04](04-data-fanoe.md)) | ~ |
 | both | per-tree refinement: crown shape (conical conifer vs. rounded broadleaf), leaf-off LiDAR penetration (deciduous trees are "transparent" in a winter flight), HR-VPP season dates of the crown pixels, CIR colour | assign each tree the most likely species given the stand prior | ~ |
 
@@ -127,7 +127,11 @@ soil moisture (ERA5-Land), snow cover. Integrated from 1 Nov of the previous yea
 | Crops | **PCSE/WOFOST** (EUPL-1.2) development stage → height, colour, cover | DWD crop phases; Sentinel-2 NDVI per field |
 
 Validation target: leaf-out and colouring within ± 7 days of observations
-(`check-earth-phenology.mjs`).
+(`check-earth-phenology.mjs`). First reference set: DWD annual reporters **Hille (09182)**
+and **Wulferdingsen (09187)**, ~10 km from Lübbecke – beech leaf unfolding 8–10 Apr 2024
+and 15–25 Apr 2025, 50 % colouring 3–22 Oct, 50 % leaf fall 20 Oct–14 Nov; oak leaf
+unfolding 7 Apr 2024 / 10 Apr 2025, leaf fall 18–25 Nov
+([03 §8](03-data-luebbecke.md#8-weather-and-climate-dwd-cc-by-40)).
 
 ### 5.3 Per-tree state
 
