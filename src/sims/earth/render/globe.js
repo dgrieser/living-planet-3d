@@ -20,7 +20,7 @@ import * as THREE from 'three/webgpu';
 import { TilesRenderer } from '3d-tiles-renderer';
 import { TerrariumMeshPlugin, XYZTilesOverlay, UpdateOnChangePlugin } from '3d-tiles-renderer/plugins';
 import { mergeSeaFloor } from '../data/gebco.js';
-import { sampleGlobalGeoid } from '../data/geoid.js';
+import { terrainSourceCap, levelCap, usesNrwDop } from '../regions.js';
 
 // the deepest sea floor (Challenger Deep ≈ −10 935 m) plus margin, below the plugin's fixed −500 m
 const MIN_ELEVATION = -11500;
@@ -129,6 +129,26 @@ async function seaLevelTile(size) {
   return seaLevelBlob;
 }
 
+// The plugin keeps a tile's x, y and level under module-private symbols; find them by their names.
+const tileSymbols = new Map();
+function tileKey(tile, name) {
+  let sym = tileSymbols.get(name);
+  if (!sym) {
+    sym = Object.getOwnPropertySymbols(tile).find((s) => s.description === name);
+    if (sym) tileSymbols.set(name, sym);
+  }
+  return sym ? tile[sym] : undefined;
+}
+
+/** Bounds (degrees) of a tile of the plugin's tiling. */
+function boundsOf(tiling, x, y, level) {
+  const [west, south, east, north] = tiling.getTileBounds(x, y, level);
+  const d = 180 / Math.PI;
+  return { west: west * d, south: south * d, east: east * d, north: north * d };
+}
+
+const EXTRA_LEVELS = 2; // the plugin's texture levels: every second zoom is fetched
+
 /** Terrarium terrain whose tiles carry our node material, with the sea floor merged in. */
 class EarthTerrainPlugin extends TerrariumMeshPlugin {
   constructor(options) {
@@ -151,9 +171,31 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
     };
   }
 
+  /**
+   * Regional depth: the tree refines past the global levels only where there is more data – the hero
+   * boxes (national terrain) and North Rhine-Westphalia (10 cm orthophotos), see regions.js.
+   */
+  createChild(x, y, level) {
+    if (this._tiling && level > levelCap(boundsOf(this._tiling, x, y, level))) return null;
+    return super.createChild(x, y, level);
+  }
+
+  /** The terrain texture a tile reads: its region's deepest source level at most. */
+  sourceTileOf(x, y, level) {
+    const cap = Math.min(this._maxSourceLevel, terrainSourceCap(boundsOf(this._tiling, x, y, level)));
+    const sourceLevel = Math.min(EXTRA_LEVELS * Math.floor(level / EXTRA_LEVELS), cap);
+    const scale = 2 ** (level - sourceLevel);
+    return [Math.floor(x / scale), Math.floor(y / scale), sourceLevel, cap];
+  }
+
+  getUrl(x, y, level) {
+    const [sx, sy, sl] = this.sourceTileOf(x, y, level);
+    return this._source.getUrl(sx, sy, sl);
+  }
+
   /** The geoid undulation N (m) at the texel centres of a tile (rows south first), or null. */
   tileUndulation(x, y, level, width, height) {
-    const geoid = this.geoid?.values;
+    const geoid = this.geoid;
     if (!geoid) return null;
     const n = 2 ** level;
     const out = new Float32Array(width * height);
@@ -162,7 +204,7 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
     for (let r = 0; r < height; r++) {
       const ny = (y + 1 - (r + 0.5) / height) / n;
       const lat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * ny))) * 180) / Math.PI;
-      for (let c = 0; c < width; c++) out[r * width + c] = sampleGlobalGeoid(geoid, lat, lons[c]);
+      for (let c = 0; c < width; c++) out[r * width + c] = geoid.sample(lat, lons[c]);
     }
     return out;
   }
@@ -301,7 +343,21 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
   }
 
   async parseToMesh(buffer, tile, extension, url, abortSignal) {
-    const mesh = await super.parseToMesh(buffer, tile, extension, url, abortSignal);
+    // the plugin picks the source level from _maxSourceLevel before its first await: cap it for this tile
+    const x = tileKey(tile, 'TILE_X');
+    let pending;
+    if (x !== undefined) {
+      const saved = this._maxSourceLevel;
+      this._maxSourceLevel = this.sourceTileOf(x, tileKey(tile, 'TILE_Y'), tileKey(tile, 'TILE_LEVEL'))[3];
+      try {
+        pending = super.parseToMesh(buffer, tile, extension, url, abortSignal);
+      } finally {
+        this._maxSourceLevel = saved;
+      }
+    } else {
+      pending = super.parseToMesh(buffer, tile, extension, url, abortSignal);
+    }
+    const mesh = await pending;
     if (!mesh) return mesh;
     const old = mesh.material;
     let map = this.placeholder;
@@ -332,15 +388,72 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
 }
 
 /**
+ * Regional imagery inside the global imagery source: tiles over North Rhine-Westphalia (zoom ≥ 10) come
+ * from the state's orthophoto WMTS (10 cm, 7.5 cm per pixel at z21), drawn over EOX where the state's
+ * tiles are transparent (outside its border); EOX tiles past its last level (z15) are cut from their z15
+ * ancestor. Every image is flipped like the plugin's own (imageOrientation 'flipY').
+ */
+function useRegionalImagery(source, imagery, hero) {
+  const eoxMax = imagery.levels - 1;
+  const fetchBitmap = async (url, signal, crop = null) => {
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new Error(`imagery ${res.status}`);
+    const blob = await res.blob();
+    const opts = { premultiplyAlpha: 'none', colorSpaceConversion: 'none' };
+    return { bitmap: crop ? await createImageBitmap(blob, ...crop, { ...opts, resizeWidth: 256, resizeHeight: 256, resizeQuality: 'high' }) : await createImageBitmap(blob, opts), type: res.headers.get('content-type') ?? '' };
+  };
+  const eox = (x, y, z, signal) => {
+    if (z <= eoxMax) return fetchBitmap(source.getUrl(x, y, z), signal);
+    const d = z - eoxMax;
+    const ax = x >> d;
+    const ay = y >> d;
+    const size = 256 / 2 ** d;
+    return fetchBitmap(source.getUrl(ax, ay, eoxMax), signal, [(x - ax * 2 ** d) * size, (y - ay * 2 ** d) * size, size, size]);
+  };
+  const toTexture = async (bitmap) => {
+    const flipped = await createImageBitmap(bitmap, { imageOrientation: 'flipY', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    bitmap.close();
+    const texture = new THREE.Texture(flipped);
+    texture.generateMipmaps = false;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+    return texture;
+  };
+  source.fetchItem = async ([x, y, z], signal) => {
+    if (usesNrwDop(x, y, z)) {
+      try {
+        const dop = await fetchBitmap(hero.url.replace('{m}', String(z - 5).padStart(2, '0')).replace('{x}', x).replace('{y}', y), signal);
+        if (dop.type.includes('jpeg')) return toTexture(dop.bitmap); // fully inside the state
+        const base = await eox(x, y, z, signal).catch(() => null);
+        const canvas = new OffscreenCanvas(256, 256);
+        const ctx = canvas.getContext('2d');
+        if (base) {
+          ctx.drawImage(base.bitmap, 0, 0, 256, 256);
+          base.bitmap.close();
+        }
+        ctx.drawImage(dop.bitmap, 0, 0, 256, 256);
+        dop.bitmap.close();
+        return toTexture(await createImageBitmap(canvas));
+      } catch (err) {
+        if (signal?.aborted) throw err;
+        // fall through to EOX
+      }
+    }
+    return toTexture((await eox(x, y, z, signal)).bitmap);
+  };
+}
+
+/**
  * Creates the streamed globe.
  * @param {{ terrain: { url: string, tileDimension: number, maxZoom: number },
  *           imagery: { url: string, tileDimension: number, levels: number },
+ *           hero?: { url: string, levels: number } (regional imagery – the NRW orthophoto WMTS, z = matrix + 5),
  *           colorNode: Node, camera: THREE.Camera, renderer: THREE.WebGPURenderer,
  *           bathymetry?: ReturnType<import('../data/gebco.js').createBathymetry>,
  *           geoid?: ReturnType<import('../data/geoid.js').createGeoid>,
  *           errorTarget?: number, anisotropy?: number, cacheBytes?: number }} opts
  */
-export function createGlobe({ terrain, imagery, colorNode, camera, renderer, bathymetry = null, geoid = null, errorTarget = 2, anisotropy = 8, cacheBytes = 0.6 * 1024 ** 3 }) {
+export function createGlobe({ terrain, imagery, hero = null, colorNode, camera, renderer, bathymetry = null, geoid = null, errorTarget = 2, anisotropy = 8, cacheBytes = 0.6 * 1024 ** 3 }) {
   // the colour of a tile whose imagery has not arrived: a dark ocean blue
   const placeholder = new THREE.DataTexture(new Uint8Array([22, 36, 56, 255]), 1, 1, THREE.RGBAFormat);
   placeholder.colorSpace = THREE.SRGBColorSpace;
@@ -351,7 +464,8 @@ export function createGlobe({ terrain, imagery, colorNode, camera, renderer, bat
   const maskPlaceholder = new THREE.DataTexture(new Uint8Array([0]), 1, 1, THREE.RedFormat, THREE.UnsignedByteType);
   maskPlaceholder.needsUpdate = true;
 
-  const overlay = new XYZTilesOverlay({ url: imagery.url, tileDimension: imagery.tileDimension, levels: imagery.levels });
+  const overlay = new XYZTilesOverlay({ url: imagery.url, tileDimension: imagery.tileDimension, levels: Math.max(imagery.levels, (hero?.levels ?? 0)) });
+  if (hero) useRegionalImagery(overlay.imageSource, imagery, hero);
   const tiles = new TilesRenderer();
   const plugin = new EarthTerrainPlugin({
     url: terrain.url,

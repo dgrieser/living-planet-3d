@@ -24,10 +24,11 @@
 import {
   Fn, vec2, vec3, vec4, float, uniform, max, min, normalize, dot, smoothstep, length, clamp, mix, exp, pow, atan, fract, fwidth,
   abs, sign, cross, dFdx, dFdy, vertexStage, attribute, materialColor, materialReference, modelWorldMatrix, positionWorld,
-  positionView, texture, If,
+  positionView, texture, If, cos, mx_fractal_noise_float,
 } from 'three/tsl';
-import { ATMOSPHERE } from './atmosphere.js';
+import { ATMOSPHERE, DETAIL_SCALE } from './atmosphere.js';
 import { WGS84 } from '../geodesy.js';
+import { HERO_FEATHER_DEG } from '../regions.js';
 
 const PI = Math.PI;
 const E2 = WGS84.e2 ?? WGS84.f * (2 - WGS84.f);
@@ -122,18 +123,40 @@ const bumpNormal = Fn(([position, normal, height]) => {
  * @param {ReturnType<import('./atmosphere.js').createAtmosphereUniforms>} u
  * @param {Function} toSun transmittance-to-Sun TSL function from atmosphere.js
  * @param {ReturnType<typeof createSurfaceUniforms>} s
- * @param {{ nightFloor: Node, geoidTexture: import('three').Texture,
+ * @param {{ nightFloor: Node, geoid: ReturnType<import('../data/geoid.js').createGeoid>,
  *           layers?: { farImagery?: Function, snow?: Function, seaIce?: Function, lights?: Function, sunShadow?: Function } }} opts
  *   layers: optional TSL functions of (latLon, position) – the seasonal far-view imagery (linear rgb),
  *   snow cover 0…1 on land, sea ice 0…1 on water, night-light radiance, and the fraction of direct
  *   sunlight that clouds let through.
  */
-export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoidTexture, layers = {} }) {
-  const geoid = texture(geoidTexture);
+/**
+ * Geoid undulation N (TSL) at a latitude/longitude: the global EGM2008 grid plus, inside the hero boxes,
+ * the national residual blended in exactly like data/geoid.js `sample` (regions.js `heroWeight`).
+ */
+export function createGeoidNode(geoid) {
+  const global = texture(geoid.texture);
+  const heroes = geoid.heroes.map((h) => ({ h, tex: texture(h.texture) }));
+  return (latLon) => {
+    let N = global.sample(gridUv(latLon, 720, 361)).r;
+    const latDeg = latLon.x.mul(180 / PI);
+    const lonDeg = latLon.y.mul(180 / PI);
+    for (const { h, tex } of heroes) {
+      const uv = vec2(lonDeg.sub(h.lon0).div(h.dLon).add(0.5).div(h.cols), latDeg.sub(h.lat0).div(h.dLat).add(0.5).div(h.rows));
+      const k = cos(latLon.x);
+      const d = min(min(latDeg.sub(h.box.south), float(h.box.north).sub(latDeg)), min(lonDeg.sub(h.box.west), float(h.box.east).sub(lonDeg)).mul(k));
+      const w = smoothstep(-HERO_FEATHER_DEG, HERO_FEATHER_DEG, d);
+      N = N.add(tex.sample(uv).r.mul(w));
+    }
+    return N;
+  };
+}
+
+export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers = {} }) {
+  const geoidAt = createGeoidNode(geoid);
   return Fn(() => {
     const p = positionWorld;
     const latLon = geodeticLatLon(p);
-    const N = geoid.sample(gridUv(latLon, 720, 361)).r;
+    const N = geoidAt(latLon);
     const H = materialReference('displacementMap', 'texture').r.sub(N); // metres above mean sea level
     const sea = smoothstep(0.3, 0.7, materialReference('seaMask', 'texture').r);
 
@@ -164,6 +187,16 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoidTexture, 
     const exposed = sea.mul(wet.oneMinus());
     const floor = seaFloorAlbedo(H, dot(nTerrain, up), s.depthTint);
     let imagery = materialColor.rgb; // the tile's imagery (sRGB decoded to linear by the sampler)
+    // Generated detail where a pixel covers less than the imagery's own pixel (walking, low flights): a
+    // little fractal variation anchored to the ground, so 10 cm orthophoto pixels do not read as tiles.
+    // Anchored via the camera offset (double precision on the CPU) plus the precise view-space position.
+    const q = u.detailOrigin.add(u.viewToWorld.mul(positionView).div(DETAIL_SCALE));
+    const nearness = smoothstep(0.35, 1.2, length(fwidth(q))).oneMinus();
+    const detail = float(1).toVar();
+    If(nearness.greaterThan(0.001), () => {
+      detail.assign(mx_fractal_noise_float(q, 3, 2.0, 0.5).mul(0.22).mul(nearness).add(1));
+    });
+    imagery = imagery.mul(detail);
     if (layers.farImagery) imagery = mix(imagery, layers.farImagery(latLon, p), s.farBlend);
     let land = imagery;
     if (layers.snow) land = mix(land, vec3(0.8, 0.82, 0.86), layers.snow(latLon, p).mul(sea.oneMinus()).mul(s.snowIce));

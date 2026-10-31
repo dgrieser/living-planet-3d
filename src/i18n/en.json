@@ -1003,7 +1003,7 @@
     },
     "earth": {
       "title": "Living Earth",
-      "description": "The real Earth from space down to the ground: terrain and sea floor, seasonal imagery, snow, sea ice, city lights and the clouds of a weather model, the Sun, the Moon and the sky of any moment. Work in progress – the whole Earth from a distance (milestone M1).",
+      "description": "The real Earth from space down to the ground: terrain and sea floor, seasonal imagery, snow, sea ice, city lights and the clouds of a weather model, Lübbecke and Fanø in metre detail to walk through, the Sun, the Moon and the sky of any moment. Work in progress (milestone M2).",
       "controls": {
         "time": "Time of day",
         "date": "Date",
@@ -1015,7 +1015,9 @@
         "camera": "Camera views",
         "quality": "Quality",
         "seaLevel": "Water level",
-        "seaLevelReset": "Back to the real sea level"
+        "seaLevelReset": "Back to the real sea level",
+        "walk": "Walk here",
+        "walkStop": "Stop walking"
       },
       "rates": {
         "realtime": "Real time (1×)",
@@ -1133,10 +1135,10 @@
       "model": {
         "title": "Model card – what is real here",
         "body": [
-          "This is milestone M1, the whole Earth from a distance. Still missing: rain, wind, waves, tides, buildings and trees, and the detailed terrain of Lübbecke and Fanø – they arrive in later milestones of the plan (docs/earth-sim).",
-          "Terrain: Mapterhorn elevation tiles (Copernicus DEM, fused with national 1 m and 0.4 m models) at the global level – about 19 m per pixel in Germany and Denmark. At sea the GEBCO_2026 grid takes over (450 m; from orbit a 30 km copy that ships with the page, closer the full grid). Only about a quarter of the sea floor has been measured by ships; the rest is predicted from satellite altimetry. All heights are placed on the WGS84 ellipsoid with the EGM2008 geoid.",
+          "This is milestone M2, the hero areas' terrain and imagery. Still missing: buildings, trees, rain, wind, waves and tides – they arrive in later milestones of the plan (docs/earth-sim). Lübbecke and Fanø stand on their bare ground: houses and forests are flat pictures on it until M3 and M4.",
+          "Terrain: Mapterhorn elevation tiles (Copernicus DEM, fused with national models). Inside the two hero areas they come at about 0.7 m per pixel from NRW's 1 m DGM1 (laser scan of February 2023) and Denmark's 0.4 m DHM, elsewhere at about 19 m. Lübbecke's heights match the state's own DGM1 to within 3 cm (mean 0.001 m). There they are placed on the ellipsoid with the national references (GCG2016 for Lübbecke, DVR90 for Fanø) instead of the global EGM2008, which differs by 0.2–0.3 m. At sea the GEBCO_2026 grid takes over (450 m; from orbit a 30 km copy that ships with the page). Only about a quarter of the sea floor has been measured by ships; the rest is predicted from satellite altimetry.",
           "Water level: lowering the sea shades the uncovered floor with its main sediments by depth – sand on the shelf, mud on the slope, pale carbonate ooze on the mid-ocean ridges above about 4.5 km, brown clay in the deep basins – or with depth colours and 1000 m contours. That colour scheme is a generalisation, not a map of the real sediments, and the sea floor's relief is shaded five times exaggerated so its gentle slopes show. The sea surface is drawn on the sea floor itself, which is right from the heights of this view and becomes a real surface with the ocean of M5.",
-          "Imagery: from far away NASA's Blue Marble, one cloud-free composite per month (2004), blended between the two months around the date; closer EOX Sentinel-2 cloudless 2025 at about 10 m, a mosaic of a whole year without season. Snow is MODIS/Terra's monthly snow cover of the date's month (from 2000), sea ice the AMSR-E/AMSR2 concentration of the day (2002–2025, with a gap in 2011–12). Dates outside these records show the same month or day of the nearest year – a climatology, not the real date.",
+          "Imagery: from far away NASA's Blue Marble, one cloud-free composite per month (2004), blended between the two months around the date; closer EOX Sentinel-2 cloudless 2025 at about 10 m, a mosaic of a whole year without season. Over North Rhine-Westphalia the state's orthophotos take over – 10 cm, in Lübbecke flown leaf-off on 8 March 2024 south of about 52.31° N and leaf-on on 1 May 2024 north of it, which shows as a seam. Fanø keeps the 10 m imagery: the Danish 12.5 cm orthophotos need an access token (a data request of the plan). Close to the ground a little generated texture keeps the photo's pixels from reading as tiles. Snow is MODIS/Terra's monthly snow cover of the date's month (from 2000), sea ice the AMSR-E/AMSR2 concentration of the day (2002–2025, with a gap in 2011–12). Dates outside these records show the same month or day of the nearest year – a climatology, not the real date.",
           "Clouds: NOAA's GFS weather model, cover of low, middle and high cloud at 0.25° (about 28 km), from the run a few hours before the moment – back to January 2021 – or the latest forecast up to 16 days ahead. The model's cover is broken up by generated detail, so the large patterns – fronts, cyclones, clear areas – are real, every single cloud shape is not. Clouds are thin shells for now; volumetric clouds and the satellite correction come with the weather pipeline (M6). City lights: NASA Black Marble 2016.",
           "Sun and Moon: Astronomy Engine, checked against JPL Horizons for Lübbecke and Nordby – within 0.1′ for the Sun and 0.2′ for the Moon, sunrise and sunset within 30 seconds (npm run check:earth). Sky: our own physically based atmosphere – single scattering by air (Rayleigh), aerosol (Mie) and ozone, multiple scattering only approximated, so the sky right after sunset is a little too dark. Stars: generated, turning correctly with the sky; the Moon without surface texture.",
           "Data are streamed from the providers' public services in this work-in-progress stage; the attribution strip lists what is on screen, the button beside it all sources and their licences."
@@ -1148,7 +1150,14 @@
         "glacial": "Last Glacial Maximum",
         "shelf": "shelf edge",
         "drained": "drained"
-      }
+      },
+      "walk": {
+        "forward": "Walk forward",
+        "back": "Walk back",
+        "turnLeft": "Turn left",
+        "turnRight": "Turn right"
+      },
+      "hintWalk": "Arrow keys or W A S D to walk · Shift runs · Q / E turn · Drag to look around"
     }
   }
 }
