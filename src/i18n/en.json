@@ -1000,6 +1000,136 @@
       "hint": "Drag the distance slider",
       "hintZones": "Hover the zones for details",
       "hintFly": "Click the Sun or the centre to fly there"
+    },
+    "earth": {
+      "title": "Living Earth",
+      "description": "The real Earth from space down to the ground: streamed terrain and satellite imagery, the Sun, the Moon and the sky of any moment, Lübbecke and Fanø. Work in progress – the foundations (milestone M0).",
+      "controls": {
+        "time": "Time of day",
+        "date": "Date",
+        "rate": "Speed of time",
+        "play": "Let time run",
+        "pause": "Stop time",
+        "now": "Back to now (live)",
+        "place": "Place",
+        "camera": "Camera views",
+        "quality": "Quality"
+      },
+      "rates": {
+        "realtime": "Real time (1×)",
+        "minute": "1 minute per second",
+        "tide": "Tide: 30 minutes per second",
+        "day": "1 day per second",
+        "season": "1 month per second"
+      },
+      "places": {
+        "globe": "Globe",
+        "luebbecke": "Lübbecke",
+        "fanoe": "Fanø"
+      },
+      "views": {
+        "globe": "Whole Earth",
+        "europe": "Europe",
+        "luebbeckeOverview": "Town and ridge",
+        "reineberg": "From the Reineberg",
+        "wurzelbrink": "Along the ridge",
+        "fanoeOverview": "Island and flats",
+        "nordby": "Nordby harbour",
+        "sonderho": "Sønderho"
+      },
+      "quality": {
+        "auto": "Auto",
+        "low": "Low",
+        "high": "High",
+        "ultra": "Ultra"
+      },
+      "sections": {
+        "more": "Camera, quality & view",
+        "view": "Show"
+      },
+      "view": {
+        "atmosphere": "Atmosphere (sky and haze)",
+        "stars": "Stars",
+        "moon": "Moon",
+        "labels": "Place labels"
+      },
+      "readout": {
+        "localTime": "Local time, centre of the view",
+        "modes": {
+          "live": "Live",
+          "replay": "Replay",
+          "forecast": "Forecast",
+          "climatology": "Climatology"
+        },
+        "modeHints": {
+          "live": "The sky of this very moment. Weather, water and snow join in later milestones.",
+          "replay": "A moment in the past: the Sun, the Moon and the sky are exact for it.",
+          "forecast": "Inside the forecast window of the weather models – the weather layers join in later milestones.",
+          "climatology": "Beyond any data: astronomy stays exact, the weather will be typical for the date – not observed."
+        },
+        "place": "Centre of the view",
+        "ground": "Ground height",
+        "altitude": "Camera above ground",
+        "sun": "Sun",
+        "sunUp": "{alt}° high, azimuth {az}°",
+        "sunDown": "{alt}° below the horizon, azimuth {az}°",
+        "sunriseSunset": "Sunrise / sunset",
+        "polarDay": "polar day – the Sun does not set",
+        "polarNight": "polar night – the Sun does not rise",
+        "moon": "Moon",
+        "moonValue": "{phase}, {lit} % lit, {alt}° high",
+        "renderer": "Renderer",
+        "webgpu": "WebGPU",
+        "webgl2": "WebGL 2 (fallback)"
+      },
+      "moonPhases": {
+        "new": "new moon",
+        "waxingCrescent": "waxing crescent",
+        "firstQuarter": "first quarter",
+        "waxingGibbous": "waxing gibbous",
+        "full": "full moon",
+        "waningGibbous": "waning gibbous",
+        "lastQuarter": "last quarter",
+        "waningCrescent": "waning crescent"
+      },
+      "hemisphere": {
+        "north": "N",
+        "south": "S",
+        "east": "E",
+        "west": "W"
+      },
+      "provenance": {
+        "measured": "measured",
+        "modelled": "modelled",
+        "generated": "generated"
+      },
+      "attribution": {
+        "sources": "Data sources",
+        "title": "Data sources and licences",
+        "licence": "Licence",
+        "close": "Close"
+      },
+      "info": {
+        "title": "How does a digital twin know the world?",
+        "body": [
+          "Every pixel of this Earth is one of three kinds. Measured: the terrain comes from radar and laser surveys, the colours from the Sentinel-2 satellites, which photograph every place on Earth every few days. Modelled: where the Sun and the Moon stand at any instant, and how sunlight scatters in the air, follow from physics with an error far below what the eye can see. Generated: what nobody has measured – here the stars, later the shape of a single leaf or a small cloud – is made up to match the measured data.",
+          "Measured data are always a snapshot: the satellite picture is a cloud-free mosaic of a whole year, the terrain model was flown in a particular year. A digital twin brings them together on one clock, so that the light, the sky and – in later milestones – the weather, the tides, snow and leaves belong to the same moment.",
+          "Some things can never be exact: no instrument records where every small cloud or raindrop is. The weather of the twin will match the observations at the scale they are made – a weather model's grid, a radar pixel – and fill in the rest so that it looks right without pretending to be measured."
+        ]
+      },
+      "model": {
+        "title": "Model card – what is real here",
+        "body": [
+          "This is milestone M0, the foundations. There are no clouds, weather, water, tides, snow, seasons, buildings or trees yet – they arrive in later milestones of the plan (docs/earth-sim). The night side is dark: city lights come with M1.",
+          "Terrain: Mapterhorn elevation tiles (Copernicus DEM, fused with national 1 m and 0.4 m models), streamed at the global level only – about 19 m per pixel in Germany and Denmark, open sea flat at 0 m. Heights above sea level are placed on the WGS84 ellipsoid without the geoid (about 40 m here, up to ±100 m elsewhere); the correction and the sea floor come with the land–sea tiles of M1. Lübbecke's 1 m and Fanø's 0.4 m terrain follow in M2.",
+          "Imagery: EOX Sentinel-2 cloudless 2025, a cloud-free mosaic of a whole year at about 10 m per pixel – no season, no snow of the day, and the satellite's late-morning shadows are baked in.",
+          "Sun and Moon: Astronomy Engine, checked against JPL Horizons for Lübbecke and Nordby – within 0.1′ for the Sun and 0.2′ for the Moon, sunrise and sunset within 30 seconds (npm run check:earth).",
+          "Sky: our own physically based atmosphere – single scattering by air molecules (Rayleigh), aerosol (Mie, one standard aerosol everywhere) and ozone absorption, with multiple scattering only approximated, so the sky right after sunset is a little too dark.",
+          "Stars: a generated star field turning correctly with the sky (precession, nutation, sidereal time) – the stars themselves are not yet a catalogue. Moon: true size, position and phase, without surface texture or earthshine.",
+          "Data are streamed from the providers' public services in this work-in-progress stage; the attribution strip lists them, the button beside it their licences."
+        ]
+      },
+      "hint": "Drag to turn the globe · Scroll or pinch to zoom · Right-drag to tilt"
     }
   }
 }

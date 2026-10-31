@@ -17,10 +17,14 @@
     "check:hz": "node scripts/check-habitable-zone.mjs",
     "check:tides": "node scripts/check-moon-tides.mjs",
     "check:mag": "node scripts/check-magnetosphere.mjs",
-    "check:galaxy": "node scripts/check-galactic-zone.mjs"
+    "check:galaxy": "node scripts/check-galactic-zone.mjs",
+    "check:earth": "node scripts/check-earth-geodesy.mjs && node scripts/check-earth-ephemeris.mjs && node scripts/check-earth-clock.mjs",
+    "check": "npm run -s check:i18n && npm run -s check:prefs && npm run -s check:axial && npm run -s check:orbits && npm run -s check:hz && npm run -s check:tides && npm run -s check:mag && npm run -s check:galaxy && npm run -s check:earth"
   },
   "dependencies": {
-    "three": "^0.185.1"
+    "3d-tiles-renderer": "^0.5.3",
+    "astronomy-engine": "^2.1.19",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -50,6 +50,14 @@ export const simulations = [
     icon: '🧲',
     load: () => import('./magnetosphere/index.js'),
   },
+  {
+    id: 'earth',
+    titleKey: 'sims.earth.title',
+    descriptionKey: 'sims.earth.description',
+    icon: '🛰️',
+    load: () => import('./earth/index.js'),
+    hidden: true, // work in progress – only listed when the header toggle is on
+  },
 ];
 
 export function findSimulation(id) {

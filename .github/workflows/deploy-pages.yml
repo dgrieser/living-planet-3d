@@ -31,6 +31,9 @@ jobs:
 
       - run: npm run lint
 
+      # physics / model validation scripts (scripts/check-*.mjs), incl. the Living Earth's
+      - run: npm run check
+
       - run: npm run build
 
       - uses: actions/configure-pages@v5

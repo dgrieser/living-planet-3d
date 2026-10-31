@@ -32,6 +32,51 @@ M8 adds the last centimetre. M5–M7 can run in parallel once M2 exists.
 first release that drops `hidden` – the real Earth from space plus both hero areas with
 terrain, imagery and buildings in a static season; M4–M9 follow as updates.
 
+### 1.1 M0 outcome (31 Oct 2026)
+
+**Built** (`src/sims/earth/`, registered as `earth` with `hidden: true`):
+
+| M0 item | State |
+|---|---|
+| `earth` scaffold, registry entry, EN/DE strings | done – panel per the repo's layout: time of day with play/pause and "now", date and rate, place presets, camera views (per place, `setCameraViews()` added to `lib/ui.js`), quality tiers, display toggles, readouts, essay, model card |
+| three r185 → r187 | done – all six existing simulations rendered side by side on r185 and r187 in headless Chrome: no visual change, no console errors; all `check:*` scripts green |
+| `WebGPURenderer` with WebGL 2 fallback | done – `?renderer=webgl` forces the fallback; reversed float depth buffer |
+| **WebGPU go/no-go spike** | **GO on WebGPU.** Imagery is draped without porting `ImageOverlayPlugin`: `TerrariumMeshPlugin` composes the imagery of each tile on a 2D canvas (no shader patching) and our subclass swaps its GLSL-patched Lambert material for a node material that shares one TSL graph across all tiles (one pipeline for the planet). Two WebGPU-specific fixes were needed: ImageBitmaps decoded with `imageOrientation: 'flipY'` get `flipY = false` (WebGLRenderer ignores `flipY` for ImageBitmaps, WebGPURenderer honours it), and the controls' GLSL pivot marker is replaced by a TSL sprite |
+| globe tiles streaming | done – Mapterhorn z0–12 (hot-linked for now; open-sea tiles, which Mapterhorn does not serve, are answered with a flat 0 m tile) + EOX s2cloudless-2025 z0–15 |
+| camera stack | globe orbit → local orbit (`GlobeControls`), geodetic camera poses, cinematic flights between views. **Walk mode is not built yet** – it needs collision against the hero terrain and moves to M2 |
+| `clock.js`, `ephemeris.js`, `geodesy.js` + checks | done – `npm run check:earth` (CI step) |
+| physically based atmosphere | done – own TSL single-scattering atmosphere (transmittance table built on the CPU, analytic segment integration, isotropic multiple-scattering estimate) instead of `@takram/three-atmosphere`, whose packages list React/R3F as peer dependencies |
+| attribution strip | done – strip of the providers on screen + "Data sources" list with licences and mandatory notices (`sources.js`) |
+
+**Exit criteria:**
+
+- *Zoom from space to 1 km over any place at 60 fps with imagery draped on the terrain, on WebGPU* –
+  met on the development machine: synthetic wheel-zoom from 17 500 km to ≈ 200 m over Lübbecke works;
+  60 fps (the display's refresh, so the true headroom is higher) on WebGPU and on the WebGL 2 fallback, at
+  1400 × 700 and at 2800 × 1700 (Ultra, DPR 2), for the globe, Europe and Lübbecke views. The machine's
+  GPU is an AMD Radeon 890M (integrated, RDNA 3.5) – stronger than the plan's "mid laptop" reference
+  (Iris Xe / M1), which still has to be measured.
+- *Sun and Moon within 1′ of JPL Horizons* – met: worst 0.08′ (Sun) and 0.16′ (Moon) over 32 positions for
+  Lübbecke and Nordby (2000–2045), sunrise/sunset within 5 s (tolerance 30 s), illuminated fraction
+  within 0.1 %.
+- *Check scripts green* – met: geodesy against PROJ 9.7 below 0.01 mm (ECEF, UTM 32N both ways,
+  ETRF2020 ↔ ITRF2020, EGM96 grid lookups), clock, and all existing checks; `npm run check` runs in CI.
+
+**Deviations from the plan, and what they move:**
+
+- Precision: `renderer.highPrecision` (CPU float64 model-view) instead of the floating origin of
+  [01 §3](01-architecture.md#3-coordinates-precision-and-depth) – enough while there are no instanced
+  meshes; the floating origin is needed by M4 (instanced trees).
+- Terrain: only Mapterhorn's global level (z12, ≈ 19 m in the hero areas). Its national 1 m / 0.4 m
+  levels (z16 in NRW, z17 in Denmark) exist only inside their regions; the tree needs per-region depth
+  limits, which come with the hero tilesets (M2). Heights are orthometric and placed on the ellipsoid
+  without the geoid (≈ 40 m here) – fixed by the merged land–sea tiles (M1).
+- Data are hot-linked from the providers' public endpoints; mirroring them onto the mittwald server is
+  part of the M1 pipeline work ([11](11-pipeline-hosting.md)).
+- Stars are generated (seeded), not a catalogue; the Moon is untextured – both small M1 items.
+- Antialiasing: none yet (no MSAA/TRAA on the scene pass); the depth-based atmosphere pass needs a
+  resolved depth – TRAA is planned with the post chain (M6/M9).
+
 ---
 
 ## 2. Verification (keep the repo's `scripts/check-*.mjs` culture)
