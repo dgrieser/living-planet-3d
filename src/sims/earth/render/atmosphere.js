@@ -120,6 +120,8 @@ export function createTransmittanceTexture() {
  * Uniforms every atmosphere-aware shader reads. Updated once per frame by `updateAtmosphereUniforms()`.
  *  sunDirection   unit vector to the Sun, ECEF (world)
  *  cameraKm       camera position in the stretched-sphere frame, km
+ *  cameraWorld    camera position, ECEF metres – for scene materials: three's `cameraPosition` node is a
+ *                 render-group uniform that the post-processing quad's camera overwrites before submit
  *  exposure       scene radiance → display (applied before tone mapping)
  */
 export function createAtmosphereUniforms() {
@@ -127,6 +129,9 @@ export function createAtmosphereUniforms() {
     sunDirection: uniform(new THREE.Vector3(1, 0, 0)),
     sunDirectionScaled: uniform(new THREE.Vector3(1, 0, 0)),
     cameraKm: uniform(new THREE.Vector3(0, 0, 20000)),
+    cameraWorld: uniform(new THREE.Vector3(0, 0, 2e7)),
+    viewRotation: uniform(new THREE.Matrix3()), // world → view (rotation only), same reason as cameraWorld
+    viewToWorld: uniform(new THREE.Matrix3()),
     sunIlluminance: uniform(new THREE.Color(1, 0.985, 0.96)),
     haze: uniform(1), // 0 = no atmosphere drawn (the display toggle), 1 = on
     starBrightness: uniform(1),
@@ -135,12 +140,17 @@ export function createAtmosphereUniforms() {
 
 const _v = new THREE.Vector3();
 /** Copy the per-frame state into the uniforms (positions in metres, ECEF). */
-export function updateAtmosphereUniforms(u, { cameraPosition, sunDirection }) {
+export function updateAtmosphereUniforms(u, { cameraPosition, sunDirection, camera = null }) {
   u.sunDirection.value.copy(sunDirection).normalize();
   u.sunDirectionScaled.value.set(sunDirection.x, sunDirection.y, sunDirection.z * ATMOSPHERE.zScale).normalize();
   _v.copy(cameraPosition).multiplyScalar(0.001);
   _v.z *= ATMOSPHERE.zScale;
   u.cameraKm.value.copy(_v);
+  u.cameraWorld.value.copy(cameraPosition);
+  if (camera) {
+    u.viewRotation.value.setFromMatrix4(camera.matrixWorldInverse);
+    u.viewToWorld.value.setFromMatrix4(camera.matrixWorld);
+  }
 }
 
 // ---------- TSL building blocks ----------------------------------------------------------------------------

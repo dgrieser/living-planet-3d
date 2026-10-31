@@ -311,6 +311,19 @@ export function parseGtx(buffer) {
   return createGeoidGrid({ lat0, lon0, dLat, dLon, rows, cols, values });
 }
 
+/** Layout of the global geoid grid shipped in public/earth (tools/earth-pipeline/build-geoid.mjs). */
+export const GLOBAL_GEOID = Object.freeze({ file: 'earth/egm2008-0p5.bin', lat0: -90, lon0: -180, dLat: 0.5, dLon: 0.5, rows: 361, cols: 720 });
+
+/** The global EGM2008 0.5° grid: little-endian Int16 centimetres, south row first, from −180°. */
+export function parseGeoidI16(buffer, layout = GLOBAL_GEOID) {
+  const view = new DataView(buffer);
+  const n = layout.rows * layout.cols;
+  if (buffer.byteLength < n * 2) throw new Error(`geoid grid too short: ${buffer.byteLength} bytes`);
+  const values = new Float32Array(n);
+  for (let i = 0; i < n; i++) values[i] = view.getInt16(i * 2, true) / 100;
+  return createGeoidGrid({ ...layout, values });
+}
+
 /**
  * A regular lat/lon grid of geoid undulations N (m), south row first, west column first.
  * `-88.8888` is the conventional no-data value in .gtx files.

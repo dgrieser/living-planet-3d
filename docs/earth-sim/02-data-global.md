@@ -32,7 +32,9 @@ before use. "CORS ✓" means a browser on another origin can fetch it directly.
 preprocessing) for M0 – mirror the relevant PMTiles extracts to our own storage instead of
 hot-linking. **M1** needs a sea floor (drain-the-ocean), so the pipeline's first product
 is low-zoom land+sea tiles (z0–10): Mapterhorn on land, GEBCO_2026 at sea (its ~450 m is
-the limit there anyway); Mapterhorn's high zooms stay the land source. Long term: GEDTM30 bare earth on land (the Copernicus part of Mapterhorn
+the limit there anyway); Mapterhorn's high zooms stay the land source. *(M1 as built: the merge runs in the browser
+per tile – see [12 §1.2](12-roadmap-verification-licences.md#12-m1-outcome-31-oct-2026); the baked
+tileset remains the pipeline's job.)* Long term: GEDTM30 bare earth on land (the Copernicus part of Mapterhorn
 is a surface model), GLO-30 for Antarctica/gaps, merged with the bathymetry below into
 one seamless global height field, tiled by our pipeline ([11](11-pipeline-hosting.md))
 into quantized-mesh (or Terrarium) tiles. Note: Terrarium/Mapterhorn are land-only

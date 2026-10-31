@@ -1003,7 +1003,7 @@
     },
     "earth": {
       "title": "Lebendige Erde",
-      "description": "Die echte Erde vom All bis zum Boden: gestreamtes Gelände und Satellitenbilder, Sonne, Mond und Himmel jedes Augenblicks, Lübbecke und Fanø. In Arbeit – die Grundlagen (Meilenstein M0).",
+      "description": "Die echte Erde vom All bis zum Boden: Gelände und Meeresboden, Bilder der Jahreszeit, Schnee, Meereis, Stadtlichter und die Wolken eines Wettermodells, Sonne, Mond und Himmel jedes Augenblicks. In Arbeit – die ganze Erde aus der Ferne (Meilenstein M1).",
       "controls": {
         "time": "Tageszeit",
         "date": "Datum",
@@ -1013,7 +1013,9 @@
         "now": "Zurück zu jetzt (live)",
         "place": "Ort",
         "camera": "Kameraansichten",
-        "quality": "Qualität"
+        "quality": "Qualität",
+        "seaLevel": "Wasserstand",
+        "seaLevelReset": "Zurück zum echten Meeresspiegel"
       },
       "rates": {
         "realtime": "Echtzeit (1×)",
@@ -1051,7 +1053,11 @@
         "atmosphere": "Atmosphäre (Himmel und Dunst)",
         "stars": "Sterne",
         "moon": "Mond",
-        "labels": "Ortsnamen"
+        "labels": "Ortsnamen",
+        "depthTint": "Tiefenfarben am Meeresboden",
+        "snowIce": "Schnee und Meereis des Datums",
+        "lights": "Stadtlichter bei Nacht",
+        "clouds": "Wolken (Wettermodell)"
       },
       "readout": {
         "localTime": "Ortszeit, Bildmitte",
@@ -1080,7 +1086,14 @@
         "moonValue": "{phase}, {lit} % beleuchtet, {alt}° hoch",
         "renderer": "Renderer",
         "webgpu": "WebGPU",
-        "webgl2": "WebGL 2 (Ausweichlösung)"
+        "webgl2": "WebGL 2 (Ausweichlösung)",
+        "aboveSea": "{h} m über dem Meeresspiegel",
+        "belowSea": "{h} m unter dem Meeresspiegel",
+        "clouds": "Wolken",
+        "cloudsValue": "GFS-Lauf {run} UTC, +{step} h",
+        "cloudsNone": "Keine Wetterdaten für dieses Datum (GFS ab 2021)",
+        "cloudsLoading": "Wettermodell wird geladen …",
+        "cloudsOff": "Ausgeblendet"
       },
       "moonPhases": {
         "new": "Neumond",
@@ -1112,7 +1125,7 @@
       "info": {
         "title": "Woher kennt ein digitaler Zwilling die Welt?",
         "body": [
-          "Jedes Pixel dieser Erde gehört zu einer von drei Arten. Gemessen: Das Gelände stammt aus Radar- und Laservermessungen, die Farben von den Sentinel-2-Satelliten, die jeden Ort der Erde alle paar Tage fotografieren. Modelliert: Wo Sonne und Mond in jedem Augenblick stehen und wie sich Sonnenlicht in der Luft streut, folgt aus der Physik – mit einem Fehler weit unter dem, was das Auge sieht. Generiert: Was niemand gemessen hat – hier die Sterne, später die Form eines einzelnen Blatts oder einer kleinen Wolke –, wird passend zu den Messdaten erzeugt.",
+          "Jedes Pixel dieser Erde gehört zu einer von drei Arten. Gemessen: Das Gelände stammt aus Radar- und Laservermessungen, die Farben von den Sentinel-2-Satelliten, die jeden Ort der Erde alle paar Tage fotografieren. Modelliert: Wo Sonne und Mond in jedem Augenblick stehen und wie sich Sonnenlicht in der Luft streut, folgt aus der Physik – mit einem Fehler weit unter dem, was das Auge sieht; wo die Wolken liegen, stammt aus einem Wettermodell. Generiert: Was niemand gemessen hat – hier die Sterne und die Form jeder kleinen Wolke, später ein einzelnes Blatt –, wird passend zu den Messdaten erzeugt.",
           "Messdaten sind immer eine Momentaufnahme: Das Satellitenbild ist ein wolkenfreies Mosaik eines ganzen Jahres, das Geländemodell wurde in einem bestimmten Jahr beflogen. Ein digitaler Zwilling bringt sie auf eine gemeinsame Uhr, damit Licht, Himmel und – in späteren Meilensteinen – Wetter, Gezeiten, Schnee und Laub zum selben Augenblick gehören.",
           "Manches kann nie exakt sein: Kein Instrument hält fest, wo jede kleine Wolke oder jeder Regentropfen ist. Das Wetter des Zwillings wird den Beobachtungen in deren Maßstab entsprechen – dem Gitter eines Wettermodells, einem Radarpixel – und den Rest so ergänzen, dass er stimmig aussieht, ohne vorzugeben, gemessen zu sein."
         ]
@@ -1120,16 +1133,22 @@
       "model": {
         "title": "Modellkarte – was hier echt ist",
         "body": [
-          "Dies ist Meilenstein M0, die Grundlagen. Noch gibt es keine Wolken, kein Wetter, kein Wasser, keine Gezeiten, keinen Schnee, keine Jahreszeiten, keine Gebäude und keine Bäume – sie kommen in späteren Meilensteinen des Plans (docs/earth-sim). Die Nachtseite ist dunkel: Die Lichter der Städte kommen mit M1.",
-          "Gelände: Höhenkacheln von Mapterhorn (Copernicus-DEM, verschmolzen mit nationalen 1-m- und 0,4-m-Modellen), gestreamt nur in der globalen Stufe – etwa 19 m pro Pixel in Deutschland und Dänemark, offenes Meer flach bei 0 m. Höhen über dem Meeresspiegel liegen ohne Geoid auf dem WGS84-Ellipsoid (hier etwa 40 m, anderswo bis ±100 m); die Korrektur und der Meeresboden kommen mit den Land-Meer-Kacheln von M1. Lübbeckes 1-m- und Fanøs 0,4-m-Gelände folgen in M2.",
-          "Bilder: EOX Sentinel-2 cloudless 2025, ein wolkenfreies Mosaik eines ganzen Jahres mit etwa 10 m pro Pixel – ohne Jahreszeit, ohne Schnee des Tages, und die Schatten des späten Vormittags, zu dem der Satellit vorbeifliegt, sind eingebacken.",
-          "Sonne und Mond: Astronomy Engine, geprüft gegen JPL Horizons für Lübbecke und Nordby – auf 0,1′ für die Sonne und 0,2′ für den Mond genau, Sonnenauf- und -untergang auf 30 Sekunden (npm run check:earth).",
-          "Himmel: eine eigene physikalisch basierte Atmosphäre – Einfachstreuung an Luftmolekülen (Rayleigh) und Aerosol (Mie, überall ein Standardaerosol) sowie Absorption durch Ozon; Mehrfachstreuung ist nur genähert, daher ist der Himmel kurz nach Sonnenuntergang etwas zu dunkel.",
-          "Sterne: ein generiertes Sternfeld, das sich richtig mit dem Himmel dreht (Präzession, Nutation, Sternzeit) – die Sterne selbst sind noch kein Katalog. Mond: wahre Größe, Position und Phase, ohne Oberflächentextur und Erdschein.",
-          "In dieser Arbeitsstufe werden die Daten von den öffentlichen Diensten der Anbieter gestreamt; der Quellenstreifen nennt sie, die Schaltfläche daneben ihre Lizenzen."
+          "Dies ist Meilenstein M1, die ganze Erde aus der Ferne. Noch fehlen Regen, Wind, Wellen, Gezeiten, Gebäude und Bäume sowie das genaue Gelände von Lübbecke und Fanø – sie kommen in späteren Meilensteinen des Plans (docs/earth-sim).",
+          "Gelände: Höhenkacheln von Mapterhorn (Copernicus-DEM, verschmolzen mit nationalen 1-m- und 0,4-m-Modellen) in der globalen Stufe – etwa 19 m pro Pixel in Deutschland und Dänemark. Auf dem Meer übernimmt das GEBCO_2026-Gitter (450 m; aus dem Orbit eine 30-km-Kopie, die mit der Seite ausgeliefert wird, näher das volle Gitter). Nur etwa ein Viertel des Meeresbodens ist von Schiffen vermessen, der Rest aus Satelliten-Altimetrie vorhergesagt. Alle Höhen liegen mit dem EGM2008-Geoid auf dem WGS84-Ellipsoid.",
+          "Wasserstand: Sinkt das Meer, zeigt der freigelegte Boden seine wichtigsten Sedimente nach Tiefe – Sand auf dem Schelf, Schlamm am Hang, heller Kalkschlamm auf den Mittelozeanischen Rücken oberhalb von etwa 4,5 km, brauner Tiefseeton in den Becken – oder Tiefenfarben mit 1000-m-Linien. Dieses Farbschema ist eine Verallgemeinerung, keine Karte der echten Sedimente, und das Relief des Meeresbodens ist fünffach überhöht schattiert, damit seine sanften Hänge sichtbar werden. Die Meeresoberfläche wird auf dem Meeresboden selbst gezeichnet; aus den Höhen dieser Ansicht stimmt das, mit dem Ozean von M5 wird daraus eine echte Oberfläche.",
+          "Bilder: aus der Ferne NASAs Blue Marble, ein wolkenfreies Komposit je Monat (2004), überblendet zwischen den beiden Monaten um das Datum; näher EOX Sentinel-2 cloudless 2025 mit etwa 10 m, ein Mosaik eines ganzen Jahres ohne Jahreszeit. Schnee ist die monatliche Schneebedeckung von MODIS/Terra im Monat des Datums (ab 2000), Meereis die AMSR-E/AMSR2-Konzentration des Tages (2002–2025, mit einer Lücke 2011/12). Daten außerhalb dieser Reihen zeigen denselben Monat oder Tag des nächstgelegenen Jahres – eine Klimatologie, nicht das echte Datum.",
+          "Wolken: das Wettermodell GFS der NOAA, Bedeckung durch tiefe, mittelhohe und hohe Wolken in 0,25° (etwa 28 km), aus dem Lauf wenige Stunden vor dem Augenblick – zurück bis Januar 2021 – oder der jüngsten Vorhersage bis 16 Tage voraus. Die Bedeckung des Modells wird mit generierten Details aufgelöst: Die großen Muster – Fronten, Tiefs, wolkenfreie Gebiete – sind echt, jede einzelne Wolkenform nicht. Die Wolken sind vorerst dünne Schalen; Volumenwolken und die Korrektur mit Satellitenbildern kommen mit der Wetterpipeline (M6). Stadtlichter: NASA Black Marble 2016.",
+          "Sonne und Mond: Astronomy Engine, geprüft gegen JPL Horizons für Lübbecke und Nordby – auf 0,1′ für die Sonne und 0,2′ für den Mond genau, Sonnenauf- und -untergang auf 30 Sekunden (npm run check:earth). Himmel: eine eigene physikalisch basierte Atmosphäre – Einfachstreuung an Luft (Rayleigh), Aerosol (Mie) und Ozon, Mehrfachstreuung nur genähert, daher ist der Himmel kurz nach Sonnenuntergang etwas zu dunkel. Sterne: generiert, sie drehen sich richtig mit dem Himmel; der Mond ohne Oberflächentextur.",
+          "In dieser Arbeitsstufe werden die Daten von den öffentlichen Diensten der Anbieter gestreamt; der Quellenstreifen nennt, was zu sehen ist, die Schaltfläche daneben alle Quellen und ihre Lizenzen."
         ]
       },
-      "hint": "Ziehen dreht den Globus · Scrollen oder Zwei-Finger-Geste zoomt · Rechts ziehen neigt"
+      "hint": "Ziehen dreht den Globus · Scrollen oder Zwei-Finger-Geste zoomt · Rechts ziehen neigt",
+      "seaLevel": {
+        "real": "Echter Meeresspiegel",
+        "glacial": "Letzteiszeitliches Maximum",
+        "shelf": "Schelfkante",
+        "drained": "trockengelegt"
+      }
     }
   }
 }

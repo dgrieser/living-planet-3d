@@ -1,5 +1,5 @@
 /**
- * The data the Living Earth streams in M0, with the licence and attribution each one demands.
+ * The data the Living Earth streams (M0–M1), with the licence and attribution each one demands.
  *
  * Every source declares its attribution here (the "tileset manifest" of docs/earth-sim/10 §2.5 in its
  * simplest form); the attribution strip shows the sources whose tiles are on screen, the model card
@@ -37,7 +37,80 @@ export const IMAGERY = Object.freeze({
   provenance: 'measured',
   licence: 'CC BY-NC-SA 4.0',
   attribution: 'EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2025)',
+  // the strip keeps the full credit – CC BY-NC-SA asks for it where the imagery is shown
   href: 'https://cloudless.eox.at',
+});
+
+export const BATHYMETRY = Object.freeze({
+  id: 'gebco-2026',
+  // the cloud-optimised GeoTIFF on Source Cooperative (15″ grid + 7 overviews, CORS and byte ranges)
+  url: 'https://data.source.coop/ausantarctic/gebco/GEBCO_2026.tif',
+  name: 'GEBCO_2026 Grid',
+  provenance: 'measured',
+  licence: 'public domain (GEBCO terms: acknowledge the source)',
+  attribution: 'GEBCO Compilation Group (2026) GEBCO 2026 Grid (doi:10.5285/4f68d5c7-45eb-f999-e063-7086abc036fa)',
+  short: 'GEBCO 2026',
+  href: 'https://www.gebco.net/data-products/gridded-bathymetry-data',
+  notices: ['Only about a quarter of the sea floor is mapped by ship soundings; the rest is predicted from satellite altimetry at kilometre scale.'],
+});
+
+export const BLUE_MARBLE = Object.freeze({
+  id: 'bmng',
+  name: 'NASA Blue Marble Next Generation (monthly, 2004)',
+  provenance: 'measured',
+  licence: 'NASA – free to use with credit',
+  attribution: 'NASA Earth Observatory, Blue Marble Next Generation (Reto Stöckli)',
+  short: 'NASA Blue Marble',
+  href: 'https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/',
+});
+
+export const SNOW = Object.freeze({
+  id: 'modis-snow',
+  name: 'MODIS/Terra monthly snow cover (MOD10CM), via NASA GIBS',
+  provenance: 'measured',
+  licence: 'NASA open data',
+  attribution: 'Snow: NASA MODIS/Terra (MOD10CM), imagery from NASA GIBS',
+  short: 'NASA MODIS snow',
+  href: 'https://nsidc.org/data/mod10cm',
+});
+
+export const SEA_ICE = Object.freeze({
+  id: 'amsr-ice',
+  name: 'AMSR-E / AMSR2 daily sea-ice concentration (12.5 km), via NASA GIBS',
+  provenance: 'measured',
+  licence: 'NASA open data',
+  attribution: 'Sea ice: AMSR-E/AMSR2 (NASA, JAXA), imagery from NASA GIBS',
+  short: 'AMSR sea ice',
+  href: 'https://nsidc.org/data/au_si12',
+});
+
+export const NIGHT_LIGHTS = Object.freeze({
+  id: 'black-marble',
+  name: 'NASA Black Marble 2016 (VIIRS), via NASA GIBS',
+  provenance: 'measured',
+  licence: 'NASA open data',
+  attribution: 'Night lights: NASA Black Marble 2016 (Suomi NPP VIIRS), imagery from NASA GIBS',
+  short: 'NASA Black Marble',
+  href: 'https://blackmarble.gsfc.nasa.gov/',
+});
+
+export const CLOUDS = Object.freeze({
+  id: 'gfs',
+  name: 'NOAA GFS 0.25° cloud cover (low, middle, high), NOAA Open Data on AWS',
+  provenance: 'modelled',
+  licence: 'NOAA open data (public domain)',
+  attribution: 'Clouds: NOAA Global Forecast System (GFS), via the NOAA Open Data Dissemination program',
+  short: 'NOAA GFS clouds',
+  href: 'https://registry.opendata.aws/noaa-gfs-bdp-pds/',
+});
+
+export const GEOID = Object.freeze({
+  id: 'egm2008',
+  name: 'EGM2008 geoid (0.5° grid from PROJ)',
+  provenance: 'measured',
+  licence: 'public domain',
+  attribution: 'EGM2008: National Geospatial-Intelligence Agency (NGA), via the PROJ data CDN',
+  href: 'https://earth-info.nga.mil/index.php?dir=wgs84&action=wgs84',
 });
 
 export const EPHEMERIS = Object.freeze({
@@ -49,4 +122,4 @@ export const EPHEMERIS = Object.freeze({
   href: 'https://github.com/cosinekitty/astronomy',
 });
 
-export const SOURCES = Object.freeze([TERRAIN, IMAGERY, EPHEMERIS]);
+export const SOURCES = Object.freeze([TERRAIN, BATHYMETRY, IMAGERY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, GEOID, EPHEMERIS]);

@@ -8,7 +8,10 @@
 //   ETRF:  cct -d 5 +proj=helmert +drx=8.6e-05 +dry=0.000519 +drz=-0.000753 +t_epoch=1989
 //          +convention=position_vector   (PROJ's "ITRF2020 to ETRF2020 (1)")
 //   Geoid: 4×4 patches of PROJ's egm96_15.gtx, values inside them from cct +proj=vgridshift.
+//   Global geoid: public/earth/egm2008-0p5.bin vs. the full 2.5′ grid,
+//          cct -d 4 +proj=vgridshift +grids=us_nga_egm08_25.tif +multiplier=1
 // The official GCG2016 / DKgeoid control points follow in M2, with the national grids.
+import fs from 'node:fs';
 import * as G from '../src/sims/earth/geodesy.js';
 
 let failed = 0;
@@ -151,6 +154,25 @@ for (const [patch, lon, lat, expected] of GEOID_POINTS) {
 }
 const g4 = G.createGeoidGrid({ ...PATCHES.luebbecke, values: Float32Array.from(PATCHES.luebbecke.values) });
 assert('outside the grid → null', G.sampleGeoidGrid(g4, 53.5, 8.5) === null);
+
+console.log('— global geoid (shipped EGM2008 0.5° grid vs. the full 2.5′ grid in PROJ) —');
+const geoidFile = fs.readFileSync(new URL(`../public/${G.GLOBAL_GEOID.file}`, import.meta.url));
+const globalGeoid = G.parseGeoidI16(geoidFile.buffer.slice(geoidFile.byteOffset, geoidFile.byteOffset + geoidFile.byteLength));
+// [label, lon°, lat°, N m, tolerance m] – 0.3 m in the hero areas, 0.5 m elsewhere (bilinear on 0.5°)
+const EGM2008 = [
+  ['Lübbecke', 8.6183, 52.3028, 43.9162, 0.3],
+  ['Fanø', 8.41, 55.4, 41.0671, 0.3],
+  ['New Guinea high', 147, -5, 73.8842, 0.5],
+  ['Indian Ocean low', 78, 5, -104.557, 0.5],
+  ['Andes', -70, -15, 48.8031, 0.5],
+  ['0°, 0°', 0, 0, 17.2251, 0.5],
+  ['Iceland', -19, 64.5, 67.467, 0.5],
+  ['Everest', 86.92, 27.99, -28.4253, 0.5],
+];
+for (const [label, lon, lat, expected, tol] of EGM2008) {
+  check(`N ${label} (m)`, G.sampleGeoidGrid(globalGeoid, lat, lon), expected, tol, ' m');
+}
+check('N wraps across the antimeridian (179.9° vs −180.1°)', G.sampleGeoidGrid(globalGeoid, 10, 179.9), G.sampleGeoidGrid(globalGeoid, 10, -180.1), 1e-6, ' m');
 
 console.log(failed ? `\n${failed} check(s) failed` : '\nall checks passed');
 process.exit(failed ? 1 : 0);

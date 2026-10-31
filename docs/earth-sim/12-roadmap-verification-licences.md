@@ -77,6 +77,55 @@ terrain, imagery and buildings in a static season; M4–M9 follow as updates.
 - Antialiasing: none yet (no MSAA/TRAA on the scene pass); the depth-based atmosphere pass needs a
   resolved depth – TRAA is planned with the post chain (M6/M9).
 
+### 1.2 M1 outcome (31 Oct 2026)
+
+**Built** (same sim, still `hidden: true`):
+
+| M1 item | State |
+|---|---|
+| global land+sea terrain | done, at runtime instead of baked z0–10 tiles: each decoded Mapterhorn grid gets GEBCO_2026's sea floor where Mapterhorn writes exactly 0 m (its sea value; open-sea 404s become flat tiles first), plus the EGM2008 undulation N, so the mesh sits on the ellipsoid (`data/gebco.js`, `data/geoid.js`, `render/globe.js`). A sea mask travels with every grid (polders, the Caspian and the Dead Sea shore stay land). GEBCO comes from two places: a 16′ (≈ 30 km) copy shipped in `public/earth/` (754 kB, land zeroed, delta/byte-plane encoded) for every tile at once, then the tile's own window from the community COG on Source Cooperative (15″ + overviews) for zoom ≥ 3, swapped in when it arrives – range requests there cost 0.3–0.8 s each, too slow to wait for. The global geoid is a 0.5° EGM2008 grid (520 kB, ≤ 0.14 m from the full grid in the hero areas) |
+| drain-the-ocean slider | done – headline "Water level" slider 0 … −11 000 m with snap stops (−10, −50, −120 Last Glacial Maximum, −200 shelf edge, drained) and the circle-arrow reset; *mean low water* waits for the tide model. Uncovered floor: sediment classes by depth (shelf sand, slope mud, carbonate ooze above the CCD on the ridges, abyssal clay), basalt on steep slopes, or hypsometric depth colours with 1000 m contours (display toggle). Its relief is shaded ×5 exaggerated (model card) |
+| water | the sea is shaded on the sea floor (no separate surface): imagery colour (depth model once lowered) under a Fresnel sky reflection and a GGX sun glint (α 0.28, Cox–Munk at ≈ 7 m/s); sea ice on top |
+| seasonal global imagery (monthly) | done – NASA Blue Marble NG monthly 2004 (CORS from assets.science.nasa.gov), the two months around the date blended, faded in above 1 200–4 000 km; EOX stays the near imagery (no seasons there yet) |
+| night lights | done – NASA Black Marble 2016 (GIBS, 7.8 km), sodium tint, only where the Sun is down |
+| snow & sea-ice overlay from daily products | done with GIBS: MODIS/Terra **monthly** snow cover (the daily L3 product has cloud gaps), AMSR-E/AMSR2 **daily** sea-ice concentration; colour maps read back to values; dates outside the records fall back to the nearest covered year (climatology, flagged in the model card) |
+| global cloud layer from NWP (2D) | done – NOAA GFS 0.25° low/middle/high cover read directly from the NOAA Open Data bucket (CORS, byte ranges via the `.idx`), decoded by our own GRIB2 decoder in a worker (`data/grib2.js`, simple + complex packing with spatial differencing, checked against ecCodes); archive from Jan 2021 (run 1–6 h before the instant), forecast to +384 h; two shells (≈ 2 km, ≈ 9 km) whose opacity is the cover thresholding fractal noise, ground shadows. Volumetric clouds and satellite fusion stay M6 |
+| global tide overlay (amphidromes) | **not built** – needs the FES2022b (AVISO registration) or EOT20 constituent pipeline and `tides.js`; moved to M5 with the tide model it shares |
+| per-pixel relief | added – bump normals from the height grid's detail between the mesh vertices (screen-space derivatives in view space) |
+
+**Exit criteria:**
+
+- *Globe looks right for any date 2004–today* – met for what M1 shows: the Blue Marble month, the month's
+  snow and the day's sea ice change with the date (checked: January 2024 – snow over eastern Europe and
+  Russia, Arctic ice; July 2024 – snow-free Europe, summer ice). Gaps: the EOX near imagery has no season;
+  sea ice after Sep 2025 and in the 2011–12 AMSR gap, snow before Mar 2000 are climatology.
+- *Draining reveals the mid-ocean ridges* – met: at −11 000 m the Mid-Atlantic Ridge stands out from orbit
+  as the pale ooze band between the brown abyssal plains, and in the depth-colour view with contours;
+  at −120 m the North Sea falls dry while the Norwegian Trench keeps its water.
+- *Clouds match the satellite picture of the same hour at synoptic scale* – met on the test day
+  (30 Oct 2026, 11 UTC, Europe and the North Atlantic, against MODIS/Terra true colour from GIBS): the
+  frontal band west of the British Isles curving to Iberia, the clear North Sea and Germany, the cloud
+  over eastern Europe. Broken cumulus fields come out too closed (the cover alone cannot say how broken).
+- Performance: 60 fps (display refresh) with clouds, snow/ice, lights and per-pixel relief on WebGPU and
+  on the WebGL 2 fallback (globe, Europe, Lübbecke; Radeon 890M).
+
+**Checks:** `check-earth-grib.mjs` (decoder vs ecCodes on two GFS fixtures, run/step choice, index
+parsing), `check-earth-layers.mjs` (tile bounds, GEBCO level choice and resampling, land/sea merge, the
+shipped base grid, product dates, Blue Marble months, colour maps, mip chains), geoid grid vs PROJ in
+`check-earth-geodesy.mjs`.
+
+**Deviations and what they move:**
+
+- No baked land+sea tileset and nothing on the mittwald server yet: the merge runs in the browser and
+  the sources are hot-linked (Source Cooperative, NOAA, NASA). Two small derived grids ship in
+  `public/earth/` (built by `tools/earth-pipeline/`). The baked tiles, mirroring and the weather baker
+  stay pipeline work ([11](11-pipeline-hosting.md)) – needed before `hidden` goes.
+- Snow is monthly, not daily; clouds are GFS only (no ICON/IFS, no satellite correction); sea ice ends in
+  Sep 2025 on GIBS (OSI SAF would continue it, but has no CORS tile service).
+- Tide overlay → M5. Star catalogue and Moon texture still open (small).
+- Known rough edges: the sea mask's coastline follows Mapterhorn's 0 m texels (stair-steps at low zoom
+  where the EOX coast is finer); the drained floor's colours are a generalisation, not a sediment map.
+
 ---
 
 ## 2. Verification (keep the repo's `scripts/check-*.mjs` culture)

@@ -1003,7 +1003,7 @@
     },
     "earth": {
       "title": "Living Earth",
-      "description": "The real Earth from space down to the ground: streamed terrain and satellite imagery, the Sun, the Moon and the sky of any moment, Lübbecke and Fanø. Work in progress – the foundations (milestone M0).",
+      "description": "The real Earth from space down to the ground: terrain and sea floor, seasonal imagery, snow, sea ice, city lights and the clouds of a weather model, the Sun, the Moon and the sky of any moment. Work in progress – the whole Earth from a distance (milestone M1).",
       "controls": {
         "time": "Time of day",
         "date": "Date",
@@ -1013,7 +1013,9 @@
         "now": "Back to now (live)",
         "place": "Place",
         "camera": "Camera views",
-        "quality": "Quality"
+        "quality": "Quality",
+        "seaLevel": "Water level",
+        "seaLevelReset": "Back to the real sea level"
       },
       "rates": {
         "realtime": "Real time (1×)",
@@ -1051,7 +1053,11 @@
         "atmosphere": "Atmosphere (sky and haze)",
         "stars": "Stars",
         "moon": "Moon",
-        "labels": "Place labels"
+        "labels": "Place labels",
+        "depthTint": "Depth colours on the sea floor",
+        "snowIce": "Snow and sea ice of the date",
+        "lights": "City lights at night",
+        "clouds": "Clouds (weather model)"
       },
       "readout": {
         "localTime": "Local time, centre of the view",
@@ -1080,7 +1086,14 @@
         "moonValue": "{phase}, {lit} % lit, {alt}° high",
         "renderer": "Renderer",
         "webgpu": "WebGPU",
-        "webgl2": "WebGL 2 (fallback)"
+        "webgl2": "WebGL 2 (fallback)",
+        "aboveSea": "{h} m above sea level",
+        "belowSea": "{h} m below sea level",
+        "clouds": "Clouds",
+        "cloudsValue": "GFS run {run} UTC, +{step} h",
+        "cloudsNone": "No weather data for this date (GFS from 2021)",
+        "cloudsLoading": "Loading the weather model…",
+        "cloudsOff": "Hidden"
       },
       "moonPhases": {
         "new": "new moon",
@@ -1112,7 +1125,7 @@
       "info": {
         "title": "How does a digital twin know the world?",
         "body": [
-          "Every pixel of this Earth is one of three kinds. Measured: the terrain comes from radar and laser surveys, the colours from the Sentinel-2 satellites, which photograph every place on Earth every few days. Modelled: where the Sun and the Moon stand at any instant, and how sunlight scatters in the air, follow from physics with an error far below what the eye can see. Generated: what nobody has measured – here the stars, later the shape of a single leaf or a small cloud – is made up to match the measured data.",
+          "Every pixel of this Earth is one of three kinds. Measured: the terrain comes from radar and laser surveys, the colours from the Sentinel-2 satellites, which photograph every place on Earth every few days. Modelled: where the Sun and the Moon stand at any instant and how sunlight scatters in the air follow from physics with an error far below what the eye can see; where the clouds lie comes from a weather model. Generated: what nobody has measured – here the stars and the shape of each small cloud, later a single leaf – is made up to match the measured data.",
           "Measured data are always a snapshot: the satellite picture is a cloud-free mosaic of a whole year, the terrain model was flown in a particular year. A digital twin brings them together on one clock, so that the light, the sky and – in later milestones – the weather, the tides, snow and leaves belong to the same moment.",
           "Some things can never be exact: no instrument records where every small cloud or raindrop is. The weather of the twin will match the observations at the scale they are made – a weather model's grid, a radar pixel – and fill in the rest so that it looks right without pretending to be measured."
         ]
@@ -1120,16 +1133,22 @@
       "model": {
         "title": "Model card – what is real here",
         "body": [
-          "This is milestone M0, the foundations. There are no clouds, weather, water, tides, snow, seasons, buildings or trees yet – they arrive in later milestones of the plan (docs/earth-sim). The night side is dark: city lights come with M1.",
-          "Terrain: Mapterhorn elevation tiles (Copernicus DEM, fused with national 1 m and 0.4 m models), streamed at the global level only – about 19 m per pixel in Germany and Denmark, open sea flat at 0 m. Heights above sea level are placed on the WGS84 ellipsoid without the geoid (about 40 m here, up to ±100 m elsewhere); the correction and the sea floor come with the land–sea tiles of M1. Lübbecke's 1 m and Fanø's 0.4 m terrain follow in M2.",
-          "Imagery: EOX Sentinel-2 cloudless 2025, a cloud-free mosaic of a whole year at about 10 m per pixel – no season, no snow of the day, and the satellite's late-morning shadows are baked in.",
-          "Sun and Moon: Astronomy Engine, checked against JPL Horizons for Lübbecke and Nordby – within 0.1′ for the Sun and 0.2′ for the Moon, sunrise and sunset within 30 seconds (npm run check:earth).",
-          "Sky: our own physically based atmosphere – single scattering by air molecules (Rayleigh), aerosol (Mie, one standard aerosol everywhere) and ozone absorption, with multiple scattering only approximated, so the sky right after sunset is a little too dark.",
-          "Stars: a generated star field turning correctly with the sky (precession, nutation, sidereal time) – the stars themselves are not yet a catalogue. Moon: true size, position and phase, without surface texture or earthshine.",
-          "Data are streamed from the providers' public services in this work-in-progress stage; the attribution strip lists them, the button beside it their licences."
+          "This is milestone M1, the whole Earth from a distance. Still missing: rain, wind, waves, tides, buildings and trees, and the detailed terrain of Lübbecke and Fanø – they arrive in later milestones of the plan (docs/earth-sim).",
+          "Terrain: Mapterhorn elevation tiles (Copernicus DEM, fused with national 1 m and 0.4 m models) at the global level – about 19 m per pixel in Germany and Denmark. At sea the GEBCO_2026 grid takes over (450 m; from orbit a 30 km copy that ships with the page, closer the full grid). Only about a quarter of the sea floor has been measured by ships; the rest is predicted from satellite altimetry. All heights are placed on the WGS84 ellipsoid with the EGM2008 geoid.",
+          "Water level: lowering the sea shades the uncovered floor with its main sediments by depth – sand on the shelf, mud on the slope, pale carbonate ooze on the mid-ocean ridges above about 4.5 km, brown clay in the deep basins – or with depth colours and 1000 m contours. That colour scheme is a generalisation, not a map of the real sediments, and the sea floor's relief is shaded five times exaggerated so its gentle slopes show. The sea surface is drawn on the sea floor itself, which is right from the heights of this view and becomes a real surface with the ocean of M5.",
+          "Imagery: from far away NASA's Blue Marble, one cloud-free composite per month (2004), blended between the two months around the date; closer EOX Sentinel-2 cloudless 2025 at about 10 m, a mosaic of a whole year without season. Snow is MODIS/Terra's monthly snow cover of the date's month (from 2000), sea ice the AMSR-E/AMSR2 concentration of the day (2002–2025, with a gap in 2011–12). Dates outside these records show the same month or day of the nearest year – a climatology, not the real date.",
+          "Clouds: NOAA's GFS weather model, cover of low, middle and high cloud at 0.25° (about 28 km), from the run a few hours before the moment – back to January 2021 – or the latest forecast up to 16 days ahead. The model's cover is broken up by generated detail, so the large patterns – fronts, cyclones, clear areas – are real, every single cloud shape is not. Clouds are thin shells for now; volumetric clouds and the satellite correction come with the weather pipeline (M6). City lights: NASA Black Marble 2016.",
+          "Sun and Moon: Astronomy Engine, checked against JPL Horizons for Lübbecke and Nordby – within 0.1′ for the Sun and 0.2′ for the Moon, sunrise and sunset within 30 seconds (npm run check:earth). Sky: our own physically based atmosphere – single scattering by air (Rayleigh), aerosol (Mie) and ozone, multiple scattering only approximated, so the sky right after sunset is a little too dark. Stars: generated, turning correctly with the sky; the Moon without surface texture.",
+          "Data are streamed from the providers' public services in this work-in-progress stage; the attribution strip lists what is on screen, the button beside it all sources and their licences."
         ]
       },
-      "hint": "Drag to turn the globe · Scroll or pinch to zoom · Right-drag to tilt"
+      "hint": "Drag to turn the globe · Scroll or pinch to zoom · Right-drag to tilt",
+      "seaLevel": {
+        "real": "Real sea level",
+        "glacial": "Last Glacial Maximum",
+        "shelf": "shelf edge",
+        "drained": "drained"
+      }
     }
   }
 }
