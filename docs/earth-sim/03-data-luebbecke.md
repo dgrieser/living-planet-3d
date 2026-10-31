@@ -33,10 +33,11 @@ headers, DGM samples, live services), **(~)** official page / secondary, **(?)**
 | Source | Licence | Attribution |
 |---|---|---|
 | **Geobasis NRW** (DGM, DOM, 3D-Messdaten, DOP, 3D-Mesh, LoD1/2, ALKIS, Basis-DLM) | **dl-de/zero-2.0** (✓) | none required; courtesy "© Geobasis NRW" (3D Tiles asset: "Bezirksregierung Köln, Geobasis NRW") |
-| **Landbedeckung NRW** (exception) | **dl-de/by-2.0** (~) | **mandatory**: "Enthält modifizierte Copernicus Sentinel-2 Daten [2023], verarbeitet durch Geobasis NRW" |
+| **Landbedeckung NRW** (exception) | **dl-de/by-2.0** (✓ WMS capabilities) | **mandatory**: "Enthält modifizierte Copernicus Sentinel-2 Daten [2023], verarbeitet durch Geobasis NRW; dl-de/by-2-0 (www.govdata.de/dl-de/by-2-0); https://www.wms.nrw.de/geobasis/wms_nw_landbedeckung" |
 | DWD | CC BY 4.0 (✓) | "Quelle: Deutscher Wetterdienst" |
 | BKG GCG2016 | CC BY 4.0 (✓) | "© BKG (year) CC BY 4.0, Datenquellen: …Datenquellen_Quasigeoid.pdf" |
-| LWK field parcels, Wald und Holz NRW, LANUV/ELWAS | probably dl-de/by-2.0 (?) – open.nrw portal unreachable during research | e.g. "Landwirtschaftskammer NRW" |
+| LWK field parcels (TSCHLAG), NRW forest rasters (Baumartenklassifikation, Vitalitätsabnahme) | **dl-de/by-2.0** (✓ GovData/open.nrw distribution metadata) | fields: "Land NRW, Abrufdatum <date>"; forest rasters: "Land NRW 2022" |
+| GSK3E stream stationing, PEGELONLINE | **dl-de/zero-2.0** (✓) | none required (courtesy "WSV" / "Land NRW") |
 | OSM | ODbL | "© OpenStreetMap contributors" |
 
 All Geobasis products live under `https://www.opengeodata.nrw.de/produkte/geobasis/`
@@ -110,7 +111,7 @@ green ridge.
 | **LWK-TSCHLAG** (current, 286 MB) / **LWK-TSCHLAG-HIST** (from 2019, 1.38 GB) | declared sub-parcels, statewide Shape, EPSG:25832, refreshed daily; `CODE`/`CODE_TXT` crop, `USE_CODE` crop group (cereals, oilseeds, root crops, permanent grassland …), `VALIDFROM` farm year, `ORGANICFAR`, `FLIK` field block |
 | LFK-AKTI / LFK-ALE / DGL | field blocks / landscape elements / permanent grassland |
 
-Licence (?) – probably dl-de/by-2.0, "Landwirtschaftskammer NRW".
+Licence ✓ **dl-de/by-2.0**, attribution "Land NRW, Abrufdatum <date of download>".
 
 ## 7. Water
 
@@ -156,7 +157,8 @@ Licence (?) – probably dl-de/by-2.0, "Landwirtschaftskammer NRW".
   needed; Google Street View (?).
 - Google Photorealistic 3D Tiles: irrelevant (EEA block, [01 §6](01-architecture.md#6-google-photorealistic-3d-tiles-optional));
   the open **NRW 3D-Mesh** (10 cm, I3S) is the photoreal reference.
-- → facade information for the hero streets must come from **own photo capture**
+- → facades are procedural by default; for the hero streets an optional **ground-level
+  photo walk** (no drone) can add real facade detail
   ([05 §5](05-terrain-imagery-buildings.md#5-hero-spots-photogrammetry-and-gaussian-splats)).
 
 ## 10. Landmarks (Nominatim, ODbL)

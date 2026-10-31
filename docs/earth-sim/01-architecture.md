@@ -73,13 +73,13 @@ flowchart TB
     Tiles["3d-tiles-renderer<br/>terrain · imagery · buildings · trees · splats"]
     Eph & Tide & State & Wx & Tiles --> Render["render graph (TSL)"]
   end
-  subgraph Static["Object storage (R2) + CDN"]
+  subgraph Static["mittwald server – static data host"]
     Global["global tilesets<br/>terrain+bathymetry · seasonal imagery"]
     Hero["hero tilesets<br/>Lübbecke · Fanø"]
     WxTex["weather textures<br/>(rolling + archive)"]
     LandState["land-state/day files"]
   end
-  subgraph Jobs["Scheduled jobs (GitHub Actions / cloud function)"]
+  subgraph Jobs["Scheduled jobs (mittwald cronjobs + container)"]
     Baker["weather baker"]
     StateJob["land-state integrator"]
   end

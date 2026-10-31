@@ -68,11 +68,11 @@ over Lübbecke.
 
 | Dataset | Facts | Licence / access | |
 |---|---|---|---|
-| **Danmarks Dybdemodel (DDM) 2024 (v2.0)**, Geodatastyrelsen | 50 m grid over the Danish EEZ; vertical **DKMSL(2022)** (EPSG:10547), horizontal **EPSG:3034** (gotcha); layers depth + source + survey year; shallow areas from satellite & airborne LiDAR, crowdsourced bathymetry, EMODnet; not for navigation | GeoTIFF/WMS, dataforsyningen.dk/data/4817, own terms (?) | ✓ |
+| **Danmarks Dybdemodel (DDM) 2024 (v2.0)**, Geodatastyrelsen | 50 m grid over the Danish EEZ; vertical **DKMSL(2022)** (EPSG:10547), horizontal **EPSG:3034** (gotcha); layers depth + source + survey year; shallow areas from satellite & airborne LiDAR, crowdsourced bathymetry, EMODnet; not for navigation | GeoTIFF/WMS, dataforsyningen.dk/data/4817; **GST terms (May 2024)**: free, worldwide, copy/distribute/combine, commercial and non-commercial; attribution "Contains data from the Danish Geodata Agency, Denmark's Depth Model, 50 m resolution" + date obtained + "Model and data are not suitable for navigation"; pass the terms on (link) | ✓ |
 | **EMODnet DTM 2024** | ~115 m, LAT / MSL variants | (CC BY 4.0 ?) | ✓ |
 | **EMODnet satellite-derived intertidal DEM, Danish Wadden Sea 2020** | intertidal heights from satellite waterlines | CC BY 4.0 | ~ |
-| **Green (bathymetric) LiDAR, Wadden Sea** (Kystdirektoratet/MST with KU, GEUS, NIRAS, since 2013) | the Wadden Sea was scanned; ±5–10 cm in the pilot | **not downloadable – request from mst@mst.dk** | ~ |
-| Grådyb channel surveys (Port Esbjerg, multibeam) | navigation channel to Esbjerg | ENC charts only for approved users; port surveys on request (?) | ? |
+| **Green (bathymetric) LiDAR, Wadden Sea** (Kystdirektoratet/MST with KU, GEUS, NIRAS, since 2013) | the Wadden Sea was scanned; ±5–10 cm in the pilot | **not downloadable – request from mst@mst.dk** ([13 §2.1](13-data-requests.md#21-miljøstyrelsen-coastal-data-formerly-kystdirektoratet--wadden-sea-lidar)) | ~ |
+| **Grådyb fairway** | Port Esbjerg **deepened the 21.6 km fairway from 9.3 m to 12.8 m** (target −12.5 m MLWS) – older surveys and possibly the DDM predate it | soundings are **sold** by the Danish Hydrographic Office (GST) after **security clearance by the Danish Defence**; survey overview GeoPackage `dhsds.gst.dk/api/files/download/hydrographic_survey_overview.dk.gpkg`; port's own surveys via adm@portesbjerg.dk ([13 §2.2–2.3](13-data-requests.md#22-geodatastyrelsen--danish-hydrographic-office--channel-soundings)) | ✓ |
 | MST Kystatlas / coastal data portal | beach profiles, coastal structures | various | ~ |
 
 **Seamless land–flat–channel DEM (plan):**
@@ -183,7 +183,7 @@ Wave buoys: MST wave measurements page (stations to confirm).
 
 | Dataset | Facts | Licence | |
 |---|---|---|---|
-| **GeoDanmark 6.0.2 – Bygning** | footprints with 3D Z at the roof edge; `BBRUUID` link | **CC BY 4.0** ("© GeoDanmark") | ✓ |
+| **GeoDanmark 6.0.2 – Bygning** | footprints with 3D Z at the roof edge; `BBRUUID` link | **CC BY 4.0** (since 16 May 2024; credit "Klimadatastyrelsen") | ✓ |
 | **National LoD2** | **does not exist** – KDS *Danmarks Digitale Tvilling* (CityGML LoD2) only as prototypes for 5 municipalities; national launch awaiting funding | – | ✓ |
 | **BBR** (building register, Datafordeler GraphQL/REST/files, API key) | per building: construction year, **roof covering material** (thatch / tiles / metal / felt / green roof …), **exterior wall material** (brick, half-timber, wood …), floors, area – attribute names/codes to confirm on teknik.bbr.dk | free data (exact terms ?) | ~ |
 | Skråfoto | facades from 4 directions | CC BY 4.0 | ✓ |
@@ -205,8 +205,8 @@ Dige (dikes) · Vejmidte/Vejkant (roads) · Vindmølle · Plads. Accuracy at 10 
 
 | Dataset | Facts | Licence | |
 |---|---|---|---|
-| **§3 protected nature types** – Danmarks Arealinformation WFS `arealeditering-dist-geo.miljoeportal.dk/geoserver/ows`, layer `dai:bes_naturtyper` (no auth, tested) | in the model box 724 polygons: salt marsh (strandeng) 2 511 ha, heath (hede) 1 612 ha, dry grassland (overdrev) 603 ha, bog (mose) 521 ha, meadow (eng) 124 ha, lakes 54 ha; same service: habitat, bird protection, Ramsar, reserves | (?) | ✓ |
-| **Landbrugsstyrelsen "Marker"** (field parcels with crop code + crop name per year, 2008–2026) | `landbrugsgeodata.fvm.dk/Download/Marker/Marker_<year>.zip`; fiboa/source.coop harmonised GeoParquet | **CC0-1.0** (per the fiboa catalogue) | ~ |
+| **§3 protected nature types** – Danmarks Arealinformation WFS `arealeditering-dist-geo.miljoeportal.dk/geoserver/ows`, layer `dai:bes_naturtyper` (no auth, tested) | in the model box 724 polygons: salt marsh (strandeng) 2 511 ha, heath (hede) 1 612 ha, dry grassland (overdrev) 603 ha, bog (mose) 521 ha, meadow (eng) 124 ha, lakes 54 ha; same service: habitat, bird protection, Ramsar, reserves | **Danmarks Miljøportal terms** (PSI law, "comparable to CC0 and CC-BY"): free, unlimited – copy, distribute, publish, modify, combine, commercial use; required text: *"Indeholder data, som benyttes i henhold til vilkår for brug af danske offentlige data"*; no implied endorsement | ✓ |
+| **Landbrugsstyrelsen "Marker"** (field parcels per year, 2008–2026) | `landbrugsgeodata.fvm.dk/Download/Marker/Marker_<year>.zip` (2026: 357 MB shapefile); fields ✓ `Marknr, IMK_areal, Journalnr, CVR, Afgkode, Afgroede, GB, …, Markblok` – we keep geometry + **`Afgkode`/`Afgroede`** (crop code/name) and drop `CVR`/`Journalnr`/subsidy fields | **CC0-1.0** per the fiboa catalogue; the agency states no licence → confirmation requested ([13 §2.4](13-data-requests.md#24-landbrugsstyrelsen--licence-confirmation-for-marker)); credit "Landbrugsstyrelsen" meanwhile | ~ |
 | **Fanø Plantage** (Naturstyrelsen) | ~1 400 ha, ~⅓ unplanted; mainly **Scots pine and mountain pine**; **Sitka spruce and lodgepole pine being removed**; parabolic dunes in the east, Pælebjerg dune heath in the west; proposed nature national park ~1 050 ha (540 ha conifer, 53 ha broadleaf, 152 ha wet, 302 ha open) | – | ✓ |
 | Dunes | GeoDanmark SandKlit + klitfredning parcels (cadastre) | CC BY 4.0 | ~ |
 | National park boundary, seal haul-outs | layer not found yet – MiljøGIS / DCE / trilateral seal surveys | ? | ? |
@@ -215,7 +215,9 @@ Dige (dikes) · Vejmidte/Vejkant (roads) · Vindmølle · Plads. Accuracy at 10 
 
 **Danish AIS data**: daily ZIPs of CSV (`aisdata.ais.dk`, ~0.8 GB/day, all Danish
 waters, 26 columns: time, MMSI, position, SOG, COG, heading, name, type, size, draught);
-now run by the Danish Emergency Management Agency; licence not stated (?).
+now run by the Danish Emergency Management Agency; free download, but **no licence
+stated** → confirmation requested ([13 §2.5](13-data-requests.md#25-beredskabsstyrelsen-danish-emergency-management-agency--ais-terms));
+until then the ferries follow their timetable.
 **FanøFærgen**: *Fenja*, *Menja* and the electric *Grotte* (since 2021), 12-minute
 crossing between Esbjerg (55.4613, 8.4410) and Nordby (55.4502, 8.4084) – animated along
 their real AIS tracks in replay mode, along the timetable otherwise.
@@ -239,16 +241,20 @@ their real AIS tracks in replay mode, along the timetable otherwise.
 | *Mennesket ved Havet* (Esbjerg) | 55.4878, 8.4111 | visible across the water |
 | Sædding Strand Mellemfyr / Blåvandshuk Fyr | 55.4991, 8.4059 / 55.5578, 8.0833 | lighthouses (beams at night) |
 
-**Hero spots for splat/photogrammetry capture** ([05 §5](05-terrain-imagery-buildings.md#5-hero-spots-photogrammetry-and-gaussian-splats)):
-Sønderho village core with the mill, Nordby harbour and ferry terminal, a beach section
-at Fanø Bad, a salt-marsh creek.
+**Hero spots** ([05 §5](05-terrain-imagery-buildings.md#5-hero-spots-photogrammetry-and-gaussian-splats)):
+Sønderho village core with the mill, Nordby harbour and ferry terminal – LoD3 + oblique-
+photo textures by default, optional ground-level capture (no drones; drones are
+restricted in the national park anyway).
 
 ## 11. Open items (to settle in M2)
 
 1. DHM survey year and tide state during the flight over the flats.
-2. Green-LiDAR Wadden Sea data and Grådyb multibeam surveys (request to MST / Port Esbjerg).
-3. BBR code lists (roof/wall material) and terms.
-4. Licences of DDM, §3 layer, AIS.
+2. Green-LiDAR Wadden Sea data and Grådyb soundings – **requests prepared** in
+   [13](13-data-requests.md) (MST, GST, Port Esbjerg).
+3. BBR code lists (roof/wall material). *Licence settled: BBR is CC BY 4.0 (free basic
+   data), credit "Bygnings- og Boligregistret (BBR)".*
+4. Licences: *settled* for DDM, §3 layer, BBR, all KDS data; AIS and Marker need a
+   written confirmation ([13 §2.4–2.5](13-data-requests.md#24-landbrugsstyrelsen--licence-confirmation-for-marker)).
 5. Wave buoy stations.
-6. National park and seal haul-out layers.
+6. National park and seal haul-out layers (optional, [13 §2.6](13-data-requests.md#26-optional--nationalpark-vadehavet--dce)).
 7. Published hydrodynamic studies of the Grådyb basin for model calibration.

@@ -28,8 +28,9 @@ ground. The whole planet at globe scale, and **two places with every detail in t
 | 08 | [Atmosphere, weather, clouds](08-atmosphere-weather-clouds.md) | ephemeris, sky, NWP + satellite + radar fusion, volumetric clouds, wind, rain, shadows, lights |
 | 09 | [Snow, ice, winter](09-snow-ice-winter.md) | snowpack model, 1 m downscaling, snow rendering, frost, ice on lakes and the Wadden Sea |
 | 10 | [Time, UI, interaction](10-time-ui-interaction.md) | the simulation clock (live/replay/forecast/climatology), panel, camera, picking, module layout |
-| 11 | [Pipeline & hosting](11-pipeline-hosting.md) | offline data pipeline, formats, data volumes, object storage, scheduled weather jobs |
-| 12 | [Roadmap, verification, licences](12-roadmap-verification-licences.md) | milestones M0–M9, check scripts, reference devices, risks, licence & attribution matrix |
+| 11 | [Pipeline & hosting](11-pipeline-hosting.md) | offline data pipeline, formats, data volumes, hosting on the mittwald server, scheduled weather jobs |
+| 12 | [Roadmap, verification, licences](12-roadmap-verification-licences.md) | milestones M0–M9, check scripts, reference devices, risks, licence & attribution matrix (all checks done) |
+| 13 | [Data requests](13-data-requests.md) | accounts to create, and step-by-step requests with email templates for the Wadden Sea surveys and two licence confirmations |
 
 ## The idea in one picture
 
@@ -48,7 +49,7 @@ flowchart LR
   subgraph Generated
     G[Procedural detail<br/>tree meshes · facades · grass · cloud detail]
   end
-  A & B --> P[Offline pipeline] --> T[3D Tiles on object storage]
+  A & B --> P[Offline pipeline] --> T[3D Tiles on the mittwald server]
   C & D --> W[Weather baker] --> X[weather textures]
   E --> H[tide constituent maps]
   F --> S[daily land state]
@@ -104,16 +105,23 @@ M3 buildings → M4 vegetation → M5 water & tides → M6 weather → M7 season
 M8 hero spots → M9 polish. Details, exit criteria and effort in
 [12](12-roadmap-verification-licences.md#1-milestones).
 
-## Decisions for the project owner
+## Decisions
 
-1. **Hosting budget**: Cloudflare R2 (~$3/month for 200 GB, free egress) for the tiles,
-   plus a small scheduled job (VM or serverless) for the live weather – OK?
-2. **Non-commercial layers**: EOX Sentinel-2 cloudless (2018+) is CC BY-NC-SA. Fine for
-   this educational app; the fully open alternative (CDSE quarterly mosaics) needs our own
-   colour grading. Use EOX for M1 speed?
-3. **Data requests**: Wadden Sea green-LiDAR and Grådyb surveys must be requested from
-   Miljøstyrelsen / Port Esbjerg ([04 §11](04-data-fanoe.md#11-open-items-to-settle-in-m2)).
-4. **Hero-spot capture**: drone/ground photo sessions in Lübbecke and on Fanø (season(s),
-   permissions – Wadden Sea National Park restricts drones).
+Taken by the project owner (31 Oct 2026):
+
+1. **Hosting**: tiles, weather textures and the scheduled jobs run on the owner's
+   **mittwald** server ([11 §5–6](11-pipeline-hosting.md#5-hosting--the-mittwald-server)).
+2. **EOX Sentinel-2 cloudless** (CC BY-NC-SA 4.0) is used for mid-zoom imagery – the
+   project is open source and non-commercial ([02 §9](02-data-global.md#9-recommended-open-default-stack-summary)).
+3. **Data requests** for the Wadden Sea surveys are prepared as a step-by-step guide with
+   email templates ([13](13-data-requests.md)).
+4. **No drone capture**: aerial detail comes from the official 10–12.5 cm products;
+   eye-level detail is procedural/LoD3, with optional ground-level capture
+   ([05 §5](05-terrain-imagery-buildings.md#5-hero-spots-photogrammetry-and-gaussian-splats)).
 5. **Scope of v1**: people, cars, animals and interiors are out
    ([12 §4](12-roadmap-verification-licences.md#4-out-of-scope-for-the-first-version)).
+
+Licences of every dataset were checked at the source; the outcome is in
+[12 §5](12-roadmap-verification-licences.md#5-licence--attribution-matrix). Two need a
+written confirmation (Danish field parcels and AIS) – both have a fallback, and the
+emails are in [13](13-data-requests.md).

@@ -132,9 +132,24 @@ Out of scope for v1: cars, people, animals ([12 §4](12-roadmap-verification-lic
 
 Where "ALL details" must hold at eye level, captured reality replaces modelled geometry.
 
+**Decision: no drone capture.** The view from above is covered by the official aerial
+products – NRW's 10 cm 3D-Mesh and true orthophoto, Denmark's 12.5 cm orthophotos and
+oblique photos (skråfoto, 4 directions) – which are better than a hobby drone survey
+anyway. What aerial data cannot give is the **eye-level** detail (facades, doors, signs,
+textures of walls and pavements). Two ways, in order of effort:
+
+1. **Default – no own capture**: facades and street detail from the oblique photos (Fanø),
+   procedural rules (Lübbecke) and street-level imagery where it exists
+   (Mapillary/Panoramax, CC BY-SA – sparse in Lübbecke). The hero spots then get extra
+   hand-modelled detail (LoD3 for the landmark buildings, placed street furniture).
+2. **Optional – ground-level walk-around capture** (phone or camera, no drone): a few
+   hundred photos or a slow 4K video walking around a spot, overcast light. Enough for
+   facade-level photogrammetry/splats of a square or a street front (not for roofs –
+   those come from the aerial data). Only if and when you want to; nothing depends on it.
+
 | Step | Choice | |
 |---|---|---|
-| Capture | drone (nadir + oblique orbits) + ground photos/video; overcast light (less baked shadow) | ~ |
+| Capture (optional) | ground-level photos/video only, overcast light (less baked shadow); roofs and ground from the aerial products | ~ |
 | Reconstruction | **COLMAP 4.2** (BSD, GLOMAP global SfM) or **RealityScan 2.x** (free < $1 M revenue) | ✓ |
 | Splat training | gsplat / Brush (licence ?) / commercial tools | ~ |
 | Clean-up & LOD packaging | **SuperSplat / splat-transform** (MIT, streamed SOG LOD) | ✓ |
@@ -147,14 +162,14 @@ seasons for the most important spots; blend toward the dynamic sky with a religh
 approximation), and they are static (moving water and trees inside a splat are frozen –
 keep water and big trees as dynamic objects).
 
-**Drone rules**: EU open category (A1–A3, registration, remote ID). In the **Wadden Sea
-National Park** bird-protection rules restrict drone flights – check with the
-Nationalpark Vadehavet / Naturstyrelsen before capturing on Fanø; in Lübbecke, check
-local restrictions (residential areas, nature reserves on the ridge).
+Ground-level capture needs no permits on public streets; respect privacy (blur faces and
+number plates before publishing – the splat tools can mask them).
 
-Candidate spots:
+Candidate spots (if ground capture is done; otherwise they get LoD3 + placed detail):
 
 - **Lübbecke**: Markt & St.-Andreas-Kirche, Burgmannshöfe, Reineberg castle ruin,
-  a Wiehengebirge beech forest plot, a farmyard in the lowland.
-- **Fanø**: Sønderho village core with the mill, Nordby harbour & ferry terminal, a
-  section of Fanø Bad beach, a salt-marsh creek.
+  Wartturm on the Wurzelbrink.
+- **Fanø**: Sønderho village core with the mill, Nordby harbour & ferry terminal.
+
+Trees, beach, dunes and salt marsh are *not* splat candidates – they must move with wind,
+tide and season, so they stay dynamic geometry.

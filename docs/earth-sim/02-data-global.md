@@ -58,7 +58,7 @@ bathymetry ([04](04-data-fanoe.md)) on top. All converted to one vertical refere
 |---|---|---|---|---|
 | **NASA Blue Marble Next Generation** – 12 monthly composites (2004) | **far zoom with seasons** (snow lines, green-up, dry seasons) | 500 m, one per month | NASA, credit "NASA Earth Observatory (Reto Stöckli)" | ✓ |
 | **CDSE Sentinel-2 Global Mosaics** (quarterly L3) | **mid zoom, seasonal** – one mosaic per quarter = per season | 10 m, 2015 → now, each quarter ≈ 1 month after its end | Copernicus Sentinel notice – free incl. commercial, "Contains modified Copernicus Sentinel data [year]" | ✓ (reflectance → needs colour grading; STAC at `stac.dataspace.copernicus.eu`) |
-| **EOX Sentinel-2 cloudless** (`s2cloudless-2016 … -2025`, WMTS, CORS ✓) | easiest ready-made mid-zoom layer | ~10 m, yearly | 2016: CC BY 4.0; **2017(?)–2025: CC BY-NC-SA 4.0** (commercial licence ≈ €6 000 / product) | ✓ (layer list checked live) |
+| **EOX Sentinel-2 cloudless** (`s2cloudless-2016 … -2025`, WMTS, CORS ✓) – **chosen default for mid zoom** | ready-made, colour-balanced, cloud-free | ~10 m, yearly | 2016: CC BY 4.0; **2018–2025: CC BY-NC-SA 4.0** (2017 not stated); attribution e.g. "EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2025)" | ✓ (layer list + licence page checked) |
 | ESA WorldCover S2 composites 2020/2021 | alternative annual 10 m RGB/NIR | 10 m | CC BY 4.0 | ✓ |
 | **NASA GIBS** – MODIS/VIIRS Corrected Reflectance (daily), HLS 30 m | **"today" layer** – the real cloud and snow picture of a given day from space | 250 m–30 m, daily, CORS ✓ | NASA open data, acknowledge GIBS | ✓ |
 | **NASA Black Marble** (VNP46A4 annual, GIBS `VIIRS_Black_Marble`) | night side | 15″ / ~500 m | NASA | ✓ |
@@ -157,10 +157,14 @@ public domain; national quasigeoids for the hero areas). Sea level at a place is
 1. **Terrain**: Mapterhorn (mirrored PMTiles) for M0–M1; then GEDTM30 (land) + GLO-30
    (gaps, Antarctica) + national DEMs + GEBCO_2026 (sea) + EMODnet (Europe) → our own
    seamless land+sea tiles.
-2. **Imagery**: Blue Marble monthly (far) → CDSE quarterly S2 (mid, seasonal; EOX
-   s2cloudless as the quick NC alternative) → national orthophotos (near, where open) →
-   hero tilesets. GIBS daily true colour as the "today from space" layer. Black Marble at
-   night.
+2. **Imagery**: Blue Marble monthly (far, seasons) → **EOX s2cloudless-2025** (mid zoom;
+   decided – the project is open source and non-commercial, so CC BY-NC-SA 4.0 fits) →
+   national orthophotos (near, where open) → hero tilesets. CDSE quarterly mosaics later,
+   for seasonal mid-zoom variants. GIBS daily true colour as the "today from space"
+   layer. Black Marble at night.
+   *Share-alike consequence*: tiles we cache, re-tile or colour-adjust from EOX are
+   themselves CC BY-NC-SA 4.0 – they live in their own tileset with that licence in its
+   manifest and are never merged into the CC BY / dl-de layers.
 3. **Vegetation**: WorldCover classes + Meta CHM v2 heights + DLT broadleaf/conifer +
    MCD12Q2/HR-VPP season dates → procedural forests and fields.
 4. **Snow/ice**: IMS 1 km daily + OSI SAF sea ice (+ monthly MODIS snow % for climatology).
@@ -168,6 +172,6 @@ public domain; national quasigeoids for the hero areas). Sea level at a place is
 6. **Water**: HydroLAKES, HydroRIVERS, JRC GSW.
 7. **Geoid**: EGM2008 from the PROJ CDN.
 8. **Avoid as defaults**: anything that forbids caching or needs a paid key (Esri,
-   Mapbox, MapTiler, Bing) and share-alike/NC sources for tiles we redistribute
-   (FABDEM; EOX 2018+ only if NC is acceptable – it is, for this non-commercial
-   educational app, but it is then the only NC layer and must be marked).
+   Mapbox, MapTiler, Bing). EOX (NC-SA) is accepted for this non-commercial project and is
+   the only NC layer – kept separate and marked; FABDEM (also NC-SA) is not needed because
+   GEDTM30 gives bare earth under CC BY.

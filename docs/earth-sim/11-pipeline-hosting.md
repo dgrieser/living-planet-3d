@@ -3,8 +3,9 @@
 [← back to the plan index](README.md)
 
 The browser never touches raw national data. An **offline pipeline** turns sources into
-streamable tilesets, a **scheduled job** keeps weather and land state fresh, and
-**object storage behind a CDN** serves everything. The app itself stays on GitHub Pages.
+streamable tilesets, **scheduled jobs** keep weather and land state fresh, and the
+project owner's **mittwald server** serves everything. The app itself stays on GitHub
+Pages (or moves to the same server).
 **(✓)** verified during research (Oct 2026), **(~)** estimate / own design.
 
 ---
@@ -96,20 +97,68 @@ Global layers: Mapterhorn PMTiles extracts (tens of GB for Europe at z13–17),
 Blue Marble monthly (~10 GB tiled), S2 quarterly (self-hosted only for selected regions;
 otherwise EOX WMTS) → **total served ≈ 50–200 GB**. (~)
 
-## 5. Hosting
+## 5. Hosting – the mittwald server
 
-| Option | Facts | Verdict |
+**Decision**: tiles, weather textures, land state and the scheduled jobs run on the
+project owner's **mittwald** server (mStudio). The app itself can stay on GitHub Pages
+(today's deployment) or move to the same server – both work; serving both from one origin
+removes the CORS step.
+
+GitHub Pages alone is not an option for the data: 1 GB site limit, files > 100 MiB
+blocked, ~100 GB/month soft bandwidth, no Git LFS serving.
+
+### 5.1 Layout on the server
+
+```
+<data host>/                     e.g. https://earth-data.<your-domain>/
+  v1/
+    global/terrain.pmtiles …     global layers (mirrored PMTiles extracts)
+    luebbecke/terrain/…          3D Tiles (tileset.json + subtrees + glb)
+    luebbecke/buildings/…
+    luebbecke/trees/…
+    fanoe/…
+    tide/fanoe/*.ktx2
+  wx/                            weather textures (rolling + archive)
+  land-state/<area>/<date>.bin
+  obs/                           gauge / station snapshots
+```
+
+- Versioned prefixes (`/v1/`, `/v2/` …): every published file is immutable; only the
+  `tileset.json` roots and the weather/land-state indexes are short-lived.
+- Static files served by the web server directly (a static/PHP app's document root, or an
+  nginx/Caddy container in a container stack – whichever the server plan offers); no
+  application code in the request path.
+
+### 5.2 Web server requirements (checklist)
+
+| Requirement | Why | Apache (`.htaccess`) example |
 |---|---|---|
-| GitHub Pages | 1 GB site, ~100 GB/month soft bandwidth, files > 100 MiB blocked, **does not serve Git LFS** | app only (as today) |
-| **Cloudflare R2** | 10 GB-month free, then $0.015/GB-month; **free egress**; 1 M Class A / 10 M Class B ops free; r2.dev URLs are rate-limited → **custom domain + cache rule** (glb/json/pmtiles are not cached by default); CORS GET/HEAD, allow `Range`, expose `ETag` | **recommended** (~$3/month for 200 GB) |
-| Backblaze B2 (+ Cloudflare) | $6.95/TB-month, egress free via CDN partners | good alternative |
-| Hetzner Object Storage | €6.49/month incl. 1 TB storage + 1 TB egress (EU) | alternative, EU-hosted |
-| AWS S3 + CloudFront | flat-rate plans (free tier 100 GB transfer / 5 GB S3) | possible |
+| **CORS** for the app's origin (if the app stays on GitHub Pages) | browser fetches tiles cross-origin | `Header set Access-Control-Allow-Origin "https://dgrieser.github.io"` · `Header set Access-Control-Expose-Headers "ETag, Content-Range, Content-Length"` · `Header set Access-Control-Allow-Headers "Range, If-Match"` |
+| **HTTP range requests** | PMTiles reads byte ranges | native for static files (`Accept-Ranges: bytes`) – don't route PMTiles through PHP |
+| **MIME types** | correct decoding, compression | `AddType model/gltf-binary .glb` · `AddType image/ktx2 .ktx2` · `AddType application/vnd.pmtiles .pmtiles` · `AddType application/octet-stream .subtree .bin` |
+| **Caching** | tiles are immutable | `<FilesMatch "\.(glb\|ktx2\|subtree\|bin\|webp\|pmtiles)$"> Header set Cache-Control "public, max-age=31536000, immutable" </FilesMatch>`; `tileset.json` / indexes: `max-age=300` |
+| **Compression** | JSON and binary weather textures | serve pre-compressed `.br` files (`RewriteRule` + `Content-Encoding: br`) or let the server compress JSON; **never** compress `.ktx2`/`.webp`/`.glb` with meshopt again, and never compress PMTiles responses (breaks ranges) |
+| HTTP/2 or HTTP/3, TLS | many small requests | Let's Encrypt via the mStudio ingress |
 
-- Versioned prefixes (`/v3/luebbecke/terrain/...`), immutable files with long
-  `Cache-Control`, only `tileset.json` roots short-lived.
-- A **service worker** caches our tiles and PMTiles range responses (browsers don't
-  cache range requests) – never third-party content whose terms forbid caching.
+### 5.3 Capacity planning
+
+| Item | Size |
+|---|---|
+| Hero tilesets (both areas) | ≈ 8–13 GB |
+| Global layers (Mapterhorn extracts for Europe, Blue Marble monthly, selected S2 mosaics) | ≈ 50–150 GB (start small: Europe + low zooms globally) |
+| Weather textures – rolling window | ≈ 5–10 GB |
+| Weather **archive** (needed for replay of recent days; DWD keeps only ~24 h) | ≈ 100–150 GB per year at full resolution → keep hourly for 30 days, 3-hourly for a year, then analysis-only (≈ 30–40 GB/year) |
+| Raw sources kept for reprocessing (not served) | ≈ 40–60 GB (can live on a local machine instead) |
+
+Egress: a visit that flies into a hero area loads ~100–300 MB the first time (then the
+service worker cache). Check the server plan's traffic allowance; if it becomes a limit,
+put a CDN in front of the data host (e.g. Cloudflare in proxy mode with a cache rule for
+the immutable paths) – nothing in the app changes.
+
+### 5.4 Client caching
+
+A **service worker** caches our tiles and PMTiles range responses (browsers don't cache
+range requests) – never third-party content whose terms forbid caching.
 
 ## 6. Scheduled jobs (weather and land state)
 
@@ -121,13 +170,25 @@ otherwise EOX WMTS) → **total served ≈ 50–200 GB**. (~)
 | Land state | daily | integrate snowpack, phenology, litter, crops, wetness per hero area | `land-state/<area>/<date>.bin` |
 | Observations | 10 min | DMI water level (Esbjerg etc.), surge, station weather | `obs/...` |
 
-**Where to run**: GitHub Actions cron is free for public repositories but (a) scheduled
-workflows in public repos are **disabled after 60 days without repository activity**
-(keep-alive or manual `workflow_dispatch` needed) and (b) jobs are capped at 6 h and the
-radar/satellite cadence is too fast for it. → Baker as a small container on a cheap VM or
-a serverless function with a cron trigger (Cloudflare Workers Cron for the light
-5–10 min fetches; a VM/Cloud Run job for GRIB processing). The app falls back to the last
-successful bake and shows its age.
+**Where to run: the mittwald server.** mStudio cronjobs run on a cron schedule and can
+execute bash commands, PHP scripts or HTTP requests, tied to an app installation or a
+container; Python and Node.js app installations and Docker-Compose-compatible container
+stacks (with volumes and per-service CPU/memory limits) are available depending on the
+plan. Setup:
+
+- a **container stack** (or Python app) `earth-baker` with the pipeline image
+  (Python + eccodes/cfgrib + xarray), a volume shared with the static data host;
+- **cronjobs**: `*/5` radar/gauges/observations, `*/10` satellite, hourly NWP poll
+  (downloads only when a new run exists), daily land state, daily archive thinning;
+- jobs write to a temp directory and **atomically rename** into place, then update the
+  index JSON last – the client never sees half-written files;
+- a health file (`wx/status.json`: last success per feed) that the app reads to show data
+  age and fall back gracefully.
+
+GitHub Actions is **not** used for the live jobs (scheduled workflows in public repos are
+disabled after 60 days without repository activity, and the 5–10 min cadence is too fast)
+– it stays for lint/build/deploy and the `check:earth` scripts. The app falls back to the
+last successful bake and shows its age.
 
 ## 7. CI
 
@@ -135,8 +196,11 @@ successful bake and shows its age.
 - Add: `npm run check:earth` (all `check-earth-*.mjs`), `3d-tiles-tools validate` on
   pipeline outputs (pipeline repo/branch), Playwright visual snapshots on the WebGL2
   backend ([12 §2](12-roadmap-verification-licences.md#2-verification-keep-the-repos-scriptscheck-mjs-culture)).
-- Secrets (R2 write keys, any API keys) only in the scheduled job / pipeline
-  environments, never in the client bundle; browser-side keys (if any) origin-restricted.
+- Secrets (server deploy credentials, Dataforsyningen/Datafordeler tokens, any API keys)
+  only in the scheduled-job / pipeline environments on the mittwald server, never in the
+  client bundle; browser-side keys (if any) origin-restricted.
+- Publishing pipeline output: `rsync` over SSH/SFTP to the data host into a new version
+  prefix, then switch the root `tileset.json`.
 
 ## 8. Geocoding (place search)
 
