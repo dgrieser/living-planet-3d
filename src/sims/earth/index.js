@@ -1,25 +1,33 @@
 /**
- * Living Earth – the real Earth, zoomable from space down to the ground (milestone M0: foundations).
+ * Living Earth – the real Earth, zoomable from space down to the ground (milestones M0 foundations and
+ * M1 the whole Earth from a distance).
  *
  * One clock and one place drive everything (docs/earth-sim/10): the clock gives the instant, the
  * ephemeris turns it into the Sun's and the Moon's positions in the Earth-fixed frame, the globe streams
- * open terrain and imagery, the atmosphere pass lights the sky and the haze for that Sun. The panel follows
- * the repository's panel layout: time up front, places and views next, the rest folded away, then the
- * readouts, the essay and the model card.
+ * open terrain, sea floor and imagery, the date picks the Blue Marble month, the snow, the sea ice and the
+ * GFS clouds, the atmosphere pass lights the sky and the haze for that Sun. The panel follows the
+ * repository's panel layout: time up front, places and the water level next, the rest folded away, then
+ * the readouts, the essay and the model card.
  */
 import * as THREE from 'three/webgpu';
-import { pass, uniform, uv, length, smoothstep, vec3, float } from 'three/tsl';
+import { pass, uniform, uv, length, smoothstep, vec2, vec3, float, mix, pow, texture } from 'three/tsl';
 import { GlobeControls } from '3d-tiles-renderer';
-import { t, bindText, bindAttr, onLanguageChange, formatNumber } from '../../lib/i18n.js';
+import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
 import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createViewToggles, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { createViewport } from './render/viewport.js';
 import { createAtmosphereUniforms, updateAtmosphereUniforms, createTransmittanceTexture, createTransmittanceLookup, createTransmittanceToSun, createAtmospherePass } from './render/atmosphere.js';
-import { createGlobe, createTerrainColorNode } from './render/globe.js';
+import { createGlobe } from './render/globe.js';
+import { createSurfaceUniforms, createSurfaceColorNode, setSeaLevel } from './render/surface.js';
+import { createBathymetry } from './data/gebco.js';
+import { createGeoid } from './data/geoid.js';
+import { createGlobalLayers } from './data/globalLayers.js';
+import { createGfsClouds } from './data/gfs.js';
+import { createClouds, createCloudShadow, createCloudUniforms } from './render/clouds.js';
 import { createSky } from './render/sky.js';
 import { applyPose, readPose, createFlight, rayEllipsoid } from './render/camera.js';
 import { PLACES, VIEWS, findPlace, placeAt } from './places.js';
-import { TERRAIN, IMAGERY, SOURCES } from './sources.js';
+import { TERRAIN, IMAGERY, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SOURCES } from './sources.js';
 import { createClock, RATE_PRESETS, placeTimeZone, localDayStart, localMinuteOfDay, MS_PER_DAY } from './clock.js';
 import { bodyEcef, eqjToEcefMatrix, topocentric, riseSet, moonPhase } from './ephemeris.js';
 import { ecefToGeodetic, geodeticToEcef, wrapLongitudeDeg, DEG } from './geodesy.js';
@@ -29,9 +37,24 @@ const EXPOSURE = 14; // scene radiance (sunlight = 1) → display, before ACES t
 const READOUT_INTERVAL_MS = 250;
 
 /** Simulation parameters – every visit starts here. */
-const DEFAULTS = Object.freeze({ place: 'globe', view: 'globe', rate: 'realtime' });
+const DEFAULTS = Object.freeze({ place: 'globe', view: 'globe', rate: 'realtime', seaLevel: 0 });
 /** Display settings – remembered per visitor. */
-const VIEW_DEFAULTS = Object.freeze({ showAtmosphere: true, showStars: true, showMoon: true, showLabels: true, quality: 'auto' });
+const VIEW_DEFAULTS = Object.freeze({
+  showAtmosphere: true, showClouds: true, showSnowIce: true, showLights: true, showStars: true, showMoon: true, showLabels: true, showDepthTint: false, quality: 'auto',
+});
+/** Altitudes (m) between which the far view fades from the tile imagery to the seasonal Blue Marble. */
+const FAR_IMAGERY_FADE = [1.2e6, 4e6];
+
+/**
+ * The water level slider (docs/earth-sim/10 §2.1): positions 0…1000 map piecewise linearly onto levels, so
+ * the first metres get as much travel as the last kilometres. Named stops snap.
+ */
+const SEA_LEVEL_SCALE = Object.freeze([
+  [0, 0], [100, -10], [220, -50], [340, -120], [440, -200], [600, -1000], [760, -3000], [880, -6000], [1000, -11000],
+]);
+const SEA_LEVEL_STOPS = Object.freeze([
+  { level: 0, id: 'real' }, { level: -10 }, { level: -50 }, { level: -120, id: 'glacial' }, { level: -200, id: 'shelf' }, { level: -11000, id: 'drained' },
+]);
 
 /** Quality tiers (docs/earth-sim/01 §5) – screen-space error, pixel ratio cap, atmosphere samples, tile cache. */
 const QUALITY = Object.freeze({
@@ -65,11 +88,43 @@ export default async function mount(container, meta) {
   const lut = createTransmittanceTexture();
   const toSun = createTransmittanceToSun(createTransmittanceLookup(lut));
   const nightFloor = uniform(new THREE.Color(0.0006, 0.0008, 0.0012));
-  const colorNode = createTerrainColorNode(u, toSun, { nightFloor });
+  const surface = createSurfaceUniforms();
+  const geoid = createGeoid({ baseUrl: import.meta.env.BASE_URL });
+  const bathymetry = createBathymetry({ url: BATHYMETRY.url, baseUrl: import.meta.env.BASE_URL });
+  const globalLayers = createGlobalLayers({ onChange: () => view.requestRender() });
+  const layerNodes = Object.fromEntries(Object.entries(globalLayers.textures).map(([k, tex]) => [k, texture(tex)]));
+  const unsubscribeLayers = globalLayers.subscribe((key, tex) => {
+    layerNodes[key].value = tex;
+  });
+  const bmngMix = uniform(0);
+  // plate carrée lookup: row 0 = north
+  const equirect = (latLon) => vec2(latLon.y.div(2 * Math.PI).add(0.5), float(0.5).sub(latLon.x.div(Math.PI)));
+  const layers = {
+    farImagery: (latLon) => mix(layerNodes.bmngA.sample(equirect(latLon)).rgb, layerNodes.bmngB.sample(equirect(latLon)).rgb, bmngMix),
+    snow: (latLon) => smoothstep(0.08, 0.55, layerNodes.snow.sample(equirect(latLon)).r),
+    seaIce: (latLon) => smoothstep(0.1, 0.85, layerNodes.seaIce.sample(equirect(latLon)).r),
+    // Black Marble's PNG is a display rendering of radiance: decode its gamma, tint it sodium-orange
+    lights: (latLon) => pow(layerNodes.lights.sample(equirect(latLon)).r, 2.2).mul(vec3(1, 0.72, 0.42)).mul(0.03),
+  };
+  // clouds: GFS cover in two textures (the bracketing forecast steps), shared by the shells and the shadows
+  const gfs = createGfsClouds({ onChange: () => view.requestRender() });
+  const cloudNodes = { a: texture(gfs.textures.a), b: texture(gfs.textures.b) };
+  const unsubscribeGfs = gfs.subscribe((slot, tex) => {
+    cloudNodes[slot].value = tex;
+  });
+  const cloudCover = createCloudUniforms();
+  layers.sunShadow = createCloudShadow({ u, nodes: cloudNodes, cover: cloudCover });
+  const clouds = createClouds({ u, toSun, nodes: cloudNodes, nightFloor, cover: cloudCover });
+  scene.add(clouds.group);
+  disposers.push(unsubscribeGfs, () => gfs.dispose(), () => clouds.dispose());
+  const colorNode = createSurfaceColorNode(u, toSun, surface, { nightFloor, geoidTexture: geoid.texture, layers });
   const quality = () => QUALITY[state.quality === 'auto' ? 'high' : state.quality];
-  const globe = createGlobe({ terrain: TERRAIN, imagery: IMAGERY, colorNode, camera, renderer, errorTarget: quality().errorTarget, cacheBytes: quality().cacheBytes });
+  const globe = createGlobe({
+    terrain: TERRAIN, imagery: IMAGERY, colorNode, camera, renderer, bathymetry, geoid,
+    errorTarget: quality().errorTarget, cacheBytes: quality().cacheBytes,
+  });
   scene.add(globe.tiles.group);
-  disposers.push(() => globe.dispose(), () => lut.dispose());
+  disposers.push(() => globe.dispose(), () => lut.dispose(), () => geoid.dispose(), () => bathymetry.dispose(), unsubscribeLayers, () => globalLayers.dispose());
 
   const sky = createSky({ sunIlluminance: u.sunIlluminance, sunDirection: u.sunDirection, starBrightness: u.starBrightness });
   scene.add(sky.group);
@@ -268,6 +323,18 @@ export default async function mount(container, meta) {
     return { id: p.id, el: btn.el };
   });
 
+  const seaLevelSlider = createSlider({
+    labelKey: `${KEYS}.controls.seaLevel`,
+    min: 0,
+    max: 1000,
+    step: 1,
+    value: 0,
+    format: () => formatSeaLevel(state.seaLevel),
+    onChange: (v) => setWaterLevel(snapSeaLevel(positionToSeaLevel(v))),
+  });
+  const seaResetBtn = createButton({ labelKey: `${KEYS}.controls.seaLevelReset`, icon: '↺', compact: true, onClick: () => setWaterLevel(0) });
+  const seaLevelRow = createControlRow(seaLevelSlider, seaResetBtn);
+
   // 2. everything else, folded away
   const moreControls = createCollapsibleSection({ titleKey: `${KEYS}.sections.more`, open: !isSmallScreen });
   const cameraRow = el('div', 'lp-presets lp-presets--3 lp-presets--compact', { role: 'group' });
@@ -294,15 +361,19 @@ export default async function mount(container, meta) {
   const viewToggles = createViewToggles({ state, prefs: viewPrefs, defaults: VIEW_DEFAULTS, onChange: () => applyDisplay() });
   const toggles = {
     showAtmosphere: viewToggles.toggle('showAtmosphere', `${KEYS}.view.atmosphere`),
+    showClouds: viewToggles.toggle('showClouds', `${KEYS}.view.clouds`),
+    showSnowIce: viewToggles.toggle('showSnowIce', `${KEYS}.view.snowIce`),
+    showLights: viewToggles.toggle('showLights', `${KEYS}.view.lights`),
     showStars: viewToggles.toggle('showStars', `${KEYS}.view.stars`),
     showMoon: viewToggles.toggle('showMoon', `${KEYS}.view.moon`),
     showLabels: viewToggles.toggle('showLabels', `${KEYS}.view.labels`),
+    showDepthTint: viewToggles.toggle('showDepthTint', `${KEYS}.view.depthTint`),
   };
   moreControls.add(
     bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`), cameraRow,
     bindText(el('p', 'lp-subheading'), `${KEYS}.controls.quality`), qualityRow,
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`),
-    toggles.showAtmosphere, toggles.showStars, toggles.showMoon, toggles.showLabels,
+    toggles.showAtmosphere, toggles.showClouds, toggles.showSnowIce, toggles.showLights, toggles.showStars, toggles.showMoon, toggles.showLabels, toggles.showDepthTint,
   );
   if (view.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
 
@@ -319,13 +390,14 @@ export default async function mount(container, meta) {
     ['sun', `${KEYS}.readout.sun`],
     ['sunriseSunset', `${KEYS}.readout.sunriseSunset`],
     ['moon', `${KEYS}.readout.moon`],
+    ['clouds', `${KEYS}.readout.clouds`],
     ['renderer', `${KEYS}.readout.renderer`],
   ]);
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: false });
   const modelCard = createInfoCard({ titleKey: `${KEYS}.model.title`, bodyKey: `${KEYS}.model.body`, open: false });
   modelCard.el.classList.add('lp-physics');
 
-  panel.add(timeRow, dateRow, placeRow, moreControls, momentBox, facts, infoCard, modelCard);
+  panel.add(timeRow, dateRow, placeRow, seaLevelRow, moreControls, momentBox, facts, infoCard, modelCard);
   container.append(panel.el);
   viewShift.attach(panel);
   disposers.push(viewShift.dispose, () => panel.dispose());
@@ -351,8 +423,23 @@ export default async function mount(container, meta) {
     hint.remove();
     labelLayer.remove();
   });
+  let attributionKey = '';
+  /** The strip names the providers of what is on screen right now (cheap; called with the readouts). */
+  function updateAttributionStrip() {
+    // the far view shows the Blue Marble month, closer the EOX tiles; snow, ice and lights are on top
+    const onScreen = [TERRAIN, surface.farBlend.value > 0.5 ? BLUE_MARBLE : IMAGERY];
+    if (state.seaLevel < 0 || state.showDepthTint) onScreen.push(BATHYMETRY);
+    if (state.showSnowIce) onScreen.push(SNOW, SEA_ICE);
+    if (state.showLights) onScreen.push(NIGHT_LIGHTS);
+    if (state.showClouds && gfs.state.available) onScreen.push(CLOUDS);
+    const key = onScreen.map((x) => x.id).join('|');
+    if (key === attributionKey) return;
+    attributionKey = key;
+    attributionText.textContent = onScreen.map((x) => x.short ?? x.attribution).join(' · ');
+  }
   function renderAttribution() {
-    attributionText.textContent = [TERRAIN, IMAGERY].map((s) => s.attribution).join(' · ');
+    attributionKey = '';
+    updateAttributionStrip();
     sourcesList.replaceChildren();
     const title = bindText(el('h3', 'lp-earth-sources__title'), `${KEYS}.attribution.title`);
     const list = el('ul', 'lp-earth-sources__list');
@@ -386,6 +473,14 @@ export default async function mount(container, meta) {
     if (fly) setCamera(findPlace(id).views[0]);
     onClockChanged(); // the slider shows the new place's local time
   }
+  function setWaterLevel(level) {
+    state.seaLevel = level;
+    setSeaLevel(surface, level);
+    seaLevelSlider.setValue(seaLevelToPosition(level), { silent: true }); // a snapped level moves the thumb
+    seaResetBtn.el.setAttribute('aria-pressed', String(level === 0));
+    lastReadout = 0;
+    view.requestRender();
+  }
   function setPlaying(v) {
     clock.setPlaying(v);
     onClockChanged();
@@ -412,6 +507,10 @@ export default async function mount(container, meta) {
   }
   function applyDisplay() {
     u.haze.value = state.showAtmosphere ? 1 : 0;
+    surface.depthTint.value = state.showDepthTint ? 1 : 0;
+    surface.snowIce.value = state.showSnowIce ? 1 : 0;
+    surface.nightLights.value = state.showLights ? 1 : 0;
+    clouds.group.visible = state.showClouds;
     sky.setStarsVisible(state.showStars);
     sky.moon.visible = state.showMoon;
     updateLabels();
@@ -426,6 +525,7 @@ export default async function mount(container, meta) {
     syncQualityButtons();
     clock.goLive();
     rateSelect.value = state.rate;
+    setWaterLevel(DEFAULTS.seaLevel);
     setPlace(DEFAULTS.place, { fly: false });
     setCamera(DEFAULTS.view);
     onClockChanged();
@@ -476,7 +576,20 @@ export default async function mount(container, meta) {
       hit = rayEllipsoid(camera.position, _fwd, elevation) ?? hit;
       g = ecefToGeodetic(hit.x, hit.y, hit.z);
     }
-    return { latDeg: g.lat / DEG, lonDeg: g.lon / DEG, elevation: globe.sampleElevation(g.lat, g.lon) };
+    const ellipsoidal = globe.sampleElevation(g.lat, g.lon);
+    const latDeg = g.lat / DEG;
+    const lonDeg = g.lon / DEG;
+    // the grids hold heights above the ellipsoid; the readout gives them above mean sea level
+    return { latDeg, lonDeg, elevation: ellipsoidal === null ? null : ellipsoidal - geoid.sample(latDeg, lonDeg) };
+  }
+  function cloudReadout() {
+    if (!state.showClouds) return t(`${KEYS}.readout.cloudsOff`);
+    const g = gfs.state;
+    if (!g.available) return t(`${KEYS}.readout.${clock.simTime < Date.UTC(2021, 0, 1) || g.latestRun === null ? 'cloudsNone' : g.loading ? 'cloudsLoading' : 'cloudsNone'}`);
+    const run = new Date(g.run);
+    const date = run.toLocaleDateString(getLocale(), { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    const step = g.steps[0] + g.mix * (g.steps[1] - g.steps[0]);
+    return t(`${KEYS}.readout.cloudsValue`, { run: `${date} ${String(run.getUTCHours()).padStart(2, '0')}`, step: fmt(step, 1) });
   }
   function cameraAltitude() {
     const g = ecefToGeodetic(camera.position.x, camera.position.y, camera.position.z);
@@ -502,7 +615,7 @@ export default async function mount(container, meta) {
     modeHint.textContent = t(`${KEYS}.readout.modeHints.${mode}`);
 
     facts.set('place', formatLatLon(where.latDeg, where.lonDeg));
-    facts.set('ground', where.elevation === null ? '–' : `${fmt(where.elevation, 0)} ${t('units.meters')}`);
+    facts.set('ground', where.elevation === null ? '–' : t(`${KEYS}.readout.${where.elevation < 0 ? 'belowSea' : 'aboveSea'}`, { h: fmt(Math.abs(where.elevation), 0) }));
     facts.set('altitude', formatDistance(cameraAltitude()));
     const sun = topocentric('sun', date, where.latDeg, where.lonDeg, where.elevation ?? 0, { refraction: true });
     facts.set('sun', t(`${KEYS}.readout.${sun.altitudeDeg >= 0 ? 'sunUp' : 'sunDown'}`, { alt: fmt(Math.abs(sun.altitudeDeg), 1), az: fmt(sun.azimuthDeg, 0) }));
@@ -520,11 +633,15 @@ export default async function mount(container, meta) {
     const moonPos = topocentric('moon', date, where.latDeg, where.lonDeg, where.elevation ?? 0, { refraction: true });
     const phase = moonPhase(date);
     facts.set('moon', t(`${KEYS}.readout.moonValue`, { phase: t(`${KEYS}.moonPhases.${phase.name}`), lit: fmt(phase.fraction * 100, 0), alt: fmt(moonPos.altitudeDeg, 0) }));
+    facts.set('clouds', cloudReadout());
     facts.set('renderer', t(`${KEYS}.readout.${view.backend}`));
+    updateAttributionStrip();
   }
 
   // --- frame ------------------------------------------------------------------------------------------------------------
   const sunDir = new THREE.Vector3();
+  let lastCloudUpdate = -Infinity;
+  let lastCloudCall = 0;
   view.onFrame((dt) => {
     let changed = controlsMoved;
     controlsMoved = false;
@@ -554,7 +671,21 @@ export default async function mount(container, meta) {
     const sun = bodyEcef('sun', date, m);
     const moon = bodyEcef('moon', date, m);
     sunDir.set(sun.direction[0], sun.direction[1], sun.direction[2]);
-    updateAtmosphereUniforms(u, { cameraPosition: camera.position, sunDirection: sunDir });
+    updateAtmosphereUniforms(u, { cameraPosition: camera.position, sunDirection: sunDir, camera });
+    // the date-driven layers (loads run in the background) and the far view's seasonal imagery
+    globalLayers.update(clock.simTime);
+    if (Math.abs(clock.simTime - lastCloudUpdate) > 30000 || performance.now() - lastCloudCall > 1000) {
+      lastCloudUpdate = clock.simTime;
+      lastCloudCall = performance.now();
+      gfs.update(clock.simTime);
+    }
+    cloudCover.mix.value = gfs.state.mix;
+    cloudCover.on.value = state.showClouds && gfs.state.available ? 1 : 0;
+    bmngMix.value = globalLayers.state.bmngMix;
+    const altitude = cameraAltitude();
+    const [f0, f1] = FAR_IMAGERY_FADE;
+    const f = Math.min(1, Math.max(0, (altitude - f0) / (f1 - f0)));
+    surface.farBlend.value = f * f * (3 - 2 * f);
     sky.update({ cameraPosition: camera.position, eqjToEcef: m, moonPosition: moon.position });
     globe.tiles.setResolutionFromRenderer(camera, renderer);
     globe.tiles.update();
@@ -588,8 +719,8 @@ export default async function mount(container, meta) {
 
   if (import.meta.env.DEV) {
     window.__lpEarth = {
-      view, globe, controls, clock, state, u, exposure, sky, VIEWS,
-      setCamera, setPlace, setQuality, goLive, setPlaying,
+      view, globe, controls, clock, state, u, surface, geoid, bathymetry, globalLayers, gfs, clouds, exposure, sky, VIEWS,
+      setCamera, setPlace, setQuality, goLive, setPlaying, setWaterLevel,
       setTime: (ms) => { clock.setTime(ms); onClockChanged(); },
       readPose: () => readPose(camera),
       applyPose: (pose) => { applyPose(camera, typeof pose === 'string' ? VIEWS[pose] : pose); view.requestRender(); },
@@ -605,6 +736,42 @@ export default async function mount(container, meta) {
     globe.tiles.removeEventListener('load-model', onTilesUpdate);
     for (let i = disposers.length - 1; i >= 0; i--) disposers[i]();
   };
+}
+
+// ---------- water level ---------------------------------------------------------------------------------------------------
+function positionToSeaLevel(pos) {
+  for (let i = 1; i < SEA_LEVEL_SCALE.length; i++) {
+    const [p1, l1] = SEA_LEVEL_SCALE[i];
+    const [p0, l0] = SEA_LEVEL_SCALE[i - 1];
+    if (pos <= p1) return l0 + ((pos - p0) / (p1 - p0)) * (l1 - l0);
+  }
+  return SEA_LEVEL_SCALE.at(-1)[1];
+}
+
+function seaLevelToPosition(level) {
+  for (let i = 1; i < SEA_LEVEL_SCALE.length; i++) {
+    const [p1, l1] = SEA_LEVEL_SCALE[i];
+    const [p0, l0] = SEA_LEVEL_SCALE[i - 1];
+    if (level >= l1) return Math.round(p0 + ((level - l0) / (l1 - l0)) * (p1 - p0));
+  }
+  return SEA_LEVEL_SCALE.at(-1)[0];
+}
+
+/** Snaps to a named stop within 12 slider steps; otherwise rounds to a tidy number of metres. */
+function snapSeaLevel(level) {
+  const pos = seaLevelToPosition(level);
+  for (const stop of SEA_LEVEL_STOPS) {
+    if (Math.abs(seaLevelToPosition(stop.level) - pos) <= 12) return stop.level;
+  }
+  const step = level > -100 ? 1 : level > -1000 ? 10 : 100;
+  return Math.round(level / step) * step;
+}
+
+function formatSeaLevel(level) {
+  const stop = SEA_LEVEL_STOPS.find((s) => s.level === level && s.id);
+  if (level === 0) return t(`${KEYS}.seaLevel.real`);
+  const value = `${formatNumber(level, { maximumFractionDigits: 0 })}\u2009${t('units.meters')}`;
+  return stop ? `${value} · ${t(`${KEYS}.seaLevel.${stop.id}`)}` : value;
 }
 
 // ---------- formatting ----------------------------------------------------------------------------------------------------

@@ -1,8 +1,10 @@
 # Living Earth – plan for a digital-twin Earth simulation
 
-*Status: researched October 2026. **Milestone M0 (foundations) built on 31 Oct 2026** – the `earth`
-simulation runs behind the work-in-progress flag (`#/sim/earth`); outcome, measurements and deviations in
-[12 §1.1](12-roadmap-verification-licences.md#11-m0-outcome-31-oct-2026). M1 is next.*
+*Status: researched October 2026. **Milestones M0 (foundations) and M1 (the whole Earth from a distance)
+built on 31 Oct 2026** – the `earth` simulation runs behind the work-in-progress flag (`#/sim/earth`);
+outcomes, measurements and deviations in [12 §1.1](12-roadmap-verification-licences.md#11-m0-outcome-31-oct-2026)
+and [§1.2](12-roadmap-verification-licences.md#12-m1-outcome-31-oct-2026). The M1 tide overlay moved to M5;
+M2 (hero terrain & imagery) is next.*
 
 A new simulation for Living Planet 3D: **the real Earth, zoomable from space down to the
 ground**. Real terrain, real satellite and aerial imagery, a real sea floor revealed when

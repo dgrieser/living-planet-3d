@@ -20,7 +20,7 @@ npm run check:hz     # validate habitable-zone physics (Kopparapu flux limits, z
 npm run check:tides   # validate moon-tides physics (2GMR/r³, 1/r³ scaling, spring/neap, periods, tilt models)
 npm run check:mag     # validate magnetosphere physics (ram pressure, standoff, boundary fits, field-line deformation, Kp, aurora, air budget + climate + airless world)
 npm run check:galaxy  # validate galactic-zone model (Sun's orbit, zone edges, metallicity gradient, spiral geometry, point cloud statistics, "life on Earth" scalings, haze/dust/globular generators)
-npm run check:earth   # validate the Living Earth's pure-JS modules: geodesy against PROJ (ECEF, UTM32, ETRF2020, geoid grids ≤ 1 mm), Sun & Moon against JPL Horizons (≤ 1′, sunrise ±30 s), the simulation clock
+npm run check:earth   # validate the Living Earth's pure-JS modules: geodesy against PROJ (ECEF, UTM32, ETRF2020, geoid grids ≤ 1 mm, global EGM2008 grid), Sun & Moon against JPL Horizons (≤ 1′, sunrise ±30 s), the simulation clock, the GRIB2 decoder against ecCodes, the terrain/sea-floor and global-layer plumbing
 npm run check         # every check above in one go (what CI runs)
 ```
 
@@ -67,9 +67,14 @@ src/
                      local time – pure JS), ephemeris.js (Sun & Moon topocentric and in ECEF, rise/set, phase;
                      wraps astronomy-engine – pure JS), geodesy.js (WGS84 ↔ ECEF, ENU, UTM 32N, ETRF2020 ↔
                      ITRF2020, geoid grids – pure JS), places.js, sources.js (data sources with licence and
-                     attribution), render/ (viewport.js – WebGPURenderer + loop, globe.js – streamed terrain
-                     and imagery, atmosphere.js – TSL sky and aerial perspective, sky.js – stars and Moon,
+                     attribution), data/ (gebco.js – sea floor from GEBCO, geoid.js – EGM2008, globalLayers.js –
+                     Blue Marble months, snow, sea ice, night lights from NASA, gfs.js + gfsWorker.js + grib2.js
+                     – GFS clouds), render/ (viewport.js – WebGPURenderer + loop, globe.js – streamed land+sea
+                     terrain and imagery, surface.js – the ground and water shader, atmosphere.js – TSL sky and
+                     aerial perspective, clouds.js – cloud shells and shadows, sky.js – stars and Moon,
                      camera.js – geodetic poses and flights), index.js
+public/earth/        small derived grids for the Living Earth: EGM2008 geoid 0.5°, GEBCO_2026 sea floor 16′
+tools/earth-pipeline/ scripts that build them (build-geoid.mjs, build-gebco-base.mjs) – not shipped
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
   check-i18n.mjs     key-parity check for locale files
@@ -84,6 +89,9 @@ scripts/
   check-earth-geodesy.mjs validates the Living Earth geodesy against PROJ (npm run check:earth)
   check-earth-ephemeris.mjs validates the Living Earth ephemeris against JPL Horizons (npm run check:earth)
   check-earth-clock.mjs validates the Living Earth simulation clock (npm run check:earth)
+  check-earth-grib.mjs validates the GRIB2 decoder against ecCodes on GFS fixtures (npm run check:earth)
+  check-earth-layers.mjs checks the sea-floor merge and the date-driven global layers (npm run check:earth)
+  fixtures/          GFS messages used by check-earth-grib.mjs
 ```
 
 ## App header
@@ -753,16 +761,25 @@ A digital-twin Earth simulation – the real globe zoomable from space to street
 terrain, imagery, sea floor, tides, weather, seasons and snow, and Lübbecke and Fanø modelled in full
 3D detail. The plan, data sources and architecture live in [`docs/earth-sim/`](docs/earth-sim/README.md).
 
-**Milestone M0 (foundations) is built** and registered as `earth`, hidden behind the work-in-progress
-flask in the header (`#/sim/earth`):
+**Milestones M0 (foundations) and M1 (the whole Earth from a distance) are built** and registered as
+`earth`, hidden behind the work-in-progress flask in the header (`#/sim/earth`):
 
 - three.js **r187 `WebGPURenderer`** (TSL) with its automatic WebGL 2 fallback – add `?renderer=webgl`
   to the URL (before the `#`) to force the fallback; reversed float depth buffer, CPU float64
   model-view matrices (`renderer.highPrecision`) for ECEF coordinates.
 - The globe streams **Mapterhorn** terrain (Terrarium tiles, global level z12) draped with **EOX
   Sentinel-2 cloudless 2025** imagery through 3d-tiles-renderer's `TerrariumMeshPlugin`; every tile gets
-  a node material that shares one TSL graph (sunlight through the atmosphere, per-vertex terrain normals).
-  Tiles over open sea, which Mapterhorn does not serve, are answered with a flat sea-level tile.
+  a node material that shares one TSL graph (`render/surface.js`: sunlight through the atmosphere,
+  per-pixel relief, water with sky reflection and sun glint).
+- **Land and sea floor in one height field**: GEBCO_2026 is merged into every Mapterhorn grid where
+  Mapterhorn has sea (a 16′ copy ships in `public/earth/`, the full grid streams from a cloud-optimised
+  GeoTIFF), heights sit on the ellipsoid with the EGM2008 geoid. The headline **water level** slider
+  lowers the sea to −11 000 m and shows the uncovered floor (sediments by depth, or depth colours with
+  contours).
+- **Date-driven layers from NASA**: Blue Marble monthly imagery in the far view, the month's MODIS snow
+  cover, the day's AMSR sea ice, Black Marble city lights on the night side.
+- **Clouds from NOAA GFS** (0.25°, archive from 2021, forecast to 16 days), read from the NOAA Open
+  Data bucket and decoded by our own GRIB2 decoder; two cloud shells with ground shadows.
 - An own **physically based atmosphere** in TSL (Rayleigh, Mie, ozone; CPU-built transmittance table):
   the sky from the ground, aerial perspective, the limb from orbit, the solar disc, red sunsets on the
   ground. `@takram/three-atmosphere` was not used – its packages pull React and React Three Fiber in
@@ -774,10 +791,10 @@ flask in the header (`#/sim/earth`):
 - Readouts for the centre of the view (position, ground height, Sun, sunrise/sunset, Moon), an
   attribution strip with the licences of everything on screen, essay and model card.
 
-What M0 does not have yet – clouds, weather, water and tides, the sea floor, seasons, snow, buildings,
-trees, city lights, the hero areas' 1 m / 0.4 m terrain – is listed in the model card and scheduled in
-[`docs/earth-sim/12`](docs/earth-sim/12-roadmap-verification-licences.md#1-milestones). The M0 status and
-its go/no-go outcome are recorded there as well.
+What is still missing – rain and wind, waves and tides (the M1 tide overlay moved to M5), volumetric
+clouds, buildings, trees, the hero areas' 1 m / 0.4 m terrain – is listed in the model card and scheduled
+in [`docs/earth-sim/12`](docs/earth-sim/12-roadmap-verification-licences.md#1-milestones), where the M0
+and M1 outcomes are recorded as well.
 
 ## Adding a simulation
 
