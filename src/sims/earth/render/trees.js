@@ -82,14 +82,17 @@ function coniferGeometry(detail) {
 }
 
 // ---------- material -------------------------------------------------------------------------------------------------
-function createTreeMaterial({ u, toSun, sunShadow, nightFloor, season, time, conifer }) {
+function createTreeMaterial({ u, toSun, sunShadow, nightFloor, season, time, wind, conifer }) {
   const material = new THREE.MeshBasicNodeMaterial();
   const seed = attribute('tSeed', 'float');
   const size = attribute('tSize', 'vec2'); // height, crown radius (m)
   const tH = attribute('tH', 'float');
-  // wind: the crown sways along a fixed westerly, more at the top, each tree in its own rhythm
+  // wind (10 m wind of the weather model at the camera): the crown leans downwind and sways about that,
+  // more at the top and more in a strong wind, each tree in its own rhythm
   const sway = sin(time.mul(1.6).add(seed.mul(6.283))).mul(0.6).add(sin(time.mul(0.7).add(seed.mul(17.0))).mul(0.4));
-  material.positionNode = positionLocal.add(vec3(0.6, 0.8, 0).mul(sway.mul(size.x).mul(0.012).mul(tH.mul(tH))));
+  const lean = wind.strength.mul(wind.strength).mul(0.45);
+  const amp = wind.strength.mul(0.7).add(0.15);
+  material.positionNode = positionLocal.add(vec3(wind.dir.x, wind.dir.y, 0).mul(sway.mul(amp).add(lean).mul(size.x).mul(0.012).mul(tH.mul(tH))));
   material.colorNode = Fn(() => {
     const crown = attribute('tPart', 'float');
     const p = positionWorld;
@@ -145,7 +148,9 @@ async function decodeFloatTiff(buffer) {
 export function createTrees({ u, toSun, sunShadow, nightFloor, camera, groundHeight, onChange }) {
   const season = { foliage: uniform(1), autumn: uniform(0) };
   const time = uniform(0);
-  const materials = [false, true].map((conifer) => createTreeMaterial({ u, toSun, sunShadow, nightFloor, season, time, conifer }));
+  // direction the wind blows to (east, north) and its strength (1 ≈ 7 m/s)
+  const wind = { dir: uniform(new THREE.Vector2(1, 0)), strength: uniform(0.7) };
+  const materials = [false, true].map((conifer) => createTreeMaterial({ u, toSun, sunShadow, nightFloor, season, time, wind, conifer }));
   const geometries = {
     near: [broadleafGeometry(true), coniferGeometry(true)],
     far: [broadleafGeometry(false), coniferGeometry(false)],
@@ -306,9 +311,12 @@ export function createTrees({ u, toSun, sunShadow, nightFloor, camera, groundHei
     },
     /**
      * Per frame: load the cells around the view centre, drop far ones, switch levels of detail, sway.
-     * @param {{ active: boolean, latDeg: number, lonDeg: number, doy: number, seconds: number }} s
+     * @param {{ active: boolean, latDeg: number, lonDeg: number, doy: number, seconds: number, windEast?: number, windNorth?: number }} s  wind in m/s
      */
-    update({ active, latDeg, lonDeg, camLatDeg = latDeg, camLonDeg = lonDeg, doy, seconds }) {
+    update({ active, latDeg, lonDeg, camLatDeg = latDeg, camLonDeg = lonDeg, doy, seconds, windEast = 4, windNorth = 0 }) {
+      const ws = Math.hypot(windEast, windNorth);
+      if (ws > 0.05) wind.dir.value.set(windEast / ws, windNorth / ws);
+      wind.strength.value = Math.min(2, ws / 7);
       group.visible = active;
       time.value = seconds;
       const leaf = leafCalendar(doy);

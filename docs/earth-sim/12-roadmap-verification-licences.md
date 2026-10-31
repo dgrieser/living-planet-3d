@@ -246,6 +246,48 @@ impostors, no ground cover or hedges, no trees on Fanø.
 underwater, inland water; the tide only inside Fanø's basin box. Rendering stays continuous below 5 km for
 the waves (off with reduced motion).
 
+### 1.7 M6 outcome (31 Oct 2026)
+
+**Built** – in the browser, from public services (`data/gfs.js`, `data/satellite.js`, `data/weatherCodes.js`,
+`render/clouds.js`, `render/cloudNoise.js`, `render/precipitation.js`, fog in `render/atmosphere.js`):
+
+| M6 item | State |
+|---|---|
+| weather data | done client-side: besides the cloud cover, a **local set** per GFS step (precipitation rate and type, ceiling, convective cover, 10 m wind, 2 m temperature, visibility, model ground height; ≈ 6 MB) is read while the camera is below 150 km; the four grids (cover and local, both steps) live in one 2D array texture (the terrain shader is at the 16-texture limit of WebGPU defaults and WebGL 2) |
+| satellite correction | done for the Meteosat 0° disc: EUMETView's MSG **cloud mask and cloud-top height** (CORS, every 15 min since Sep 2020, ≈ 20 min latency) over 30–72° N, 30° W–45° E at 0.05°, read back from the renderings (mask colours; cloud-top through the 207 stops of its legend). Fusion: satellite clear thins the model's cloud to 12 %, satellite cloudy fills the layer of the observed top (a broken 70 % field where the model has no low cloud – a cloudy 5 km pixel is often cumulus), tops follow the satellite; weight fades out ±20…60 min from the slot. No optical-flow alignment, no GOES/Himawari elsewhere, no MTG-FCI (not on EUMETView as values) |
+| scheduled weather pipeline | **not built** – no server: the browser reads GFS and EUMETSAT directly, so no archive beyond NOAA's bucket (2021→), no ICON-D2 (DWD's file server has no CORS), no DINI (CORS EDR exists; not wired), no ERA5 replay, no CAMS aerosols |
+| volumetric clouds (local + global) | done – one cloud field (fused cover; low base from the ceiling, stratus 0.5 km / cumulus 1.5 km / towers +6 km where deep convection rains, middle 3.5–5.5 km, cirrus 8.2–10.4 km; thin cover → lower tops) shaping tileable Perlin–Worley noise (64³, built in a worker, histogram-equalised so cover = cloudy share, eroded by Worley fBm), drifting with 2.5 × the 10 m wind. Ray-marched below 35–60 km at **half resolution** (an `rtt` that also applies the air in front of the cloud, so plain bilinear upsampling stays correct): fine steps inside occupied height intervals (≤ 120 m of height per step), analytic jumps between them, 4-sample light march, two-lobe phase with Wrenninge octaves plus a diffuse multiple-scattering term; shells from space. No temporal reprojection, no lightning, no in-cloud fly-through detail beyond the noise |
+| cloud shadows | done – the same field sampled where the sun ray crosses each layer, on terrain, trees and buildings; under cloud the sky light turns grey. No beer shadow map / cascades |
+| precipitation | done – rain shafts under raining bases in the march; up to 14 000 drops/flakes in a wrapped box around the camera (count from the rate, slant from the wind, additive overlay pass after the atmosphere); rain only under (fused) cloud; wet ground (darker, glossy sheen, an hour of memory). No splashes, ripples, puddles, drying history, rainbows, hail |
+| wind downscaling (hero areas) | **partly** – the model's 10 m wind at the camera drives trees, waves (direction, steepness, Cox–Munk glint width, Monahan whitecaps), rain slant and cloud drift; temperature is lapse-corrected for the real ground against the model's. A wind speed-up by height alone was tried and **dropped**: it made the wind worse at both test stations. WindNinja / PALM-4U fields not built |
+| fog | done – analytic height fog from the model's visibility at the camera (Koschmieder β = 3.912 / V; 120 m deep for fog, 400 m for mist), neutral grey, dimmed under low cloud. No froxels, no valley cold-air pooling, no sea-fog model |
+| live mode | done – the latest GFS run is re-probed every 30 min, the newest satellite slot follows ≈ 25 min behind; no nowcast/advection to "now", radar not used in the scene |
+
+**Exit criteria** (`scripts/check-earth-weather.mjs` on `scripts/fixtures/weather-testdays-2026.json` – 10
+test days of 2026 every 3 h plus 29–31 Oct hourly, built by `tools/earth-pipeline/weather-testdays.mjs`):
+
+- *Cloud cover matches satellite* – cloudy/clear at the stations agrees with the Meteosat picture in 96 %
+  of 278 station hours (GFS alone: 75 %).
+- *Cloud cover matches stations* – mean absolute error against the automatic (ceilometer) cloud amount:
+  Bad Salzuflen (DWD) 18.2 % with the satellite placement, 27.9 % for GFS alone (the satellite picture itself:
+  17.8 %); Esbjerg (DMI) 38.5 % vs 44.0 % – there the station disagrees with the satellite picture itself by
+  35.4 % (it reports 0 % under satellite-confirmed cirrus decks and in fog), so the station, not the sim,
+  bounds the score. The check requires ≤ 30 % or ≤ the satellite's own error + 5, and an improvement over
+  GFS alone.
+- *Precipitation timing matches radar* – hourly wet/dry against gauges (±1 h): 89 % of 267 hours agree,
+  but POD 55 % / FAR 66 %: GFS's 28 km cells rain wider and less exactly than a gauge sees. Against DWD's
+  radar composite at Lübbecke (kept only ≈ 3 days, so 29–31 Oct): 98 % of 46 hours agree – a dry spell
+  with a single wet hour, which the sim missed; a weak test until radar is archived.
+- *Wind at stations within NWP error* – 10 m wind rms 1.37 m/s at Esbjerg (bias +0.84) and 1.83 m/s at Bad
+  Salzuflen (bias +1.28), 140 / 127 hours – within the 1.5–2.5 m/s typical of global models.
+- Performance (Radeon 890M): 60 fps on WebGPU and the WebGL 2 fallback at 1400 × 600; at DPR 2 Ultra
+  (2800 × 1488) the worst case – overcast seen from below – runs at 59 fps with the half-resolution clouds
+  (19.5 fps when they were marched at full resolution).
+
+**Deviations:** no server pipeline and no regional models – precipitation timing is as good as GFS; radar
+and the satellite correction are not advected between slots; wind downscaling is not done; snow on the
+ground stays M7. Satellite placement covers the Meteosat disc only; elsewhere the clouds are GFS alone.
+
 ---
 
 ## 2. Verification (keep the repo's `scripts/check-*.mjs` culture)

@@ -176,12 +176,22 @@ export const NIGHT_LIGHTS = Object.freeze({
 
 export const CLOUDS = Object.freeze({
   id: 'gfs',
-  name: 'NOAA GFS 0.25° cloud cover (low, middle, high), NOAA Open Data on AWS',
+  name: 'NOAA GFS 0.25° weather: cloud cover (low, middle, high), ceiling, convective cloud, precipitation rate and type, 10 m wind, 2 m temperature, visibility – NOAA Open Data on AWS',
   provenance: 'modelled',
   licence: 'NOAA open data (public domain)',
-  attribution: 'Clouds: NOAA Global Forecast System (GFS), via the NOAA Open Data Dissemination program',
-  short: 'NOAA GFS clouds',
+  attribution: 'Weather and clouds: NOAA Global Forecast System (GFS), via the NOAA Open Data Dissemination program',
+  short: 'NOAA GFS weather',
   href: 'https://registry.opendata.aws/noaa-gfs-bdp-pds/',
+});
+
+export const SATELLITE_CLOUDS = Object.freeze({
+  id: 'msg-clouds',
+  name: 'EUMETSAT Meteosat (MSG, 0°) cloud mask and cloud top height, every 15 minutes since Sep 2020, EUMETView',
+  provenance: 'measured',
+  licence: 'CC BY 4.0 (EUMETSAT data policy for derived products)',
+  attribution: 'Cloud placement: contains modified EUMETSAT Meteosat data (cloud mask, cloud top height), EUMETView',
+  short: '© EUMETSAT',
+  href: 'https://view.eumetsat.int/',
 });
 
 export const GEOID = Object.freeze({
@@ -202,4 +212,4 @@ export const EPHEMERIS = Object.freeze({
   href: 'https://github.com/cosinekitty/astronomy',
 });
 
-export const SOURCES = Object.freeze([TERRAIN, BATHYMETRY, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, TREES_NRW, TIDES_DMI, BATHYMETRY_EU, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, GEOID, HERO_HEIGHTS, EPHEMERIS]);
+export const SOURCES = Object.freeze([TERRAIN, BATHYMETRY, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, TREES_NRW, TIDES_DMI, BATHYMETRY_EU, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SATELLITE_CLOUDS, GEOID, HERO_HEIGHTS, EPHEMERIS]);

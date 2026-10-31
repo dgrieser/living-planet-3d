@@ -69,9 +69,11 @@ src/
                      ITRF2020, geoid grids – pure JS), places.js, sources.js (data sources with licence and
                      attribution), data/ (gebco.js – sea floor from GEBCO, geoid.js – EGM2008, globalLayers.js –
                      Blue Marble months, snow, sea ice, night lights from NASA, gfs.js + gfsWorker.js + grib2.js
-                     – GFS clouds), render/ (viewport.js – WebGPURenderer + loop, globe.js – streamed land+sea
-                     terrain and imagery, surface.js – the ground and water shader, atmosphere.js – TSL sky and
-                     aerial perspective, clouds.js – cloud shells and shadows, sky.js – stars and Moon,
+                     – GFS weather, satellite.js – Meteosat cloud mask and tops, weatherCodes.js – encodings,
+                     fusion, read-back), render/ (viewport.js – WebGPURenderer + loop, globe.js – streamed land+sea
+                     terrain and imagery, surface.js – the ground and water shader, atmosphere.js – TSL sky,
+                     aerial perspective, fog, clouds.js + cloudNoise.js – volumetric clouds, shells and shadows,
+                     precipitation.js – rain and snow around the camera, sky.js – stars and Moon,
                      camera.js – geodetic poses and flights, walk.js – first-person walking, buildings.js –
                      LoD2 tiles and generated buildings, trees.js – instanced trees), data/osmBuildings.js
                      (footprints → roofs), data/trees.js + treeWorker.js (tree tops in canopy heights), data/tides.js +
@@ -80,7 +82,7 @@ src/
 public/earth/        small derived data for the Living Earth: EGM2008 geoid 0.5°, GEBCO_2026 sea floor 16′,
                      national hero geoids, Fanø's OSM building footprints (ODbL)
 tools/earth-pipeline/ scripts that build them (build-geoid.mjs, build-gebco-base.mjs, build-hero-geoids.mjs,
-                     build-osm-buildings.mjs, fit-tides.mjs)
+                     build-osm-buildings.mjs, fit-tides.mjs, weather-testdays.mjs)
                      and verify_hero_heights.py (hero terrain vs NRW DGM1) – not shipped
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
@@ -102,7 +104,9 @@ scripts/
   check-earth-buildings.mjs checks the OSM footprints and the generated walls and roofs (npm run check:earth)
   check-earth-trees.mjs checks the single-tree detection on a synthetic canopy (npm run check:earth)
   check-earth-tides.mjs checks the tide model against DMI's predictions and the water-level plumbing (npm run check:earth)
-  fixtures/          GFS messages (check-earth-grib.mjs), DMI's high/low waters of Nov 2026 (check-earth-tides.mjs)
+  check-earth-weather.mjs checks the weather encodings, satellite read-back and fusion, and scores clouds, rain and wind against stations, radar and satellite on test days (npm run check:earth)
+  fixtures/          GFS messages (check-earth-grib.mjs), DMI's high/low waters of Nov 2026 (check-earth-tides.mjs),
+                     the weather test days (check-earth-weather.mjs)
 ```
 
 ## App header
@@ -772,8 +776,8 @@ A digital-twin Earth simulation – the real globe zoomable from space to street
 terrain, imagery, sea floor, tides, weather, seasons and snow, and Lübbecke and Fanø modelled in full
 3D detail. The plan, data sources and architecture live in [`docs/earth-sim/`](docs/earth-sim/README.md).
 
-**Milestones M0–M5 (foundations, the whole Earth from a distance, hero terrain & imagery, buildings,
-trees, water) are built** and registered as `earth`, hidden behind the work-in-progress flask in the header (`#/sim/earth`):
+**Milestones M0–M6 (foundations, the whole Earth from a distance, hero terrain & imagery, buildings,
+trees, water, weather) are built** and registered as `earth`, hidden behind the work-in-progress flask in the header (`#/sim/earth`):
 
 - three.js **r187 `WebGPURenderer`** (TSL) with its automatic WebGL 2 fallback – add `?renderer=webgl`
   to the URL (before the `#`) to force the fallback; reversed float depth buffer, CPU float64
@@ -789,8 +793,14 @@ trees, water) are built** and registered as `earth`, hidden behind the work-in-p
   contours).
 - **Date-driven layers from NASA**: Blue Marble monthly imagery in the far view, the month's MODIS snow
   cover, the day's AMSR sea ice, Black Marble city lights on the night side.
-- **Clouds from NOAA GFS** (0.25°, archive from 2021, forecast to 16 days), read from the NOAA Open
-  Data bucket and decoded by our own GRIB2 decoder; two cloud shells with ground shadows.
+- **Weather from NOAA GFS** (0.25°, archive from 2021, forecast to 16 days), read from the NOAA Open
+  Data bucket and decoded by our own GRIB2 decoder: cloud cover by layer, ceiling, convective cloud,
+  precipitation rate and type, 10 m wind, 2 m temperature, visibility. **Meteosat's cloud mask and
+  cloud-top height** (EUMETSAT, every 15 min since 2020) place the clouds where the satellite saw them.
+  **Volumetric clouds** near the ground (ray-marched at half resolution in the atmosphere pass, shaped by
+  cloud type from tileable Perlin–Worley noise, drifting with the wind), shells from space, cloud shadows
+  on terrain, trees and buildings; rain shafts, **rain and snow** around the camera, wet ground, height
+  fog from the visibility, trees and waves (and whitecaps) moving with the model's wind.
 - **Hero areas**: Lübbecke and Fanø at ≈ 0.7 m relief (NRW DGM1, Danish DHM via Mapterhorn) on their
   national height references (GCG2016, DVR90), NRW's 10 cm orthophotos over the whole state, and a
   **walk mode** (arrow keys / WASD, drag to look, touch pad).
@@ -813,9 +823,10 @@ trees, water) are built** and registered as `earth`, hidden behind the work-in-p
 - Readouts for the centre of the view (position, ground height, Sun, sunrise/sunset, Moon), an
   attribution strip with the licences of everything on screen, essay and model card.
 
-What is still missing – rain and wind, the global tide overlay, an FFT ocean, volumetric clouds, ground
-cover, facade photos, Fanø's 12.5 cm orthophotos – is listed in the model card and scheduled in
-[`docs/earth-sim/12`](docs/earth-sim/12-roadmap-verification-licences.md#1-milestones), where the M0–M5
+What is still missing – the server-side weather pipeline and regional models (ICON-D2, DINI), wind
+downscaling, the global tide overlay, an FFT ocean, ground cover, facade photos, Fanø's 12.5 cm
+orthophotos – is listed in the model card and scheduled in
+[`docs/earth-sim/12`](docs/earth-sim/12-roadmap-verification-licences.md#1-milestones), where the M0–M6
 outcomes are recorded as well.
 
 ## Adding a simulation
