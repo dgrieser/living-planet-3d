@@ -10,9 +10,10 @@
  *
  *  - `createTransmittanceTexture()` integrates the optical depth on the CPU once (256×64, half float).
  *  - `transmittanceToSun(r, muS)` is used by the terrain material: the sunlight that reaches a point.
- *  - `createAtmospherePass()` is the post-processing node: it reads the scene colour and depth and adds
- *    the in-scattered light (the sky, aerial perspective, the limb glow from space), attenuates what
- *    lies behind, draws the solar disc and fades the stars out of a bright sky.
+ *  - `createAtmospherePass()` is the post-processing node: it reads the scene colour and depth, draws the
+ *    solar disc, composites the clouds (render/clouds.js: volumetric near the ground, shells from space)
+ *    and height fog, then adds the in-scattered light (the sky, aerial perspective, the limb glow from
+ *    space), attenuates what lies behind and fades the stars out of a bright sky.
  *
  * Multiple scattering is approximated by an isotropic term (not the full LUT of Hillaire 2020) – the sky
  * is a little too dark right after sunset; listed in the model card.
@@ -254,46 +255,102 @@ function integrateSegment(toSun, steps, origin, dir, t0, t1, sunDir) {
   return { inscatter, transmittance };
 }
 
+/** Uniforms of the height fog (set from the weather's visibility at the camera). */
+export function createFogUniforms() {
+  return {
+    density: uniform(0), // extinction at the fog's base (1/m); 0 = no fog
+    base: uniform(0), // height of the fog top's start above the ellipsoid (m): constant below, thinning above
+    scale: uniform(150), // scale height above the base (m)
+    sun: uniform(1), // how much direct sunlight reaches the fog (low cloud above dims it)
+  };
+}
+
 /**
- * The atmosphere post pass: scene colour + depth in, the colour with sky and aerial perspective out.
- * The pass runs on a full-screen quad, so the scene camera's matrices come in as explicit uniforms
+ * The view ray of a full-screen pass at a screen position: direction in the stretched-sphere frame, where it
+ * ends (km) – the geometry, else the ground sphere (tiles not loaded yet), else space – and what it meets.
+ * Coarse tiles are flat triangles whose middles sag below the ellipsoid (≈ 2 km on a zoom-1 tile); ending
+ * those rays at the ellipsoid keeps the triangle grid out of the haze. Mountains stand above it and keep
+ * their own, shorter distance.
+ */
+function viewRay({ screenUv, depth, projectionInverse, cameraWorld, u }) {
+  const isSky = depth.lessThanEqual(0);
+  const viewDir = normalize(getViewPosition(screenUv, float(0.5), projectionInverse));
+  const worldDir = normalize(cameraWorld.mul(vec4(viewDir, 0)).xyz);
+  const scaledDir = worldDir.mul(vec3(1, 1, A.zScale));
+  const dirLen = length(scaledDir);
+  const dir = scaledDir.div(dirLen);
+  const origin = u.cameraKm;
+  const viewDist = length(getViewPosition(screenUv, depth, projectionInverse)).mul(0.001).mul(dirLen);
+  const top = raySphere(origin, dir, RT);
+  const ground = raySphere(origin, dir, RG);
+  const hitsGround = ground.x.greaterThan(0);
+  const geometryEnd = select(hitsGround, min(viewDist, ground.x), viewDist);
+  const tEnd = select(isSky, select(hitsGround, ground.x, top.y), geometryEnd);
+  return { isSky, dir, origin, top, ground, hitsGround, tEnd, tStart: max(top.x, 0) };
+}
+
+/**
+ * The cloud layer, rendered at reduced resolution (index.js wraps it in an `rtt` at half size): the clouds
+ * in front of whatever each ray meets – their light, what they let through, and the air between the camera
+ * and the cloud (the air in front of a cloud hazes the cloud, not the ground behind it). Output
+ * (A, T): the final colour is T × (the picture without clouds) + A, linear in both, so bilinear upsampling
+ * stays correct.
+ * @param {{ depthNode: Node, camera: THREE.PerspectiveCamera, uniforms: ReturnType<typeof createAtmosphereUniforms>,
+ *           lutTexture: THREE.DataTexture, steps?: number, clouds: Function[] }} opts
+ *   clouds: functions (origin, dir, tEnd) → { light, transmittance, distance } in the stretched-sphere km frame
+ */
+export function createCloudLayer({ depthNode, camera, uniforms: u, lutTexture, steps = 12, clouds }) {
+  const toSun = createTransmittanceToSun(createTransmittanceLookup(lutTexture));
+  const projectionInverse = uniform(camera.projectionMatrixInverse);
+  const cameraWorld = uniform(camera.matrixWorld);
+  return Fn(() => {
+    const screenUv = uv();
+    const r = viewRay({ screenUv, depth: depthNode.sample(screenUv).r, projectionInverse, cameraWorld, u });
+    let light = vec3(0);
+    let cloudT = float(1);
+    let tCloud = r.tEnd;
+    for (const pass of clouds) {
+      const c = pass(r.origin, r.dir, r.tEnd);
+      light = light.add(c.light.mul(cloudT));
+      tCloud = mix(tCloud, min(c.distance, tCloud), cloudT.mul(c.transmittance.oneMinus()));
+      cloudT = cloudT.mul(c.transmittance);
+    }
+    const T = cloudT.toVar();
+    const tc = tCloud.toVar();
+    const inscatter = vec3(0).toVar();
+    const trans = vec3(1).toVar();
+    If(T.lessThan(0.999).and(r.top.y.greaterThan(0)).and(tc.greaterThan(r.tStart)), () => {
+      const res = integrateSegment(toSun, steps, r.origin, r.dir, r.tStart, min(tc, r.top.y), u.sunDirectionScaled);
+      inscatter.assign(res.inscatter);
+      trans.assign(res.transmittance);
+    });
+    const A_ = light.mul(mix(vec3(1), trans, u.haze)).add(inscatter.mul(T.oneMinus()).mul(u.haze));
+    return vec4(A_, T);
+  })();
+}
+
+/**
+ * The atmosphere post pass: scene colour + depth in, the colour with sky, aerial perspective, clouds and
+ * fog out. The pass runs on a full-screen quad, so the scene camera's matrices come in as explicit uniforms
  * (the built-in camera nodes would refer to the quad's camera).
  * @param {{ colorNode: Node, depthNode: Node, camera: THREE.PerspectiveCamera,
  *           uniforms: ReturnType<typeof createAtmosphereUniforms>, lutTexture: THREE.DataTexture,
- *           steps?: number, exposure: Node }} opts
+ *           steps?: number, exposure: Node, cloudLayer?: Node, fog?: ReturnType<typeof createFogUniforms> }} opts
+ *   cloudLayer: the (A, T) texture of `createCloudLayer`
  */
-export function createAtmospherePass({ colorNode, depthNode, camera, uniforms: u, lutTexture, steps = 16, exposure }) {
+export function createAtmospherePass({ colorNode, depthNode, camera, uniforms: u, lutTexture, steps = 16, exposure, cloudLayer = null, fog = null }) {
   const lookup = createTransmittanceLookup(lutTexture);
   const toSun = createTransmittanceToSun(lookup);
-  const zScale = vec3(1, 1, A.zScale);
   const projectionInverse = uniform(camera.projectionMatrixInverse);
   const cameraWorld = uniform(camera.matrixWorld);
 
   return Fn(() => {
     const screenUv = uv();
     const scene = colorNode.sample(screenUv).rgb.toVar();
-    const depth = depthNode.sample(screenUv).r;
-    const isSky = depth.lessThanEqual(0);
-    // view ray in world space (ECEF directions), then into the stretched-sphere frame
-    const viewDir = normalize(getViewPosition(screenUv, float(0.5), projectionInverse));
-    const worldDir = normalize(cameraWorld.mul(vec4(viewDir, 0)).xyz);
-    const scaledDir = worldDir.mul(zScale);
-    const dirLen = length(scaledDir);
-    const dir = scaledDir.div(dirLen);
-    const origin = u.cameraKm;
+    const r = viewRay({ screenUv, depth: depthNode.sample(screenUv).r, projectionInverse, cameraWorld, u });
+    const { isSky, dir, origin, top, ground, hitsGround, tStart } = r;
+    const tEnd = r.tEnd.toVar();
     const sunDir = u.sunDirectionScaled;
-    const viewDist = length(getViewPosition(screenUv, depth, projectionInverse)).mul(0.001).mul(dirLen);
-
-    const top = raySphere(origin, dir, RT);
-    const ground = raySphere(origin, dir, RG);
-    const hitsGround = ground.x.greaterThan(0);
-    // where the ray ends: the geometry, else the ground sphere (tiles not loaded yet), else space. Coarse
-    // tiles are flat triangles whose middles sag below the ellipsoid (≈ 2 km on a zoom-1 tile); ending
-    // those rays at the ellipsoid keeps the triangle grid out of the haze. Mountains stand above it and
-    // keep their own, shorter distance.
-    const geometryEnd = select(hitsGround, min(viewDist, ground.x), viewDist);
-    const tEnd = select(isSky, select(hitsGround, ground.x, top.y), geometryEnd).toVar();
-    const tStart = max(top.x, 0);
     const inside = top.y.greaterThan(0).and(tEnd.greaterThan(tStart));
 
     const color = scene.toVar();
@@ -325,7 +382,33 @@ export function createAtmospherePass({ colorNode, depthNode, camera, uniforms: u
       color.assign(color.mul(starFade).add(discRadiance.mul(disc)));
     });
 
-    const withAir = color.mul(trans).add(inscatter);
-    return vec4(mix(color, withAir, u.haze).mul(exposure), 1);
+    const out = mix(color, color.mul(trans).add(inscatter), u.haze).toVar();
+    // the clouds (and the air in front of them) over the picture
+    if (cloudLayer) {
+      const cl = cloudLayer.sample(screenUv);
+      out.assign(out.mul(cl.a).add(cl.rgb));
+    }
+
+    // height fog near the ground: exponential above its base, integrated analytically along the ray
+    if (fog) {
+      If(fog.density.greaterThan(0), () => {
+        const camH = length(origin).sub(RG).mul(1000);
+        const mu = dot(dir, normalize(origin));
+        const T = min(tEnd, float(60)).mul(1000);
+        const k = mu.div(fog.scale);
+        const along = select(abs(k).lessThan(1e-5), T, exp(k.mul(T).negate()).oneMinus().div(k));
+        const tau = fog.density.mul(exp(max(camH.sub(fog.base), 0).div(fog.scale).negate())).mul(along);
+        const fogT = exp(tau.negate());
+        const muS = dot(normalize(origin), sunDir);
+        const sunT = toSun(max(length(origin), RG.add(0.001)), muS);
+        const skyIrr = vec3(0.45, 0.6, 1.0).mul(smoothstep(-0.2, 0.25, muS).mul(0.18)).mul(clamp(muS.add(0.6), 0.25, 1));
+        // fog is white: sky light scattered many times is neutral grey
+        const skyGrey = vec3(dot(skyIrr, vec3(0.2126, 0.7152, 0.0722)));
+        const fogL = u.sunIlluminance.mul(sunT.mul(max(muS, 0).mul(0.5).add(0.15)).mul(fog.sun).add(mix(skyGrey, skyIrr, 0.25).mul(1.4))).mul(0.85 / PI);
+        out.assign(out.mul(fogT).add(fogL.mul(fogT.oneMinus())));
+      });
+    }
+
+    return vec4(out.mul(exposure), 1);
   })();
 }

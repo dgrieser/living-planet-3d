@@ -1,36 +1,41 @@
 /**
  * Living Earth – the real Earth, zoomable from space down to the ground (milestones M0 foundations,
- * M1 the whole Earth from a distance, M2 hero terrain & imagery with walk mode).
+ * M1 the whole Earth from a distance, M2 hero terrain & imagery with walk mode, M3 buildings, M4 trees,
+ * M5 water, M6 weather).
  *
  * One clock and one place drive everything (docs/earth-sim/10): the clock gives the instant, the
  * ephemeris turns it into the Sun's and the Moon's positions in the Earth-fixed frame, the globe streams
  * open terrain, sea floor and imagery, the date picks the Blue Marble month, the snow, the sea ice and the
- * GFS clouds, the atmosphere pass lights the sky and the haze for that Sun. The panel follows the
+ * weather (GFS, placed by Meteosat's cloud mask), the atmosphere pass lights the sky, the clouds, the fog
+ * and the haze for that Sun. The panel follows the
  * repository's panel layout: time up front, places and the water level next, the rest folded away, then
  * the readouts, the essay and the model card.
  */
 import * as THREE from 'three/webgpu';
-import { pass, uniform, uv, length, smoothstep, vec2, vec3, float, mix, pow, texture } from 'three/tsl';
+import { pass, rtt, uniform, uv, length, smoothstep, vec2, vec3, vec4, float, mix, pow, texture, texture3D } from 'three/tsl';
 import { GlobeControls } from '3d-tiles-renderer';
 import { t, bindText, bindAttr, onLanguageChange, formatNumber, getLocale } from '../../lib/i18n.js';
 import { createPanel, createPanelShift, createCollapsibleSection, createControlRow, createSlider, createViewToggles, createButton, createInfoCard, createNotice, el } from '../../lib/ui.js';
 import { createViewPrefs } from '../../lib/prefs.js';
 import { createViewport } from './render/viewport.js';
-import { createAtmosphereUniforms, updateAtmosphereUniforms, createTransmittanceTexture, createTransmittanceLookup, createTransmittanceToSun, createAtmospherePass } from './render/atmosphere.js';
+import { createAtmosphereUniforms, updateAtmosphereUniforms, createTransmittanceTexture, createTransmittanceLookup, createTransmittanceToSun, createAtmospherePass, createCloudLayer, createFogUniforms } from './render/atmosphere.js';
 import { createGlobe } from './render/globe.js';
 import { createSurfaceUniforms, createSurfaceColorNode, setSeaLevel } from './render/surface.js';
 import { createBathymetry } from './data/gebco.js';
 import { createGeoid } from './data/geoid.js';
 import { createGlobalLayers } from './data/globalLayers.js';
-import { createGfsClouds } from './data/gfs.js';
+import { createGfsWeather } from './data/gfs.js';
+import { createSatellite } from './data/satellite.js';
+import { decodePrecip, decodeCeiling, windFrom, compassPoint, terrainCorrection, fuseCover, rainUnderCloud } from './data/weatherCodes.js';
 import { createFanoeWater } from './data/water.js';
-import { createClouds, createCloudShadow, createCloudUniforms } from './render/clouds.js';
+import { createCloudField, createCloudPass, createShellPass, createCloudShadow, createCloudUniforms, createNoiseTexture, createWetness, VOLUME_FADE } from './render/clouds.js';
+import { createPrecipitation } from './render/precipitation.js';
 import { createSky } from './render/sky.js';
 import { applyPose, readPose, createFlight, rayEllipsoid } from './render/camera.js';
 import { createWalk } from './render/walk.js';
 import { PLACES, VIEWS, HERO_BOXES, findPlace, placeAt } from './places.js';
 import { NRW_DOP } from './regions.js';
-import { TERRAIN, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, TREES_NRW, TIDES_DMI, BATHYMETRY_EU, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SOURCES } from './sources.js';
+import { TERRAIN, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, TREES_NRW, TIDES_DMI, BATHYMETRY_EU, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SATELLITE_CLOUDS, SOURCES } from './sources.js';
 import { createClock, RATE_PRESETS, placeTimeZone, localDayStart, localMinuteOfDay, MS_PER_DAY } from './clock.js';
 import { bodyEcef, eqjToEcefMatrix, topocentric, riseSet, moonPhase } from './ephemeris.js';
 import { ecefToGeodetic, geodeticToEcef, wrapLongitudeDeg, DEG } from './geodesy.js';
@@ -38,12 +43,13 @@ import { ecefToGeodetic, geodeticToEcef, wrapLongitudeDeg, DEG } from './geodesy
 const KEYS = 'sims.earth';
 const EXPOSURE = 14; // scene radiance (sunlight = 1) → display, before ACES tone mapping
 const READOUT_INTERVAL_MS = 250;
+const CLOUD_RESOLUTION = 0.5; // the cloud layer's size relative to the canvas
 
 /** Simulation parameters – every visit starts here. */
 const DEFAULTS = Object.freeze({ place: 'globe', view: 'globe', rate: 'realtime', seaLevel: 0 });
 /** Display settings – remembered per visitor. */
 const VIEW_DEFAULTS = Object.freeze({
-  showAtmosphere: true, showBuildings: true, showTrees: true, showClouds: true, showSnowIce: true, showLights: true, showStars: true, showMoon: true, showLabels: true, showDepthTint: false, quality: 'auto',
+  showAtmosphere: true, showBuildings: true, showTrees: true, showClouds: true, showWeather: true, showSnowIce: true, showLights: true, showStars: true, showMoon: true, showLabels: true, showDepthTint: false, quality: 'auto',
 });
 /** Altitudes (m) between which the far view fades from the tile imagery to the seasonal Blue Marble. */
 const FAR_IMAGERY_FADE = [1.2e6, 4e6];
@@ -109,20 +115,39 @@ export default async function mount(container, meta) {
     // Black Marble's PNG is a display rendering of radiance: decode its gamma, tint it sodium-orange
     lights: (latLon) => pow(layerNodes.lights.sample(equirect(latLon)).r, 2.2).mul(vec3(1, 0.72, 0.42)).mul(0.03),
   };
-  // clouds: GFS cover in two textures (the bracketing forecast steps), shared by the shells and the shadows
-  const gfs = createGfsClouds({ onChange: () => view.requestRender() });
-  const cloudNodes = { a: texture(gfs.textures.a), b: texture(gfs.textures.b) };
-  const unsubscribeGfs = gfs.subscribe((slot, tex) => {
-    cloudNodes[slot].value = tex;
+  // weather: GFS (cover always, the near-ground set while the camera is low), Meteosat's cloud placement,
+  // and the tileable noise the clouds are shaped from (built in a worker) – one cloud field for the
+  // volumetric clouds, the shells seen from space, and the shadows
+  const gfs = createGfsWeather({ onChange: () => view.requestRender() });
+  const satellite = createSatellite({ onChange: () => view.requestRender() });
+  const noisePlaceholder = createNoiseTexture();
+  const cloudNodes = { weather: texture(gfs.weather), sat: texture(satellite.texture), noise: texture3D(noisePlaceholder) };
+  const unsubscribeSat = satellite.subscribe((tex) => {
+    cloudNodes.sat.value = tex;
   });
+  let noiseTexture = null;
+  const noiseWorker = new Worker(new URL('./data/cloudNoiseWorker.js', import.meta.url), { type: 'module' });
+  noiseWorker.onmessage = (ev) => {
+    noiseTexture = createNoiseTexture(ev.data.data, ev.data.size);
+    cloudNodes.noise.value = noiseTexture;
+    noiseWorker.terminate();
+    view.requestRender();
+  };
+  noiseWorker.postMessage({ size: 64 });
+  disposers.push(unsubscribeSat, () => gfs.dispose(), () => satellite.dispose(), () => noiseWorker.terminate(), () => noisePlaceholder.dispose(), () => noiseTexture?.dispose());
   // the water level around Fanø: DMI gauge, DMI prediction or our harmonic model (data/water.js)
   const fanoeWater = createFanoeWater({ onChange: () => view.requestRender() });
   disposers.push(() => fanoeWater.dispose());
-  const cloudCover = createCloudUniforms();
-  layers.sunShadow = createCloudShadow({ u, nodes: cloudNodes, cover: cloudCover });
-  const clouds = createClouds({ u, toSun, nodes: cloudNodes, nightFloor, cover: cloudCover });
-  scene.add(clouds.group);
-  disposers.push(unsubscribeGfs, () => gfs.dispose(), () => clouds.dispose());
+  const cloudU = createCloudUniforms();
+  const cloudField = createCloudField({ nodes: cloudNodes, cu: cloudU });
+  layers.sunShadow = createCloudShadow({ u, field: cloudField, cu: cloudU });
+  layers.wetness = createWetness({ nodes: cloudNodes, cu: cloudU });
+  const fog = createFogUniforms();
+  // rain and snow falling around the camera: their own scene, added onto the finished picture
+  const precipitation = createPrecipitation();
+  const precipScene = new THREE.Scene();
+  precipScene.add(precipitation.mesh);
+  disposers.push(() => precipitation.dispose());
   const colorNode = createSurfaceColorNode(u, toSun, surface, { nightFloor, geoid, layers });
   const quality = () => QUALITY[state.quality === 'auto' ? 'high' : state.quality];
   const globe = createGlobe({
@@ -160,14 +185,29 @@ export default async function mount(container, meta) {
   const exposure = uniform(EXPOSURE);
   const scenePass = pass(scene, camera);
   const pipeline = new THREE.RenderPipeline(renderer);
-  pipeline.outputNode = createAtmospherePass({
+  const precipPass = pass(precipScene, camera);
+  // the clouds are marched at half resolution (they cost per pixel) and upsampled in the atmosphere pass
+  const cloudLayer = rtt(createCloudLayer({
+    depthNode: scenePass.getTextureNode('depth'),
+    camera,
+    uniforms: u,
+    lutTexture: lut,
+    clouds: [
+      createCloudPass({ u, toSun, field: cloudField, cu: cloudU, nightFloor }),
+      createShellPass({ u, toSun, field: cloudField, cu: cloudU, nightFloor }),
+    ],
+  }), null, null, { type: THREE.HalfFloatType, resolutionScale: CLOUD_RESOLUTION });
+  const atmospherePass = createAtmospherePass({
     colorNode: scenePass.getTextureNode('output'),
     depthNode: scenePass.getTextureNode('depth'),
     camera,
     uniforms: u,
     lutTexture: lut,
     exposure,
+    cloudLayer,
+    fog,
   });
+  pipeline.outputNode = atmospherePass.add(vec4(precipPass.getTextureNode('output').rgb.mul(exposure), 0));
   view.render = () => pipeline.render();
   disposers.push(() => pipeline.dispose());
 
@@ -410,6 +450,7 @@ export default async function mount(container, meta) {
     showBuildings: viewToggles.toggle('showBuildings', `${KEYS}.view.buildings`),
     showTrees: viewToggles.toggle('showTrees', `${KEYS}.view.trees`),
     showClouds: viewToggles.toggle('showClouds', `${KEYS}.view.clouds`),
+    showWeather: viewToggles.toggle('showWeather', `${KEYS}.view.weather`),
     showSnowIce: viewToggles.toggle('showSnowIce', `${KEYS}.view.snowIce`),
     showLights: viewToggles.toggle('showLights', `${KEYS}.view.lights`),
     showStars: viewToggles.toggle('showStars', `${KEYS}.view.stars`),
@@ -421,7 +462,7 @@ export default async function mount(container, meta) {
     bindText(el('p', 'lp-subheading'), `${KEYS}.controls.camera`), cameraRow, walkBtn.el,
     bindText(el('p', 'lp-subheading'), `${KEYS}.controls.quality`), qualityRow,
     bindText(el('p', 'lp-subheading'), `${KEYS}.sections.view`),
-    toggles.showAtmosphere, toggles.showBuildings, toggles.showTrees, toggles.showClouds, toggles.showSnowIce, toggles.showLights, toggles.showStars, toggles.showMoon, toggles.showLabels, toggles.showDepthTint,
+    toggles.showAtmosphere, toggles.showBuildings, toggles.showTrees, toggles.showClouds, toggles.showWeather, toggles.showSnowIce, toggles.showLights, toggles.showStars, toggles.showMoon, toggles.showLabels, toggles.showDepthTint,
   );
   if (view.reducedMotion) moreControls.add(createNotice({ textKey: 'motion.reducedNotice' }));
 
@@ -439,6 +480,7 @@ export default async function mount(container, meta) {
     ['sunriseSunset', `${KEYS}.readout.sunriseSunset`],
     ['moon', `${KEYS}.readout.moon`],
     ['clouds', `${KEYS}.readout.clouds`],
+    ['weather', `${KEYS}.readout.weather`],
     ['water', `${KEYS}.readout.water`],
     ['renderer', `${KEYS}.readout.renderer`],
   ]);
@@ -577,7 +619,8 @@ export default async function mount(container, meta) {
     if (state.seaLevel < 0 || state.showDepthTint) onScreen.push(BATHYMETRY);
     if (state.showSnowIce) onScreen.push(SNOW, SEA_ICE);
     if (state.showLights) onScreen.push(NIGHT_LIGHTS);
-    if (state.showClouds && gfs.state.available) onScreen.push(CLOUDS);
+    if ((state.showClouds || state.showWeather) && gfs.state.available) onScreen.push(CLOUDS);
+    if (state.showClouds && satellite.state.weight > 0) onScreen.push(SATELLITE_CLOUDS);
     if (state.showBuildings && c && cameraAltitude() < 60000) {
       const lb = HERO_BOXES.fanoe;
       if (c.latDeg > NRW_DOP.south && c.latDeg < NRW_DOP.north && c.lonDeg > NRW_DOP.west && c.lonDeg < NRW_DOP.east) onScreen.push(BUILDINGS_NRW);
@@ -691,7 +734,6 @@ export default async function mount(container, meta) {
     surface.snowIce.value = state.showSnowIce ? 1 : 0;
     surface.nightLights.value = state.showLights ? 1 : 0;
     if (!state.showBuildings) buildingCard.hidden = true;
-    clouds.group.visible = state.showClouds;
     sky.setStarsVisible(state.showStars);
     sky.moon.visible = state.showMoon;
     updateLabels();
@@ -790,7 +832,36 @@ export default async function mount(container, meta) {
     const run = new Date(g.run);
     const date = run.toLocaleDateString(getLocale(), { day: 'numeric', month: 'short', timeZone: 'UTC' });
     const step = g.steps[0] + g.mix * (g.steps[1] - g.steps[0]);
-    return t(`${KEYS}.readout.cloudsValue`, { run: `${date} ${String(run.getUTCHours()).padStart(2, '0')}`, step: fmt(step, 1) });
+    const model = t(`${KEYS}.readout.cloudsValue`, { run: `${date} ${String(run.getUTCHours()).padStart(2, '0')}`, step: fmt(step, 1) });
+    const sat = satellite.state;
+    if (!(sat.weight > 0) || sat.shownSlot === null) return model;
+    const st = new Date(sat.shownSlot);
+    return t(`${KEYS}.readout.cloudsSatellite`, { model, time: `${String(st.getUTCHours()).padStart(2, '0')}:${String(st.getUTCMinutes()).padStart(2, '0')}` });
+  }
+  /** The weather at the centre of the view: the GFS values blended between the steps, terrain-corrected. */
+  function weatherReadout(where) {
+    const g = gfs.state;
+    if (!g.available) return t(`${KEYS}.readout.${g.loading ? 'cloudsLoading' : 'weatherNone'}`);
+    const wx = gfs.sample(where.latDeg, where.lonDeg);
+    if (!wx?.local) return t(`${KEYS}.readout.${cameraAltitude() < 150000 ? 'cloudsLoading' : 'weatherZoom'}`);
+    const w = windFrom(wx.u10, wx.v10);
+    const c = terrainCorrection({ windSpeed: w.speed, tempC: wx.t2, groundHeight: where.elevation, modelHeight: wx.modelHeight });
+    const fused = fuseCover(wx, satellite.sample(where.latDeg, where.lonDeg), satellite.state.weight);
+    const rate = rainUnderCloud(decodePrecip(wx.precipCode), Math.max(fused.low, fused.middle));
+    let precip = 'dry';
+    if (rate >= 0.05) {
+      if (wx.snow > 0.3 && wx.snow < 0.7) precip = 'sleet';
+      else if (wx.snow >= 0.7) precip = rate < 0.5 ? 'lightSnow' : rate < 2.5 ? 'snow' : 'heavySnow';
+      else precip = rate < 0.5 ? 'lightRain' : rate < 4 ? 'rain' : 'heavyRain';
+    }
+    const vis = wx.visibility;
+    return t(`${KEYS}.readout.weatherValue`, {
+      temp: fmt(c.tempC, 0),
+      dir: t(`${KEYS}.compass.${compassPoint(w.fromDeg)}`),
+      wind: fmt(c.windSpeed, 0),
+      precip: t(`${KEYS}.readout.precip.${precip}`, { rate: fmt(rate, rate < 1 ? 1 : 0) }),
+      vis: Number.isFinite(vis) ? (vis >= 10000 ? t(`${KEYS}.readout.visibilityGood`) : t(`${KEYS}.readout.visibilityKm`, { km: fmt(vis / 1000, vis < 2000 ? 1 : 0) })) : '–',
+    });
   }
   function cameraAltitude() {
     const g = ecefToGeodetic(camera.position.x, camera.position.y, camera.position.z);
@@ -836,6 +907,7 @@ export default async function mount(container, meta) {
     const phase = moonPhase(date);
     facts.set('moon', t(`${KEYS}.readout.moonValue`, { phase: t(`${KEYS}.moonPhases.${phase.name}`), lit: fmt(phase.fraction * 100, 0), alt: fmt(moonPos.altitudeDeg, 0) }));
     facts.set('clouds', cloudReadout());
+    facts.set('weather', weatherReadout(where));
     facts.set('water', waterReadout(where, offset));
     facts.set('renderer', t(`${KEYS}.readout.${view.backend}`));
     updateAttributionStrip();
@@ -845,6 +917,13 @@ export default async function mount(container, meta) {
   const sunDir = new THREE.Vector3();
   let lastCloudUpdate = -Infinity;
   let lastCloudCall = 0;
+  let lastDriftTime = null;
+  const drift = new THREE.Vector3();
+  const DRIFT_WRAP = 1440000; // m – a common multiple of the cloud noise tiles (render/clouds.js)
+  const enuEast = new THREE.Vector3();
+  const enuNorth = new THREE.Vector3();
+  const dropLight = new THREE.Color();
+  let weatherNow = null;
   view.onFrame((dt) => {
     let changed = controlsMoved;
     controlsMoved = false;
@@ -880,19 +959,65 @@ export default async function mount(container, meta) {
     updateAtmosphereUniforms(u, { cameraPosition: camera.position, sunDirection: sunDir, camera });
     // the date-driven layers (loads run in the background) and the far view's seasonal imagery
     globalLayers.update(clock.simTime);
+    const altitude = cameraAltitude();
     if (Math.abs(clock.simTime - lastCloudUpdate) > 30000 || performance.now() - lastCloudCall > 1000) {
       lastCloudUpdate = clock.simTime;
       lastCloudCall = performance.now();
-      gfs.update(clock.simTime);
+      // the near-ground set (≈ 6 MB a step) only while it can be seen or read
+      gfs.update(clock.simTime, { local: altitude < 150000 && (state.showClouds || state.showWeather) });
     }
+    // the satellite picture of the quarter hour – not while the clock races through the slots
+    satellite.update(clock.simTime, { allowFetch: state.showClouds && Math.abs(clock.effectiveRate) <= 900 });
     // tide: fetch the day's DMI series unless the clock races (then the harmonic model answers)
     fanoeWater.update(clock.simTime, { allowFetch: Math.abs(clock.effectiveRate) <= 3600 });
     surface.tideLevel.value = fanoeWater.level(clock.simTime).level;
     surface.time.value = view.reducedMotion ? 0 : performance.now() / 1000;
-    cloudCover.mix.value = gfs.state.mix;
-    cloudCover.on.value = state.showClouds && gfs.state.available ? 1 : 0;
+    cloudU.mix.value = gfs.state.mix;
+    cloudU.on.value = state.showClouds && gfs.state.available ? 1 : 0;
+    cloudU.localOn.value = gfs.localCurrent ? 1 : 0;
+    cloudU.weatherOn.value = state.showWeather ? 1 : 0;
+    cloudU.satWeight.value = satellite.state.weight;
+    const [v0, v1] = VOLUME_FADE;
+    const vf = Math.min(1, Math.max(0, (altitude - v0) / (v1 - v0)));
+    cloudU.volume.value = 1 - vf * vf * (3 - 2 * vf);
+    // the cloud march costs per pixel: past ≈ 0.6 million cloud pixels it takes longer steps
+    const cloudPx = renderer.domElement.width * renderer.domElement.height * CLOUD_RESOLUTION ** 2;
+    cloudU.stepScale.value = Math.min(2, Math.max(1, Math.sqrt(cloudPx / 6e5)));
+    // the weather at the camera: wind for the trees, the waves and the drift of the clouds, rain, fog
+    const camGeoW = ecefToGeodetic(camera.position.x, camera.position.y, camera.position.z);
+    weatherNow = gfs.sample(camGeoW.lat / DEG, camGeoW.lon / DEG);
+    if (weatherNow) Object.assign(weatherNow, { fused: fuseCover(weatherNow, satellite.sample(camGeoW.lat / DEG, camGeoW.lon / DEG), satellite.state.weight) });
+    const local = weatherNow?.local ? weatherNow : null;
+    // rain at the camera only under cloud, as in the shader (render/clouds.js)
+    const cloudAbove = weatherNow ? Math.max(weatherNow.fused.low, weatherNow.fused.middle) : 0;
+    const rainHere = local ? rainUnderCloud(decodePrecip(local.precipCode), cloudAbove) : 0;
+    const windE = local ? local.u10 : 4;
+    const windN = local ? local.v10 : 0;
+    const windSpeed = Math.hypot(windE, windN);
+    enuEast.set(-Math.sin(camGeoW.lon), Math.cos(camGeoW.lon), 0);
+    enuNorth.set(-Math.sin(camGeoW.lat) * Math.cos(camGeoW.lon), -Math.sin(camGeoW.lat) * Math.sin(camGeoW.lon), Math.cos(camGeoW.lat));
+    // clouds drift with the wind at their height – about 2.5 × the 10 m wind (the steering level is not loaded)
+    if (lastDriftTime !== null && Math.abs(clock.simTime - lastDriftTime) < 6 * 3600000) {
+      const dts = (clock.simTime - lastDriftTime) / 1000;
+      drift.addScaledVector(enuEast, windE * 2.5 * dts).addScaledVector(enuNorth, windN * 2.5 * dts);
+      drift.set(drift.x % DRIFT_WRAP, drift.y % DRIFT_WRAP, drift.z % DRIFT_WRAP);
+    }
+    lastDriftTime = clock.simTime;
+    cloudU.drift.value.copy(drift).negate();
+    surface.windTo.value = Math.atan2(windE, windN);
+    surface.windSpeed.value = altitude < 100000 ? windSpeed : 7; // from afar the glint shows a typical sea
+    // fog from the visibility: Koschmieder (β = 3.912 / V), a layer a few hundred metres deep over the ground
+    const vis = local?.visibility;
+    if (state.showWeather && local && Number.isFinite(vis) && vis < 15000 && altitude < 30000) {
+      const groundEll = globe.sampleElevation(camGeoW.lat, camGeoW.lon) ?? 0;
+      fog.density.value = Math.max(0, 3.912 / vis - 1.2e-5);
+      fog.base.value = groundEll + (vis < 1000 ? 120 : 400);
+      fog.scale.value = vis < 1000 ? 120 : 350;
+      fog.sun.value = 1 - 0.85 * weatherNow.fused.low;
+    } else {
+      fog.density.value = 0;
+    }
     bmngMix.value = globalLayers.state.bmngMix;
-    const altitude = cameraAltitude();
     const [f0, f1] = FAR_IMAGERY_FADE;
     const f = Math.min(1, Math.max(0, (altitude - f0) / (f1 - f0)));
     surface.farBlend.value = f * f * (3 - 2 * f);
@@ -908,10 +1033,20 @@ export default async function mount(container, meta) {
     const inNrw = camGeoNow.lat / DEG > NRW_DOP.south && camGeoNow.lat / DEG < NRW_DOP.north && camGeoNow.lon / DEG > NRW_DOP.west && camGeoNow.lon / DEG < NRW_DOP.east && tc.latDeg > NRW_DOP.south && tc.latDeg < NRW_DOP.north && tc.lonDeg > NRW_DOP.west && tc.lonDeg < NRW_DOP.east;
     const localNow = new Date(clock.simTime + placeZone().offsetMinutes(clock.simTime) * 60000);
     const doy = Math.floor((localNow - Date.UTC(localNow.getUTCFullYear(), 0, 1)) / MS_PER_DAY) + 1;
-    const treesBusy = trees.update({ active: state.showTrees && inNrw && altitude < 2500, latDeg: tc.latDeg, lonDeg: tc.lonDeg, camLatDeg: camGeoNow.lat / DEG, camLonDeg: camGeoNow.lon / DEG, doy, seconds: view.reducedMotion ? 0 : performance.now() / 1000 });
+    const treesBusy = trees.update({ active: state.showTrees && inNrw && altitude < 2500, latDeg: tc.latDeg, lonDeg: tc.lonDeg, camLatDeg: camGeoNow.lat / DEG, camLonDeg: camGeoNow.lon / DEG, doy, seconds: view.reducedMotion ? 0 : performance.now() / 1000, windEast: windE, windNorth: windN });
+    // rain and snow around a camera near the ground, lit by the sky (dimmer under thick cloud and at night)
+    const sunAlt = Math.asin(Math.max(-1, Math.min(1, sunDir.dot(camera.position.clone().normalize())))) / DEG;
+    const day = Math.min(1, Math.max(0, (sunAlt + 6) / 20));
+    dropLight.setScalar((0.004 + 0.05 * day) * (1 - 0.55 * (weatherNow?.fused.low ?? 0)));
+    const raining = precipitation.update({
+      cameraPosition: camera.position, latRad: camGeoW.lat, lonRad: camGeoW.lon,
+      rate: rainHere, snow: local?.snow ?? 0, windEast: windE, windNorth: windN,
+      seconds: view.reducedMotion ? 0 : performance.now() / 1000, light: dropLight,
+      active: state.showWeather && altitude < 1500,
+    });
     const stats = globe.tiles.stats;
     const loading = stats.downloading + stats.parsing + stats.queued > 0;
-    view.setContinuous(loading || buildingsBusy || treesBusy || (!view.reducedMotion && altitude < 5000) || (!view.reducedMotion && state.showTrees && trees.stats.trees > 0 && altitude < 2500) || !!flight || walk.moving || (clock.playing && !clock.live && clock.effectiveRate !== 0));
+    view.setContinuous(loading || buildingsBusy || treesBusy || (raining && !view.reducedMotion) || (!view.reducedMotion && altitude < 5000) || (!view.reducedMotion && state.showTrees && trees.stats.trees > 0 && altitude < 2500) || !!flight || walk.moving || (clock.playing && !clock.live && clock.effectiveRate !== 0));
     updateLabels();
     updateReadouts(performance.now());
     return changed || loading;
@@ -940,7 +1075,8 @@ export default async function mount(container, meta) {
 
   if (import.meta.env.DEV) {
     window.__lpEarth = {
-      view, globe, controls, clock, state, u, surface, geoid, bathymetry, globalLayers, gfs, clouds, trees, exposure, sky, VIEWS,
+      view, globe, controls, clock, state, u, surface, geoid, bathymetry, globalLayers, gfs, satellite, cloudU, fog, precipitation, trees, exposure, sky, VIEWS,
+      weather: () => weatherNow, decodeCeiling,
       setCamera, setPlace, setQuality, goLive, setPlaying, setWaterLevel, setWalking, walk, buildings,
       pickBuilding: (x, y) => { const info = buildings.pick(new THREE.Vector2(x, y)); renderBuildingCard(info); return info; },
       setTime: (ms) => { clock.setTime(ms); onClockChanged(); },
