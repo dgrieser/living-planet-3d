@@ -735,6 +735,13 @@ disposers.push(viewShift.dispose);
   a hotter interior; metal-poor the reverse. The text states that Earth's orbit, year, seasons and sunlight are
   set by the Sun and do not change. All rows inherit the schematic caveat and are checked at 13 / 27 / 33 kly by `check:galaxy`.
 
+## Planned: Living Earth (digital twin)
+
+A digital-twin Earth simulation – the real globe zoomable from space to street level,
+with real terrain, imagery, sea floor, tides, weather, seasons and snow, and Lübbecke
+and Fanø modelled in full 3D detail – is planned but not started. The plan, data
+sources and architecture live in [`docs/earth-sim/`](docs/earth-sim/README.md).
+
 ## Adding a simulation
 
 1. Create `src/sims/<name>/index.js` with a default export
