@@ -119,6 +119,50 @@ export function mergeSeaFloor(grid, pw, ph, sea) {
   return mask;
 }
 
+/**
+ * Bilinear resampling of a georeferenced lat/lon window (row 0 = north) into the texel centres of a
+ * Web-Mercator tile, rows south first. No-data (≤ −32767, NaN, |v| > 20 000) → NaN.
+ * @param {{ west: number, north: number, resLon: number, resLat: number, w: number, h: number }} g
+ */
+export function resampleWindowToMercator(data, g, x, y, z, size) {
+  const n = 2 ** z;
+  const out = new Float32Array(size * size);
+  const val = (i) => {
+    const v = data[i];
+    return v <= GEBCO_NODATA || !(Math.abs(v) < 20000) ? NaN : v;
+  };
+  for (let r = 0; r < size; r++) {
+    const ny = (y + 1 - (r + 0.5) / size) / n;
+    const lat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * ny))) * 180) / Math.PI;
+    const fy = Math.min(Math.max((g.north - lat) / g.resLat - 0.5, 0), g.h - 1);
+    const y0 = Math.floor(fy);
+    const y1 = Math.min(y0 + 1, g.h - 1);
+    const ty = fy - y0;
+    for (let c = 0; c < size; c++) {
+      const lon = ((x + (c + 0.5) / size) / n) * 360 - 180;
+      const fx = Math.min(Math.max((lon - g.west) / g.resLon - 0.5, 0), g.w - 1);
+      const x0 = Math.floor(fx);
+      const x1 = Math.min(x0 + 1, g.w - 1);
+      const tx = fx - x0;
+      const a = val(y0 * g.w + x0) * (1 - tx) + val(y0 * g.w + x1) * tx;
+      const b = val(y1 * g.w + x0) * (1 - tx) + val(y1 * g.w + x1) * tx;
+      out[r * size + c] = a * (1 - ty) + b * ty;
+    }
+  }
+  return out;
+}
+
+/**
+ * EMODnet Bathymetry DTM (CC BY 4.0) – 1/16′ (≈ 115 m) over the European seas, with the intertidal flats as
+ * heights (Fanø's flats −0.4 … +0.7 m): four times finer than GEBCO there. Read from its WCS (CORS) in
+ * 0.5° cells for tiles of zoom ≥ 8 inside its coverage (the service offers no server-side scaling, so the
+ * coarser tiles far away keep GEBCO).
+ */
+export const EMODNET = Object.freeze({
+  url: 'https://ows.emodnet-bathymetry.eu/wcs', coverage: 'emodnet__mean', minZoom: 8,
+  bounds: { west: -36, east: 43, south: 15, north: 90 },
+});
+
 /** Layout of the shipped base grid (tools/earth-pipeline/build-gebco-base.mjs). */
 export const GEBCO_BASE = Object.freeze({ file: 'earth/gebco2026-16min.bin.gz', width: 1350, height: 675 });
 
@@ -195,6 +239,99 @@ export function createBathymetry({ url, baseUrl, detailMinZoom = 3 }) {
     return opening;
   }
 
+  // EMODnet in 0.5° cells at its native 1/16′ (≈ 480 × 480 values, ≈ 0.9 MB each), shared by every tile in
+  // them: a handful of requests instead of one per tile, and neighbouring tiles agree exactly
+  const emodnetCells = new Map();
+  function emodnetCell(ix, iy) {
+    const key = `${ix}|${iy}`;
+    if (!emodnetCells.has(key)) {
+      const pad = 2 / 960; // two values of overlap, so bilinear samples never fall off a cell
+      const w = ix * 0.5 - pad;
+      const s0 = iy * 0.5 - pad;
+      const url = `${EMODNET.url}?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage&COVERAGEID=${EMODNET.coverage}&FORMAT=image/tiff`
+        + `&SUBSET=Lat(${s0.toFixed(6)},${(s0 + 0.5 + 2 * pad).toFixed(6)})&SUBSET=Long(${w.toFixed(6)},${(w + 0.5 + 2 * pad).toFixed(6)})`;
+      const p = fetch(url)
+        .then(async (res) => {
+          if (!res.ok || !(res.headers.get('content-type') ?? '').includes('tiff')) throw new Error(`EMODnet ${res.status}`);
+          const { fromArrayBuffer } = await import('geotiff');
+          const tiff = await fromArrayBuffer(await res.arrayBuffer());
+          const image = await tiff.getImage();
+          const [data] = await image.readRasters();
+          const [west, north] = image.getOrigin();
+          const [resLon, resLat] = image.getResolution();
+          return { data, g: { west, north, resLon: Math.abs(resLon), resLat: Math.abs(resLat), w: image.getWidth(), h: image.getHeight() } };
+        })
+        .catch((err) => {
+          console.warn('[earth] EMODnet cell unavailable:', key, err?.message ?? err);
+          return null;
+        });
+      emodnetCells.set(key, p);
+    }
+    return emodnetCells.get(key);
+  }
+
+  async function readEmodnet(b, x, y, z, size) {
+    const ix0 = Math.floor(b.west / 0.5);
+    const ix1 = Math.floor((b.east - 1e-9) / 0.5);
+    const iy0 = Math.floor(b.south / 0.5);
+    const iy1 = Math.floor((b.north - 1e-9) / 0.5);
+    if ((ix1 - ix0 + 1) * (iy1 - iy0 + 1) > 12) return null; // a tile too large for the cell cache
+    const cells = new Map();
+    for (let ix = ix0; ix <= ix1; ix++) {
+      for (let iy = iy0; iy <= iy1; iy++) {
+        const c = await emodnetCell(ix, iy);
+        if (!c) return null; // one missing cell: keep GEBCO for the whole tile (no seams inside it)
+        cells.set(`${ix}|${iy}`, c);
+      }
+    }
+    const n = 2 ** z;
+    const out = new Float32Array(size * size);
+    const val = (c, i) => {
+      const v = c.data[i];
+      return v <= GEBCO_NODATA || !(Math.abs(v) < 20000) ? NaN : v;
+    };
+    for (let r = 0; r < size; r++) {
+      const ny = (y + 1 - (r + 0.5) / size) / n;
+      const lat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * ny))) * 180) / Math.PI;
+      const iy = Math.min(iy1, Math.max(iy0, Math.floor(lat / 0.5)));
+      for (let col = 0; col < size; col++) {
+        const lon = ((x + (col + 0.5) / size) / n) * 360 - 180;
+        const ix = Math.min(ix1, Math.max(ix0, Math.floor(lon / 0.5)));
+        const { data, g } = cells.get(`${ix}|${iy}`);
+        const fx = Math.min(Math.max((lon - g.west) / g.resLon - 0.5, 0), g.w - 1);
+        const fy = Math.min(Math.max((g.north - lat) / g.resLat - 0.5, 0), g.h - 1);
+        const x0 = Math.floor(fx);
+        const y0 = Math.floor(fy);
+        const x1 = Math.min(x0 + 1, g.w - 1);
+        const y1 = Math.min(y0 + 1, g.h - 1);
+        const tx = fx - x0;
+        const ty = fy - y0;
+        const c = { data };
+        const a = val(c, y0 * g.w + x0) * (1 - tx) + val(c, y0 * g.w + x1) * tx;
+        const bb = val(c, y1 * g.w + x0) * (1 - tx) + val(c, y1 * g.w + x1) * tx;
+        out[r * size + col] = a * (1 - ty) + bb * ty;
+      }
+    }
+    return out;
+  }
+
+  /** A tile's window of the GEBCO COG (15″ and overviews), or null. */
+  async function readGebco(x, y, z, size, signal) {
+    const levels = await open();
+    if (!levels) return null;
+    const bounds = mercatorTileBounds(x, y, z);
+    const level = levels[chooseLevel(levels, (bounds.east - bounds.west) / size)];
+    const window = gridWindow(bounds, level.width, level.height);
+    try {
+      const [data] = await level.image.readRasters({ window, pool, signal });
+      return resampleToMercatorTile(data, { window, width: level.width }, x, y, z, size);
+    } catch (err) {
+      if (signal?.aborted || err?.name === 'AbortError') return null;
+      console.warn('[earth] GEBCO tile failed:', z, x, y, err?.message ?? err);
+      return null;
+    }
+  }
+
   return {
     get failed() {
       return failed;
@@ -209,20 +346,19 @@ export function createBathymetry({ url, baseUrl, detailMinZoom = 3 }) {
       if (!data) return null;
       return resampleToMercatorTile(data, { window: [0, 0, GEBCO_BASE.width, GEBCO_BASE.height], width: GEBCO_BASE.width }, x, y, z, size);
     },
+    /**
+     * The tile's own sea floor: EMODnet in the European seas from zoom 8 (`intertidal: true` – positive values
+     * are flats that fall dry), else the GEBCO COG. Resolves to { data, intertidal } or null.
+     */
     async readDetail(x, y, z, size, signal) {
-      const levels = await open();
-      if (!levels) return null;
-      const bounds = mercatorTileBounds(x, y, z);
-      const level = levels[chooseLevel(levels, (bounds.east - bounds.west) / size)];
-      const window = gridWindow(bounds, level.width, level.height);
-      try {
-        const [data] = await level.image.readRasters({ window, pool, signal });
-        return resampleToMercatorTile(data, { window, width: level.width }, x, y, z, size);
-      } catch (err) {
-        if (signal?.aborted || err?.name === 'AbortError') return null;
-        console.warn('[earth] GEBCO tile failed:', z, x, y, err?.message ?? err);
-        return null;
+      const b = mercatorTileBounds(x, y, z);
+      const e = EMODNET.bounds;
+      if (z >= EMODNET.minZoom && b.west >= e.west && b.east <= e.east && b.south >= e.south && b.north <= e.north) {
+        const data = await readEmodnet(b, x, y, z, size);
+        if (data) return { data, intertidal: true };
       }
+      const gebco = await readGebco(x, y, z, size, signal);
+      return gebco ? { data: gebco, intertidal: false } : null;
     },
     dispose() {
       pool?.destroy();

@@ -23,13 +23,14 @@ import { createBathymetry } from './data/gebco.js';
 import { createGeoid } from './data/geoid.js';
 import { createGlobalLayers } from './data/globalLayers.js';
 import { createGfsClouds } from './data/gfs.js';
+import { createFanoeWater } from './data/water.js';
 import { createClouds, createCloudShadow, createCloudUniforms } from './render/clouds.js';
 import { createSky } from './render/sky.js';
 import { applyPose, readPose, createFlight, rayEllipsoid } from './render/camera.js';
 import { createWalk } from './render/walk.js';
 import { PLACES, VIEWS, HERO_BOXES, findPlace, placeAt } from './places.js';
 import { NRW_DOP } from './regions.js';
-import { TERRAIN, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, TREES_NRW, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SOURCES } from './sources.js';
+import { TERRAIN, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, TREES_NRW, TIDES_DMI, BATHYMETRY_EU, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SOURCES } from './sources.js';
 import { createClock, RATE_PRESETS, placeTimeZone, localDayStart, localMinuteOfDay, MS_PER_DAY } from './clock.js';
 import { bodyEcef, eqjToEcefMatrix, topocentric, riseSet, moonPhase } from './ephemeris.js';
 import { ecefToGeodetic, geodeticToEcef, wrapLongitudeDeg, DEG } from './geodesy.js';
@@ -114,6 +115,9 @@ export default async function mount(container, meta) {
   const unsubscribeGfs = gfs.subscribe((slot, tex) => {
     cloudNodes[slot].value = tex;
   });
+  // the water level around Fanø: DMI gauge, DMI prediction or our harmonic model (data/water.js)
+  const fanoeWater = createFanoeWater({ onChange: () => view.requestRender() });
+  disposers.push(() => fanoeWater.dispose());
   const cloudCover = createCloudUniforms();
   layers.sunShadow = createCloudShadow({ u, nodes: cloudNodes, cover: cloudCover });
   const clouds = createClouds({ u, toSun, nodes: cloudNodes, nightFloor, cover: cloudCover });
@@ -435,6 +439,7 @@ export default async function mount(container, meta) {
     ['sunriseSunset', `${KEYS}.readout.sunriseSunset`],
     ['moon', `${KEYS}.readout.moon`],
     ['clouds', `${KEYS}.readout.clouds`],
+    ['water', `${KEYS}.readout.water`],
     ['renderer', `${KEYS}.readout.renderer`],
   ]);
   const infoCard = createInfoCard({ titleKey: `${KEYS}.info.title`, bodyKey: `${KEYS}.info.body`, open: false });
@@ -579,6 +584,8 @@ export default async function mount(container, meta) {
       if (c.latDeg > lb.south && c.latDeg < lb.north && c.lonDeg > lb.west && c.lonDeg < lb.east) onScreen.push(BUILDINGS_OSM);
     }
     if (state.showTrees && trees.stats.trees > 0 && cameraAltitude() < 2500) onScreen.push(TREES_NRW);
+    const fb2 = HERO_BOXES.fanoe;
+    if (c && cameraAltitude() < 200000 && c.latDeg > fb2.south - 0.15 && c.latDeg < fb2.north + 0.15 && c.lonDeg > fb2.west - 0.3 && c.lonDeg < fb2.east + 0.3) onScreen.push(TIDES_DMI, BATHYMETRY_EU);
     const key = onScreen.map((x) => x.id).join('|');
     if (key === attributionKey) return;
     attributionKey = key;
@@ -763,6 +770,19 @@ export default async function mount(container, meta) {
     // the grids hold heights above the ellipsoid; the readout gives them above mean sea level
     return { latDeg, lonDeg, elevation: ellipsoidal === null ? null : ellipsoidal - geoid.sample(latDeg, lonDeg) };
   }
+  function waterReadout(where, offset) {
+    const b = HERO_BOXES.fanoe;
+    if (!(where.latDeg > b.south - 0.1 && where.latDeg < b.north + 0.1 && where.lonDeg > b.west - 0.1 && where.lonDeg < b.east + 0.1)) return t(`${KEYS}.readout.waterElsewhere`);
+    const w = fanoeWater.level(clock.simTime);
+    const nxt = fanoeWater.next(clock.simTime);
+    const ev = w.rising ? nxt.high : nxt.low;
+    return t(`${KEYS}.readout.waterValue`, {
+      level: `${w.level >= 0 ? '+' : '−'}${fmt(Math.abs(w.level), 2)}`,
+      trend: t(`${KEYS}.readout.${w.rising ? 'rising' : 'falling'}`),
+      source: t(`${KEYS}.readout.waterSource.${w.source}`),
+      next: t(`${KEYS}.readout.${w.rising ? 'nextHigh' : 'nextLow'}`, { time: ev ? formatClock(localMinuteOfDay(ev.time, offset)) : '–' }),
+    });
+  }
   function cloudReadout() {
     if (!state.showClouds) return t(`${KEYS}.readout.cloudsOff`);
     const g = gfs.state;
@@ -816,6 +836,7 @@ export default async function mount(container, meta) {
     const phase = moonPhase(date);
     facts.set('moon', t(`${KEYS}.readout.moonValue`, { phase: t(`${KEYS}.moonPhases.${phase.name}`), lit: fmt(phase.fraction * 100, 0), alt: fmt(moonPos.altitudeDeg, 0) }));
     facts.set('clouds', cloudReadout());
+    facts.set('water', waterReadout(where, offset));
     facts.set('renderer', t(`${KEYS}.readout.${view.backend}`));
     updateAttributionStrip();
   }
@@ -864,6 +885,10 @@ export default async function mount(container, meta) {
       lastCloudCall = performance.now();
       gfs.update(clock.simTime);
     }
+    // tide: fetch the day's DMI series unless the clock races (then the harmonic model answers)
+    fanoeWater.update(clock.simTime, { allowFetch: Math.abs(clock.effectiveRate) <= 3600 });
+    surface.tideLevel.value = fanoeWater.level(clock.simTime).level;
+    surface.time.value = view.reducedMotion ? 0 : performance.now() / 1000;
     cloudCover.mix.value = gfs.state.mix;
     cloudCover.on.value = state.showClouds && gfs.state.available ? 1 : 0;
     bmngMix.value = globalLayers.state.bmngMix;
@@ -886,7 +911,7 @@ export default async function mount(container, meta) {
     const treesBusy = trees.update({ active: state.showTrees && inNrw && altitude < 2500, latDeg: tc.latDeg, lonDeg: tc.lonDeg, camLatDeg: camGeoNow.lat / DEG, camLonDeg: camGeoNow.lon / DEG, doy, seconds: view.reducedMotion ? 0 : performance.now() / 1000 });
     const stats = globe.tiles.stats;
     const loading = stats.downloading + stats.parsing + stats.queued > 0;
-    view.setContinuous(loading || buildingsBusy || treesBusy || (!view.reducedMotion && state.showTrees && trees.stats.trees > 0 && altitude < 2500) || !!flight || walk.moving || (clock.playing && !clock.live && clock.effectiveRate !== 0));
+    view.setContinuous(loading || buildingsBusy || treesBusy || (!view.reducedMotion && altitude < 5000) || (!view.reducedMotion && state.showTrees && trees.stats.trees > 0 && altitude < 2500) || !!flight || walk.moving || (clock.playing && !clock.live && clock.effectiveRate !== 0));
     updateLabels();
     updateReadouts(performance.now());
     return changed || loading;

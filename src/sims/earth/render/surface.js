@@ -17,6 +17,8 @@
  * detail in between becomes a bump normal from screen-space derivatives (Mikkelsen 2010), taken in view
  * space where the positions are small and precise.
  *
+ * (smoothstep edges always low → high: WGSL leaves reversed edges undefined, and a NaN poisons every mix.)
+ *
  * The water is shaded on the sea floor itself, not on a separate surface: from the heights this globe
  * shows (hundreds of metres and up) a flat sea surface and the floor below it project to the same pixel.
  * The FFT ocean of the hero areas (M5) brings a real surface.
@@ -24,7 +26,7 @@
 import {
   Fn, vec2, vec3, vec4, float, uniform, max, min, normalize, dot, smoothstep, length, clamp, mix, exp, pow, atan, fract, fwidth,
   abs, sign, cross, dFdx, dFdy, vertexStage, attribute, materialColor, materialReference, modelWorldMatrix, positionWorld,
-  positionView, texture, If, cos, mx_fractal_noise_float,
+  positionView, texture, If, cos, sin, mx_fractal_noise_float,
 } from 'three/tsl';
 import { ATMOSPHERE, DETAIL_SCALE } from './atmosphere.js';
 import { WGS84 } from '../geodesy.js';
@@ -35,6 +37,17 @@ const E2 = WGS84.e2 ?? WGS84.f * (2 - WGS84.f);
 // diffuse attenuation of coastal water (Jerlov type I–II), red / green / blue, 1/m
 const WATER_K = [0.35, 0.065, 0.03];
 const DEEP_WATER = [0.004, 0.012, 0.03];
+const TURBID_K = [2.2, 1.5, 1.9];
+const TURBID_WATER = [0.022, 0.03, 0.024];
+/** Fanø's tidal basins (Grådyb, Knudedyb, Juvre Dyb) – where data/water.js sets the level. */
+const TIDE_BOX = Object.freeze({ south: 55.2, north: 55.62, west: 8.1, east: 8.75 });
+/** Wind-sea components: wavelength (m), direction of travel (° from north), steepness (slope amplitude), phase. */
+const WAVES = Object.freeze([
+  { lambda: 40, dir: 80, steep: 0.05, phase: 0 }, { lambda: 23, dir: 104, steep: 0.05, phase: 1.3 },
+  { lambda: 13, dir: 63, steep: 0.05, phase: 2.1 }, { lambda: 7.5, dir: 117, steep: 0.045, phase: 4.2 },
+  { lambda: 4.3, dir: 52, steep: 0.04, phase: 0.7 }, { lambda: 2.4, dir: 128, steep: 0.035, phase: 3.3 },
+]);
+const DEG = Math.PI / 180;
 const GLINT_ROUGHNESS = 0.28; // GGX α of the sea surface seen from afar (Cox–Munk slopes σ ≈ 0.2 at ≈ 7 m/s wind)
 
 /** Uniforms the panel drives. */
@@ -51,6 +64,10 @@ export function createSurfaceUniforms() {
     /** 0/1 display toggles for the date-driven layers */
     snowIce: uniform(1),
     nightLights: uniform(1),
+    /** the water level around Fanø relative to mean sea level (m, DVR90) – the tide of the moment (data/water.js) */
+    tideLevel: uniform(0),
+    /** seconds, for the waves (frozen under reduced motion) */
+    time: uniform(0),
     /** vertical exaggeration of the sea floor's shading while it is shown */
     floorRelief: uniform(5),
     /** development aid: 1 = sea mask, 2 = height above sea level, 3 = relief normal, 4 = bump residual */
@@ -183,7 +200,14 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers 
     const nTerrain = normalize(u.viewToWorld.mul(mix(nLand, nFloor, sea.mul(max(s.drain, s.depthTint)))));
 
     // --- ground (land, and sea floor above the water level) -------------------------------------------
-    const wet = sea.mul(smoothstep(s.seaLevel.sub(0.25), s.seaLevel.add(0.25), H).oneMinus());
+    // the tide around Fanø (a smooth box over the Wadden Sea basins); elsewhere mean sea level for now
+    const latDeg = latLon.x.mul(180 / PI);
+    const lonDeg = latLon.y.mul(180 / PI);
+    const tb = TIDE_BOX;
+    const tideD = min(min(latDeg.sub(tb.south), float(tb.north).sub(latDeg)), min(lonDeg.sub(tb.west), float(tb.east).sub(lonDeg)).mul(cos(latLon.x)));
+    const tideW = smoothstep(-0.05, 0.05, tideD);
+    const level = s.seaLevel.add(s.tideLevel.mul(tideW));
+    const wet = sea.mul(smoothstep(level.sub(0.05), level.add(0.05), H).oneMinus());
     const exposed = sea.mul(wet.oneMinus());
     const floor = seaFloorAlbedo(H, dot(nTerrain, up), s.depthTint);
     let imagery = materialColor.rgb; // the tile's imagery (sRGB decoded to linear by the sampler)
@@ -200,7 +224,13 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers 
     if (layers.farImagery) imagery = mix(imagery, layers.farImagery(latLon, p), s.farBlend);
     let land = imagery;
     if (layers.snow) land = mix(land, vec3(0.8, 0.82, 0.86), layers.snow(latLon, p).mul(sea.oneMinus()).mul(s.snowIce));
-    const groundAlbedo = mix(land, floor, max(exposed, sea.mul(s.depthTint)));
+    // uncovered sea floor: within the tidal range it is the photographed flat (darker while still wet near
+    // the water line); deeper – only ever dry with the slider – the sediment colours
+    const intertidal = smoothstep(-4, -2.5, H);
+    const wetFlat = smoothstep(0.0, 0.6, H.sub(s.seaLevel.add(s.tideLevel.mul(tideW)))).oneMinus();
+    const flatAlbedo = imagery.mul(mix(float(1), float(0.6), wetFlat));
+    const uncovered = mix(floor, flatAlbedo, intertidal.mul(s.depthTint.oneMinus()));
+    const groundAlbedo = mix(land, uncovered, max(exposed, sea.mul(s.depthTint)));
     const groundIrr = E.mul(sunT.mul(max(dot(nTerrain, L), 0)).add(skyIrr)).add(nightFloor);
     let ground = groundAlbedo.mul(1 / PI).mul(groundIrr);
     // city lights: always on, but only worth drawing where the Sun is down (a fixed exposure would let
@@ -208,16 +238,45 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers 
     if (layers.lights) ground = ground.add(layers.lights(latLon, p).mul(sea.oneMinus()).mul(smoothstep(-0.12, 0.04, muS).oneMinus()).mul(s.nightLights));
 
     // --- water ---------------------------------------------------------------------------------------------
-    const depth = max(s.seaLevel.sub(H), 0);
-    const through = exp(vec3(...WATER_K).mul(depth).mul(-2)); // down to the floor and back up
-    const modelled = mix(vec3(...DEEP_WATER), floor.mul(0.8), through);
-    let waterAlbedo = mix(imagery, modelled, s.drain);
+    const depth = max(level.sub(H), 0);
+    // the Wadden Sea is turbid: green-brown and opaque within a metre or two (Jerlov coastal 5–9)
+    const kWater = mix(vec3(...WATER_K), vec3(...TURBID_K), tideW);
+    const through = exp(kWater.mul(depth).mul(-2)); // down to the floor and back up
+    const modelled = mix(mix(vec3(...DEEP_WATER), vec3(...TURBID_WATER), tideW), floor.mul(0.8), through);
+    // the imagery's own water colour where the sea is as photographed; the depth model where the tide or
+    // the slider moved the water line
+    let waterAlbedo = mix(imagery, modelled, max(s.drain, tideW.mul(0.85)));
     const V = normalize(u.cameraWorld.sub(p));
-    const nDotV = max(dot(up, V), 1e-3);
-    const nDotL = dot(up, L);
+    // waves: six wind-sea components (wavelengths 2.4 … 40 m, travelling east before a westerly), damped in
+    // shallow water, faded out where a pixel is wider than the wave (no shimmer from orbit)
+    const qm = u.detailOrigin.mul(DETAIL_SCALE).add(u.viewToWorld.mul(positionView));
+    const east = normalize(cross(vec3(0, 0, 1), up));
+    const north = cross(up, east);
+    const px = dot(qm, east);
+    const py = dot(qm, north);
+    // the larger of the two screen derivatives: at grazing angles a pixel is long along the view
+    const footprint = max(length(dFdx(qm)), length(dFdy(qm)));
+    let gx = float(0);
+    let gy = float(0);
+    for (const w of WAVES) {
+      const k = (2 * PI) / w.lambda;
+      const dx = Math.sin(w.dir * DEG);
+      const dy = Math.cos(w.dir * DEG);
+      const omega = Math.sqrt(9.81 * k);
+      const phase = px.mul(k * dx).add(py.mul(k * dy)).sub(s.time.mul(omega)).add(w.phase);
+      const amp = float(w.steep).mul(smoothstep(0.08, 0.3, footprint.mul(k / (2 * PI))).oneMinus()).mul(clamp(depth.mul(k), 0, 1));
+      gx = gx.add(amp.mul(dx).mul(cos(phase)));
+      gy = gy.add(amp.mul(dy).mul(cos(phase)));
+    }
+    const nWater = normalize(up.sub(east.mul(gx)).sub(north.mul(gy)));
+    const nDotV = max(dot(nWater, V), 1e-3);
+    const nDotL = dot(nWater, L);
     const fresnel = pow(nDotV.oneMinus(), 5).mul(0.98).add(0.02);
     const Hv = normalize(V.add(L));
-    const nDotH = max(dot(up, Hv), 0);
+    const nDotH = max(dot(nWater, Hv), 0);
+    // foam where the water runs out on the beach and the flats (depth below 25 cm), drifting with the waves
+    const foamNoise = fract(sin(px.mul(0.37).add(py.mul(0.21)).add(s.time.mul(0.6)).add(sin(py.mul(0.9).add(px.mul(0.13))).mul(2))).mul(43758.5));
+    const foam = smoothstep(0.02, 0.25, depth).oneMinus().mul(smoothstep(0.55, 0.9, foamNoise)).mul(smoothstep(3, 30, footprint).oneMinus());
     const a2 = GLINT_ROUGHNESS * GLINT_ROUGHNESS;
     const dTerm = nDotH.mul(nDotH).mul(a2 - 1).add(1);
     const D = float(a2 / PI).div(dTerm.mul(dTerm));
@@ -225,7 +284,7 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers 
     const glint = E.mul(sunT).mul(D.mul(fGlint).div(nDotV.mul(4))).mul(smoothstep(0, 0.05, nDotL));
     let ice = float(0);
     if (layers.seaIce) ice = layers.seaIce(latLon, p).mul(s.snowIce).mul(s.drain.oneMinus());
-    waterAlbedo = mix(waterAlbedo, vec3(0.7, 0.74, 0.78), ice);
+    waterAlbedo = mix(waterAlbedo, vec3(0.7, 0.74, 0.78), max(ice, foam.mul(0.8)));
     const waterIrr = E.mul(sunT.mul(max(nDotL, 0)).add(skyIrr)).add(nightFloor);
     const specular = E.mul(skyIrr).mul(1 / PI).mul(fresnel).add(glint).mul(ice.oneMinus());
     const water = waterAlbedo.mul(1 / PI).mul(waterIrr).mul(fresnel.oneMinus()).add(specular);

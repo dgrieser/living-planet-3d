@@ -1003,7 +1003,7 @@
     },
     "earth": {
       "title": "Living Earth",
-      "description": "The real Earth from space down to the ground: terrain and sea floor, seasonal imagery, snow, sea ice, city lights and the clouds of a weather model, Lübbecke and Fanø in metre detail with their buildings and trees to walk through, the Sun, the Moon and the sky of any moment. Work in progress (milestone M4).",
+      "description": "The real Earth from space down to the ground: terrain and sea floor, seasonal imagery, snow, sea ice, city lights and the clouds of a weather model, Lübbecke and Fanø in metre detail with their buildings, trees and the tide on the Wadden Sea, the Sun, the Moon and the sky of any moment. Work in progress (milestone M5).",
       "controls": {
         "time": "Time of day",
         "date": "Date",
@@ -1097,7 +1097,19 @@
         "cloudsValue": "GFS run {run} UTC, +{step} h",
         "cloudsNone": "No weather data for this date (GFS from 2021)",
         "cloudsLoading": "Loading the weather model…",
-        "cloudsOff": "Hidden"
+        "cloudsOff": "Hidden",
+        "water": "Water level, Fanø",
+        "waterValue": "{level} m, {trend} · {source} · {next}",
+        "waterElsewhere": "Only around Fanø for now (mean sea level elsewhere)",
+        "rising": "rising",
+        "falling": "falling",
+        "nextHigh": "high water {time}",
+        "nextLow": "low water {time}",
+        "waterSource": {
+          "observed": "gauge Esbjerg (DMI)",
+          "predicted": "DMI prediction",
+          "model": "tide model"
+        }
       },
       "moonPhases": {
         "new": "new moon",
@@ -1137,10 +1149,11 @@
       "model": {
         "title": "Model card – what is real here",
         "body": [
-          "This is milestone M4, the trees. Still missing: grass, crops and hedges as 3D, rain, wind, waves and tides – they arrive in later milestones of the plan (docs/earth-sim).",
+          "This is milestone M5, the water. Still missing: rain, wind, volumetric clouds, crops and hedges – they arrive in later milestones of the plan (docs/earth-sim).",
           "Terrain: Mapterhorn elevation tiles (Copernicus DEM, fused with national models). Inside the two hero areas they come at about 0.7 m per pixel from NRW's 1 m DGM1 (laser scan of February 2023) and Denmark's 0.4 m DHM, elsewhere at about 19 m. Lübbecke's heights match the state's own DGM1 to within 3 cm (mean 0.001 m). There they are placed on the ellipsoid with the national references (GCG2016 for Lübbecke, DVR90 for Fanø) instead of the global EGM2008, which differs by 0.2–0.3 m. At sea the GEBCO_2026 grid takes over (450 m; from orbit a 30 km copy that ships with the page). Only about a quarter of the sea floor has been measured by ships; the rest is predicted from satellite altimetry.",
           "Buildings: in North Rhine-Westphalia the state's LoD2 models – every building, roof shapes fitted to the 2023 laser scan (±1 m), streamed from Geobasis NRW and set onto our terrain; a click shows the building's use and address from the cadastre (ALKIS). On Fanø the footprints come from OpenStreetMap; their heights and roofs are generated from the tags or typical values (gable roofs on small rectangular houses, flat roofs on everything else, including L-shaped houses). Walls and roofs have no photos yet: their colours are generated from the roof type, height or building type, the windows are a pattern, and after dusk about half of them are lit. Buildings cast no shadows yet.",
           "Trees: in North Rhine-Westphalia every tree of the state's surface model (laser scan 2023, image matching 2024) is found around the camera – its position, height and crown width from the canopy heights, conifer or broadleaf from the colour-infrared photos of March 2025, when only conifers are green. The tree shapes are generated, two forms only (broadleaf and conifer). Broadleaved trees follow a fixed lowland calendar – leaves from mid April, autumn colours in October, bare in winter – not yet the weather of the year. Trees sway in a wind that is not yet the real one. The Wiehengebirge has wide clearings where the spruce died in the drought years after 2018 – they are real. Fanø has no trees yet: its point cloud needs an access token.",
+          "Water: around Fanø the sea rises and falls with the real tide – DMI's gauge at Esbjerg for every past moment since 2001 (including storm surges), DMI's predictions for the future, and a tide model fitted to them for everything else (high and low waters within 9 cm and mostly within 10 minutes of DMI's). The tidal flats fall dry at low water: their heights come from the EMODnet sea-floor model (115 m), so small creeks are missing; the whole Wadden Sea rises and falls at once, while the real tide reaches the inner flats up to an hour later. The water is turbid and green-brown there; small generated waves and foam play on the surface – not yet the real wind sea, breakers or currents. Elsewhere the sea stays at mean sea level.",
           "Water level: lowering the sea shades the uncovered floor with its main sediments by depth – sand on the shelf, mud on the slope, pale carbonate ooze on the mid-ocean ridges above about 4.5 km, brown clay in the deep basins – or with depth colours and 1000 m contours. That colour scheme is a generalisation, not a map of the real sediments, and the sea floor's relief is shaded five times exaggerated so its gentle slopes show. The sea surface is drawn on the sea floor itself, which is right from the heights of this view and becomes a real surface with the ocean of M5.",
           "Imagery: from far away NASA's Blue Marble, one cloud-free composite per month (2004), blended between the two months around the date; closer EOX Sentinel-2 cloudless 2025 at about 10 m, a mosaic of a whole year without season. Over North Rhine-Westphalia the state's orthophotos take over – 10 cm, in Lübbecke flown leaf-off on 8 March 2024 south of about 52.31° N and leaf-on on 1 May 2024 north of it, which shows as a seam. Fanø keeps the 10 m imagery: the Danish 12.5 cm orthophotos need an access token (a data request of the plan). Close to the ground a little generated texture keeps the photo's pixels from reading as tiles. Snow is MODIS/Terra's monthly snow cover of the date's month (from 2000), sea ice the AMSR-E/AMSR2 concentration of the day (2002–2025, with a gap in 2011–12). Dates outside these records show the same month or day of the nearest year – a climatology, not the real date.",
           "Clouds: NOAA's GFS weather model, cover of low, middle and high cloud at 0.25° (about 28 km), from the run a few hours before the moment – back to January 2021 – or the latest forecast up to 16 days ahead. The model's cover is broken up by generated detail, so the large patterns – fronts, cyclones, clear areas – are real, every single cloud shape is not. Clouds are thin shells for now; volumetric clouds and the satellite correction come with the weather pipeline (M6). City lights: NASA Black Marble 2016.",

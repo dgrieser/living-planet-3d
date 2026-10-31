@@ -215,6 +215,37 @@ runtime instead of a baked inventory:
 **Deviations:** runtime detection instead of a baked inventory, no species beyond conifer/broadleaf, no
 impostors, no ground cover or hedges, no trees on Fanø.
 
+### 1.6 M5 outcome (31 Oct 2026)
+
+**Built** (`data/tides.js`, `data/tideConstants.js`, `data/water.js`, EMODnet in `data/gebco.js`, water in
+`render/surface.js`):
+
+| M5 item | State |
+|---|---|
+| water level at Fanø | done – DMI open ocean API (CORS): gauge Esbjerg Havn I, else II (10-min, since 2001, incl. surges – Bodil 2013 replays from the gauge), else DMI's Nordby prediction, else our harmonic model; one day fetched at a time |
+| harmonic model + `check-earth-tides.mjs` | done – 37 constituents with Doodson arguments and nodal f/u (`tides.js`), fitted to DMI's hourly predictions Jan–Oct 2026 (`tools/earth-pipeline/fit-tides.mjs`, rms 2.5–2.9 cm); tested on November 2026 (not in the fit): heights within 8.8 / 7.3 cm, 95 % of times within 8.7 / 10.1 min (Esbjerg / Nordby). The first attempt – a year of gauge observations – left 46 cm rms (gaps, surges) |
+| Wadden Sea tide model (offline hydrodynamics → baked harmonics) | **not built** – one level for the whole basin box (the real tide reaches the inner flats up to ≈ 1 h later); the hydrodynamic model stays open |
+| wet/dry flats | done – EMODnet DTM (1/16′, CC BY, WCS with CORS, cached in 0.5° cells) replaces GEBCO from zoom 8 and keeps the intertidal flats as heights (Fanø −0.4 … +0.7 m); Mapterhorn's 0 m "sea" texels up to +2.5 m become flats that fall dry. Dry flats show the photographed surface, darker near the water line; drainage gullies from flow accumulation not built (EMODnet resolves the main channels only) |
+| FFT ocean, breakers | **not built** – six analytic wind-sea components as a normal perturbation (anti-aliased by pixel footprint, damped in shallow water) and generated foam in the swash zone |
+| optics | partly – Fresnel sky reflection, sun glint, turbid Jerlov-coastal absorption in the Wadden box; no refraction, caustics, underwater |
+| Mittellandkanal, ponds | **not built** (imagery only) |
+| hero drained mode | works through the water level slider (M1) on the EMODnet floor |
+| global tide overlay (moved from M1) | **not built** – needs FES2022/EOT20 constituent grids |
+
+**Exit criteria:**
+
+- *Water line at Fanø within ±10 min / ±10 cm of DMI gauges over a test month* – past instants use the
+  gauges themselves; the model against DMI's predictions for November 2026: heights met (≤ 8.8 cm), times
+  met at Esbjerg (95 % within 8.7 min) and narrowly missed at Nordby (95 % within 10.1 min, worst 13.7 min
+  at the long flat low waters).
+- *Flats fall dry where the orthophoto at low water shows dry flats* – qualitatively at the June 2026 low
+  water (−0.82 m): the flats east and south of Fanø fall dry, Knudedyb and Grådyb keep water. No IoU
+  measurement against a dated orthophoto yet.
+
+**Deviations:** no hydrodynamic model (no phase lag across the basin), no FFT ocean, breakers, currents,
+underwater, inland water; the tide only inside Fanø's basin box. Rendering stays continuous below 5 km for
+the waves (off with reduced motion).
+
 ---
 
 ## 2. Verification (keep the repo's `scripts/check-*.mjs` culture)
