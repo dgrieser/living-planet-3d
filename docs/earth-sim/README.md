@@ -102,8 +102,10 @@ observations ([12 §2](12-roadmap-verification-licences.md#2-verification-keep-t
 
 M0 foundations → **M1 the whole Earth from a distance** → M2 hero terrain & imagery →
 M3 buildings → M4 vegetation → M5 water & tides → M6 weather → M7 seasons & snow →
-M8 hero spots → M9 polish. Details, exit criteria and effort in
-[12](12-roadmap-verification-licences.md#1-milestones).
+M8 hero spots → M9 polish. M0 ends with a **WebGPU go/no-go**
+([01 §1.4](01-architecture.md#14-fallback-architecture)). Total ≈ 12–20 months of focused
+work for one developer; M0–M3 are the proposed first release. Details, exit criteria and
+effort in [12](12-roadmap-verification-licences.md#1-milestones).
 
 ## Decisions
 

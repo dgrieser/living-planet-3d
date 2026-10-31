@@ -44,7 +44,8 @@ Kystdirektoratet, kyst.dk) now lives under **mst.dk** (Miljøstyrelsen).
 | **DHM/Punktsky** (LiDAR) | **8 pts/m² since 2018** (4–5 in 2014); LAZ 1 km tiles; survey year for Fanø → check the *DHM/Oprindelse* layer (?); a 4th national model is being flown 2024–27 | CC BY 4.0; FTP `/PUNKTSKY` or Datafordeler (≤ 45 GB per request) | ✓/? |
 | Quick DHM | uncorrected recent LiDAR terrain/surface/difference | CC BY 4.0, WMS/WCS `dhm_temp` | ✓ |
 
-Volume: ~2·10⁹ points over ~250 km² of land and flats ≈ 4–6 GB LAZ.
+Volume: ~2·10⁹ points over ~250 km² of land and flats ≈ 10–13 GB LAZ (at Lübbecke's
+measured 6.25 bytes/point, [03 §2](03-data-luebbecke.md#2-terrain-surface-lidar)).
 
 **Open question (important for the tides):** whether the intertidal flats in the DHM were
 flown at low water. The *DHM/Oprindelse* (origin) layer gives flight dates per area; the
@@ -140,6 +141,12 @@ RMS residual 3–4 cm – **to be redone properly with UTide on observations**):
 | MS4 | 2.8 / 242° | 4.2 / 194° | – |
 
 (phases relative to 2026-01-01 00:00 UTC, η = Σ A cos(ωt − φ))
+
+**Do not use these phases in the runtime formula** `Σ f·H·cos(V + u − g)`
+([07 §3.2](07-water-tides-seafloor.md#32-baking-for-real-time)): they are relative to an
+epoch, not Greenwich phase lags g. Without nodal correction the amplitudes also carry
+2026's nodal factors (near the M2 minimum after the 2024–25 major lunar standstill,
+f ≈ 0.96–0.97) and are up to ~7 % (≈ 5 cm on M2) off in other years.
 
 ### 4.3 Storm surges (Kystdirektoratet *Højvandsstatistikker 2024*, DVR90 – ✓)
 

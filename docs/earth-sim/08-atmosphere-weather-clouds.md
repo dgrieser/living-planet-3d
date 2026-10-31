@@ -113,7 +113,7 @@ brotli-compressed textures in a quadtree:
 | Mode | Data |
 |---|---|
 | live | latest NWP step + satellite/radar correction, advected to now |
-| forecast | ICON-D2 (48 h), DINI (60 h), IFS (15 d), GFS (16 d) |
+| forecast | ICON-D2 (48 h), DINI (60 h), IFS HRES (10 d) / ENS (15 d), GFS (16 d) |
 | replay ≥ 5 days ago | ARCO-ERA5 (37-level cloud fraction, liquid, ice), CERRA for Europe, GridSat-B1 IR (1980+), OPERA radar archive (2012+) |
 | replay 0–5 days | our own archive of runs |
 | climatology | seeded weather generator (§7) |
@@ -154,7 +154,7 @@ Between NWP time steps clouds are **advected along the 700 hPa wind, then cross-
 |---|---|---|---|
 | Global / regional | GFS / IFS / ICON-D2 / DINI (10 m, 100 m, pressure levels) | 2–25 km | cloud advection, wave spectrum (wind speed + fetch), flags |
 | **Terrain (Lübbecke ridge)** | **WindNinja** (US public domain; mass-conserving + OpenFOAM momentum solver) precomputed for 16 directions × 2–3 speeds on the 1–10 m DEM | 20–50 m | speed-up over the Wiehengebirge crest, lee shelter, channelling (✓ licence) |
-| **Town (Lübbecke)** | **PALM-4U** (GPLv3 LES, v25.10.1; output data not GPL) precomputed for ~3×3 km at 5–10 m, 16 directions × 3 stability cases → mean wind + turbulence as 3D textures | 5–10 m | street canyon flow, gusts around buildings, leaves swirling in courtyards |
+| **Town (Lübbecke)** | **PALM-4U** (GPLv3 LES, v25.10.1; output data not GPL) precomputed for ~3×3 km at 5–10 m, 16 directions × 3 stability cases → mean wind + turbulence as 3D textures. **Optional, after M6**: 48 LES runs ≈ 10³–10⁴ core-hours (an HPC/cloud budget, not the mittwald server) and ≈ 1–4 GB of 3D textures (~) | 5–10 m | street canyon flow, gusts around buildings, leaves swirling in courtyards |
 | Fanø (flat) | DINI 10 m wind + log/roughness profile per land-cover class (sea, sand, dune, heath, forest) | 2 km → per pixel | dune grass, sand drift, kite festival |
 | Runtime | 3D wind texture around the camera (≈ 1 km, 64×64×16), gusts as travelling noise fronts | – | vegetation sway, leaves, rain/snow slant, cloud detail, waves |
 

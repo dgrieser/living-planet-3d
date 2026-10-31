@@ -10,7 +10,7 @@ before use. "CORS ✓" means a browser on another origin can fetch it directly.
 > **Honesty rule for the globe:** outside the hero areas the open data tops out at
 > ~10 m imagery (Sentinel-2) and ~30 m terrain. National open orthophotos (10–25 cm)
 > exist for several countries and are layered in where available. Everything closer
-> than that is either a commercial layer (optional, see §3.2) or *procedural*, and the
+> than that is either a commercial layer (optional, see §3.2) or *generated* (procedural), and the
 > provenance overlay ([10](10-time-ui-interaction.md#22-collapsible-section-everything-else))
 > says so.
 
@@ -29,8 +29,10 @@ before use. "CORS ✓" means a browser on another origin can fetch it directly.
 | AWS Terrain Tiles (Terrarium) | z0–15, mixed sources | attribution list (Tilezen) | CORS ✓, no key, frozen since 2017 – **prototyping only** | ✓ |
 
 **Choice:** start with **Mapterhorn** (open, already contains both hero DEMs, no
-preprocessing) – mirror the relevant PMTiles extracts to our own storage instead of
-hot-linking. Long term: GEDTM30 bare earth on land (the Copernicus part of Mapterhorn
+preprocessing) for M0 – mirror the relevant PMTiles extracts to our own storage instead of
+hot-linking. **M1** needs a sea floor (drain-the-ocean), so the pipeline's first product
+is low-zoom land+sea tiles (z0–10): Mapterhorn on land, GEBCO_2026 at sea (its ~450 m is
+the limit there anyway); Mapterhorn's high zooms stay the land source. Long term: GEDTM30 bare earth on land (the Copernicus part of Mapterhorn
 is a surface model), GLO-30 for Antarctica/gaps, merged with the bathymetry below into
 one seamless global height field, tiled by our pipeline ([11](11-pipeline-hosting.md))
 into quantized-mesh (or Terrarium) tiles. Note: Terrarium/Mapterhorn are land-only
@@ -154,7 +156,8 @@ public domain; national quasigeoids for the hero areas). Sea level at a place is
 
 ## 9. Recommended open default stack (summary)
 
-1. **Terrain**: Mapterhorn (mirrored PMTiles) for M0–M1; then GEDTM30 (land) + GLO-30
+1. **Terrain**: Mapterhorn (mirrored PMTiles) for M0; from M1 merged with GEBCO_2026 at sea
+   (z0–10, §1); then GEDTM30 (land) + GLO-30
    (gaps, Antarctica) + national DEMs + GEBCO_2026 (sea) + EMODnet (Europe) → our own
    seamless land+sea tiles.
 2. **Imagery**: Blue Marble monthly (far, seasons) → **EOX s2cloudless-2025** (mid zoom;
@@ -165,6 +168,9 @@ public domain; national quasigeoids for the hero areas). Sea level at a place is
    *Share-alike consequence*: tiles we cache, re-tile or colour-adjust from EOX are
    themselves CC BY-NC-SA 4.0 – they live in their own tileset with that licence in its
    manifest and are never merged into the CC BY / dl-de layers.
+   *Non-commercial*: the demo stays out of commercial contexts (adverts, a showcase of the
+   hosting company). If that ever changes, the CDSE quarterly mosaics (commercial use
+   allowed) replace EOX.
 3. **Vegetation**: WorldCover classes + Meta CHM v2 heights + DLT broadleaf/conifer +
    MCD12Q2/HR-VPP season dates → procedural forests and fields.
 4. **Snow/ice**: IMS 1 km daily + OSI SAF sea ice (+ monthly MODIS snow % for climatology).

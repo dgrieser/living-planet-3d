@@ -12,14 +12,14 @@ weeks, L ≈ 3–6 weeks, XL ≈ 2–3 months of focused work for one developer)
 
 | # | Milestone | Content | Exit criteria | Size |
 |---|---|---|---|---|
-| **M0** | Foundations | `earth` sim scaffold, WebGPU renderer with WebGL2 fallback, globe tiles streaming (3d-tiles-renderer), camera stack (globe → local → walk), `clock.js`, `ephemeris.js`, `geodesy.js` + checks, physically based atmosphere, attribution strip | Zoom from space to 1 km over any place at 60 fps (mid laptop); sun and moon within 0.01° of JPL Horizons; check scripts green | L |
-| **M1** | The whole Earth from a distance | Global terrain + bathymetry tiles, seasonal global imagery (monthly), night lights, snow & sea-ice overlay from daily products, global cloud layer from NWP (2D → volumetric), global tide overlay (amphidromes), **drain-the-ocean** slider on GEBCO | Globe looks right for any date 2004–today; draining reveals the mid-ocean ridges; clouds match the satellite picture of the same hour at synoptic scale | XL |
+| **M0** | Foundations | `earth` sim scaffold, repo upgrade three r185 → r187 (all simulations re-checked), WebGPU renderer with WebGL2 fallback, **WebGPU go/no-go spike** – imagery draped on streamed terrain via a TSL `ImageOverlay` port ([01 §1.4](01-architecture.md#14-fallback-architecture)), globe tiles streaming (3d-tiles-renderer), camera stack (globe → local → walk), `clock.js`, `ephemeris.js`, `geodesy.js` + checks, physically based atmosphere, attribution strip | Zoom from space to 1 km over any place at 60 fps (mid laptop) with imagery draped on the terrain – on WebGPU, or the WebGL2 fallback architecture is adopted; sun and moon within 1′ of JPL Horizons; check scripts green | L |
+| **M1** | The whole Earth from a distance | Global land+sea tiles z0–10 (Mapterhorn + GEBCO_2026, [02 §1](02-data-global.md#1-terrain-land)), seasonal global imagery (monthly), night lights, snow & sea-ice overlay from daily products, global cloud layer from NWP (2D → volumetric), global tide overlay (amphidromes), **drain-the-ocean** slider on GEBCO | Globe looks right for any date 2004–today; draining reveals the mid-ocean ridges; clouds match the satellite picture of the same hour at synoptic scale | XL |
 | **M2** | Hero terrain & imagery | Pipelines for DGM1/DOP (NRW) and DHM/orthophoto (DK), vertical datum conversion, merged land–sea DEM for the Wadden Sea, de-shadowed orthophotos, ground material classification, hero tilesets on the mittwald server | Ground at 10 cm imagery / ≤ 1 m relief; seams to the global layer invisible; heights within ±0.2 m of the source at control points | L |
 | **M3** | Buildings | NRW LoD2 → 3D Tiles; DK LoD2 reconstruction from DHM point cloud + footprints; roof textures from the orthophoto; procedural facades by function/age/material; windows lit at night | Every building of both areas present, roof shapes match the orthophoto, picking shows ALKIS/BBR attributes | L |
-| **M4** | Vegetation | Single-tree inventory from LiDAR, species assignment, procedural species models with LOD/impostors, wind animation, ground cover (grass, crops, heath, dune grass), hedges | Every tree > 3 m of both areas placed within 1 m of its LiDAR crown top; forest edges match the orthophoto; 60 fps at "High" over the Wiehengebirge forest | XL |
+| **M4** | Vegetation | Single-tree inventory from LiDAR, species assignment, procedural species models with LOD/impostors, wind animation, ground cover (grass, crops, heath, dune grass), hedges | Against hand-mapped sample plots (incl. a leaf-off beech plot on the ridge): ≥ 90 % of trees > 3 m found (target to confirm on the beech plot), crown tops within 1 m; forest edges match the orthophoto; 60 fps at "High" over the Wiehengebirge forest | XL |
 | **M5** | Water | FFT ocean (cascades, JONSWAP/TMA, foam), shoreline breakers, Wadden Sea tide model (offline hydrodynamics → baked harmonics), wet/dry flats with drainage gullies, Mittellandkanal and ponds, underwater, hero-resolution drained mode | Water line at Fanø within ±10 min / ±10 cm of DMI gauges over a test month; flats fall dry where the orthophoto at low water shows dry flats | XL |
 | **M6** | Weather | Scheduled weather pipeline, volumetric clouds (local + global), cloud shadows, precipitation (rain/snow/wet surfaces), wind downscaling (hero areas), fog, live mode | For test days, cloud cover / precipitation timing match radar & satellite; wind at stations within NWP error | XL |
-| **M7** | Seasons & snow | Phenology models + calibration, leaf colours per species, leaf litter, crop calendar per field, heath/marsh colours, snowpack + downscaling + rendering, Wadden Sea ice | Leaf-out and colouring dates within ±7 days of DWD/PEP725 observations; snow present/absent correct on ≥ 90 % of station days | L |
+| **M7** | Seasons & snow | Phenology models + calibration, leaf colours per species, leaf litter, crop calendar per field, heath/marsh colours, snowpack + downscaling + rendering, Wadden Sea ice | Leaf-out and colouring dates with RMSE ≤ 7 days against DWD/PEP725 observations; snow present/absent correct on ≥ 90 % of station days | L |
 | **M8** | Hero spots | LoD3 landmark buildings (St.-Andreas-Kirche, Burgmannshöfe, Wartturm, Sønderho Kirke & Mølle, Nordby harbour), street furniture, fences, signs, street lamps; optional ground-level splat captures (no drones) | Side-by-side with photos at eye level the spots are recognisable in detail | L |
 | **M9** | Polish | Performance tiers, mobile, accessibility, i18n texts, model card, docs in the root README, remove `hidden` | Lighthouse/frame-time budget met on the reference devices | M |
 
@@ -27,15 +27,22 @@ Order rationale: M0–M1 deliver "the whole Earth from a distance" first (as req
 M2–M4 build the static hero worlds; M5–M7 add the dynamic systems that make them *live*;
 M8 adds the last centimetre. M5–M7 can run in parallel once M2 exists.
 
+**Total**: four XL, five L and one M ≈ **12–20 months** of focused work for one developer.
+**Proposed cut line** (to be confirmed by the project owner): M0–M3 (≈ 4–7 months) form the
+first release that drops `hidden` – the real Earth from space plus both hero areas with
+terrain, imagery and buildings in a static season; M4–M9 follow as updates.
+
 ---
 
 ## 2. Verification (keep the repo's `scripts/check-*.mjs` culture)
 
-Every pure-JS model gets a node check script, run in CI next to lint/build.
+Every pure-JS model gets a node check script. CI runs only lint and build today
+([11 §7](11-pipeline-hosting.md#7-ci)), so the `check:*` scripts – the existing ones and
+the new `check-earth-*` – become a CI step.
 
 | Script | Validates | Reference / tolerance |
 |---|---|---|
-| `check-earth-ephemeris.mjs` | sun & moon topocentric position, sunrise/sunset, moon phase | JPL Horizons samples for Lübbecke and Nordby, ≤ 0.01°, sunrise ±30 s |
+| `check-earth-ephemeris.mjs` | sun & moon topocentric position, sunrise/sunset, moon phase | JPL Horizons samples for Lübbecke and Nordby, ≤ 1′ (astronomy-engine's documented accuracy), sunrise ±30 s |
 | `check-earth-geodesy.mjs` | geodetic ↔ ECEF ↔ ENU, UTM32 (EPSG:25832) → WGS84, ETRS89 ↔ ITRF epoch shift, geoid/quasigeoid lookups | PROJ reference values ≤ 1 mm; official geoid control points ≤ 1 cm |
 | `check-earth-tides.mjs` | harmonic prediction, nodal corrections, HW/LW finder | official tide tables (DMI) for Esbjerg: HW/LW time ±10 min, height ±10 cm; a year of observed minus predicted RMS ≤ surge climatology |
 | `check-earth-phenology.mjs` | leaf-out / colouring / fall models per species | DWD phenology stations near Lübbecke, PEP725, Danish observations: RMSE ≤ 7 days |
@@ -46,7 +53,8 @@ Every pure-JS model gets a node check script, run in CI next to lint/build.
 
 Plus:
 
-- **Visual regression**: Playwright (pre-installed Chromium) renders fixed views at fixed
+- **Visual regression**: Playwright (new devDependency; CI installs Chromium with
+  `npx playwright install --with-deps chromium`) renders fixed views at fixed
   `simTime` with a frozen weather snapshot and compares against approved screenshots
   (SSIM threshold) – catches shader regressions.
 - **Ground truth gallery**: for each hero area a set of real photos with known position,
@@ -75,6 +83,9 @@ Plus:
 | Data volume (tens of GB for the hero areas, 100+ GB with the global layers and weather archive) | disk space and traffic on the mittwald server, load times | versioned static tiles, archive thinning, aggressive LOD, KTX2/meshopt, service-worker cache, optional CDN in front ([11 §5](11-pipeline-hosting.md#5-hosting--the-mittwald-server)) |
 | Licence mismatch (NC imagery, Google ToS, ODbL share-alike on derived databases) | cannot publish a layer | licence matrix below, every tileset carries its licence; ODbL-derived data published as a separate database layer |
 | WebGPU gaps on some devices | features missing | WebGL2 fallback backend; compute-only features degrade to precomputed textures |
+| 3d-tiles-renderer plugins that patch shaders fail on WebGPU (issue #1380) | no imagery on terrain – blocks M0/M1 | go/no-go spike in M0 with takram's TSL ports; WebGL2 fallback architecture otherwise ([01 §1.4](01-architecture.md#14-fallback-architecture)) |
+| Leaf-off LiDAR and imagery over the Wiehengebirge | beech crowns missed or merged | point-based segmentation, Meta CHM v2 cross-check, hand-mapped sample plots ([06 §1](06-vegetation-seasons.md#1-tree-inventory-from-airborne-lidar-pipeline)) |
+| PALM-4U town wind needs 48 LES runs | 10³–10⁴ core-hours (~) | optional after M6 with an HPC/cloud budget; WindNinja + roughness profiles otherwise |
 | Wadden Sea hydrodynamics needs a real model run | tide accuracy | offline model (open-source), calibrated on gauges, baked into harmonic maps; fallback: gauge harmonics + hypsometric flooding |
 | Weather pipeline needs a scheduler | stale live mode | mStudio cronjobs + baker container on the mittwald server, health file, app shows data age and falls back to the last bake ([11 §6](11-pipeline-hosting.md#6-scheduled-jobs-weather-and-land-state)) |
 | Scope creep (people, cars, animals, interiors) | never finishing | explicitly out of scope for v1 (see README); hooks left for later (AIS ferry, wind turbines) |
