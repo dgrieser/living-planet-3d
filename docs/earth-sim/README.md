@@ -73,8 +73,8 @@ observations ([12 §2](12-roadmap-verification-licences.md#2-verification-keep-t
    own key. ([02](02-data-global.md), [01 §6](01-architecture.md#6-google-photorealistic-3d-tiles-optional))
 3. **The hero areas are built, not streamed from a vendor**: NRW and Danish open data
    (1 m / 0.4 m terrain, 10–12.5 cm orthophotos, 8+ pts/m² LiDAR, LoD2 / reconstructed
-   LoD2, field and nature registers) through our own pipeline into 3D Tiles on object
-   storage (≈ 4–7 GB per area). ([03](03-data-luebbecke.md), [04](04-data-fanoe.md), [11](11-pipeline-hosting.md))
+   LoD2, field and nature registers) through our own pipeline into 3D Tiles on the
+   mittwald server (≈ 4–7 GB per area). ([03](03-data-luebbecke.md), [04](04-data-fanoe.md), [11](11-pipeline-hosting.md))
 4. **Weather is data-driven**: NWP 3D cloud fields (GFS globally, ICON-D2 and DINI
    locally, ERA5 for the past) placed by satellite cloud masks and radar, rendered by a
    Nubis-style raymarcher. Individual small clouds are generated consistent with the data.
