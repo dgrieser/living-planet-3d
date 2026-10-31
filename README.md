@@ -74,12 +74,13 @@ src/
                      aerial perspective, clouds.js – cloud shells and shadows, sky.js – stars and Moon,
                      camera.js – geodetic poses and flights, walk.js – first-person walking, buildings.js –
                      LoD2 tiles and generated buildings, trees.js – instanced trees), data/osmBuildings.js
-                     (footprints → roofs), data/trees.js + treeWorker.js (tree tops in canopy heights), regions.js
+                     (footprints → roofs), data/trees.js + treeWorker.js (tree tops in canopy heights), data/tides.js +
+                     tideConstants.js (harmonic tides), data/water.js (Fanø water level from DMI), regions.js
                      (hero boxes, depth limits, NRW orthophoto coverage), index.js
 public/earth/        small derived data for the Living Earth: EGM2008 geoid 0.5°, GEBCO_2026 sea floor 16′,
                      national hero geoids, Fanø's OSM building footprints (ODbL)
 tools/earth-pipeline/ scripts that build them (build-geoid.mjs, build-gebco-base.mjs, build-hero-geoids.mjs,
-                     build-osm-buildings.mjs)
+                     build-osm-buildings.mjs, fit-tides.mjs)
                      and verify_hero_heights.py (hero terrain vs NRW DGM1) – not shipped
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
@@ -100,7 +101,8 @@ scripts/
   check-earth-hero.mjs checks the hero regions, depth limits and national height grids (npm run check:earth)
   check-earth-buildings.mjs checks the OSM footprints and the generated walls and roofs (npm run check:earth)
   check-earth-trees.mjs checks the single-tree detection on a synthetic canopy (npm run check:earth)
-  fixtures/          GFS messages used by check-earth-grib.mjs
+  check-earth-tides.mjs checks the tide model against DMI's predictions and the water-level plumbing (npm run check:earth)
+  fixtures/          GFS messages (check-earth-grib.mjs), DMI's high/low waters of Nov 2026 (check-earth-tides.mjs)
 ```
 
 ## App header
@@ -770,8 +772,8 @@ A digital-twin Earth simulation – the real globe zoomable from space to street
 terrain, imagery, sea floor, tides, weather, seasons and snow, and Lübbecke and Fanø modelled in full
 3D detail. The plan, data sources and architecture live in [`docs/earth-sim/`](docs/earth-sim/README.md).
 
-**Milestones M0–M4 (foundations, the whole Earth from a distance, hero terrain & imagery, buildings,
-trees) are built** and registered as `earth`, hidden behind the work-in-progress flask in the header (`#/sim/earth`):
+**Milestones M0–M5 (foundations, the whole Earth from a distance, hero terrain & imagery, buildings,
+trees, water) are built** and registered as `earth`, hidden behind the work-in-progress flask in the header (`#/sim/earth`):
 
 - three.js **r187 `WebGPURenderer`** (TSL) with its automatic WebGL 2 fallback – add `?renderer=webgl`
   to the URL (before the `#`) to force the fallback; reversed float depth buffer, CPU float64
@@ -798,6 +800,8 @@ trees) are built** and registered as `earth`, hidden behind the work-in-progress
 - **Trees**: every tree of NRW's surface model around the camera, found in the browser from the canopy
   heights (conifer or broadleaf from leaf-off colour-infrared photos), swaying, leafing out and turning
   with the season.
+- **Tides at Fanø**: the real water level (DMI gauges since 2001, DMI predictions, a harmonic model fitted
+  to them), tidal flats that fall dry on EMODnet's sea floor, turbid Wadden water with waves and foam.
 - An own **physically based atmosphere** in TSL (Rayleigh, Mie, ozone; CPU-built transmittance table):
   the sky from the ground, aerial perspective, the limb from orbit, the solar disc, red sunsets on the
   ground. `@takram/three-atmosphere` was not used – its packages pull React and React Three Fiber in
@@ -809,9 +813,9 @@ trees) are built** and registered as `earth`, hidden behind the work-in-progress
 - Readouts for the centre of the view (position, ground height, Sun, sunrise/sunset, Moon), an
   attribution strip with the licences of everything on screen, essay and model card.
 
-What is still missing – rain and wind, waves and tides (the M1 tide overlay moved to M5), volumetric
-clouds, ground cover, facade photos, Fanø's 12.5 cm orthophotos – is listed in the model card and scheduled in
-[`docs/earth-sim/12`](docs/earth-sim/12-roadmap-verification-licences.md#1-milestones), where the M0–M4
+What is still missing – rain and wind, the global tide overlay, an FFT ocean, volumetric clouds, ground
+cover, facade photos, Fanø's 12.5 cm orthophotos – is listed in the model card and scheduled in
+[`docs/earth-sim/12`](docs/earth-sim/12-roadmap-verification-licences.md#1-milestones), where the M0–M5
 outcomes are recorded as well.
 
 ## Adding a simulation

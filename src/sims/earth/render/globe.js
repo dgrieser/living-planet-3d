@@ -214,20 +214,29 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
    * COG's depths, the textures re-upload (the meshes displace on the GPU), the vertex normals of every
    * mesh on this grid are recomputed and the seams re-stitched.
    */
-  refineSeaFloor(grid, mask, undulation, x, y, level) {
+  refineSeaFloor(grid, mask, maskTexture, zero, undulation, x, y, level) {
     const size = grid.image.width - 2;
-    this.bathymetry.readDetail(x, y, level, size).then((sea) => {
-      if (!sea || !this.seaMasks.has(grid.image)) return; // no data, or the grid was released meanwhile
+    this.bathymetry.readDetail(x, y, level, size).then((res) => {
+      if (!res || !this.seaMasks.has(grid.image)) return; // no data, or the grid was released meanwhile
+      const sea = res.data;
       const pw = size + 2;
       const heights = grid.image.data;
       for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
           const i = (r + 1) * pw + c + 1;
-          if (!mask[i]) continue;
           const d = sea[r * size + c];
-          heights[i] = (Number.isNaN(d) ? -0.5 : Math.min(d, -0.5)) + (undulation ? undulation[r * size + c] : 0);
+          const n = undulation ? undulation[r * size + c] : 0;
+          if (res.intertidal && zero?.[i]) {
+            // EMODnet keeps the flats as heights: up to +2.5 m they are sea floor that falls dry at low water
+            if (Number.isNaN(d) || d >= 2.5) continue;
+            heights[i] = d + n;
+            mask[i] = 255;
+          } else if (mask[i]) {
+            heights[i] = (Number.isNaN(d) ? -0.5 : Math.min(d, -0.5)) + n;
+          }
         }
       }
+      maskTexture.needsUpdate = true;
       fillGridBorder(heights, pw, pw);
       this._gridCache.stitchNeighbors(grid, x, y, level);
       grid.needsUpdate = true;
@@ -280,6 +289,9 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
         }
       }
     }
+    // Mapterhorn's sea texels (exactly 0 m) – the detailed read may turn some of them into dry flats
+    const zero = hasSea ? new Uint8Array(pw * ph) : null;
+    if (zero) for (let i = 0; i < heights.length; i++) zero[i] = heights[i] === 0 ? 1 : 0;
     const sea = hasSea && this.bathymetry && width === size ? await this.bathymetry.readBase(x, y, level, size) : null;
     const mask = mergeSeaFloor(heights, pw, ph, sea);
 
@@ -303,7 +315,7 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
     maskTexture.needsUpdate = true;
     this.seaMasks.set(grid.image, maskTexture);
     this._gridCache.stitchNeighbors(grid, x, y, level);
-    if (hasSea && this.bathymetry?.wantsDetail(level)) this.refineSeaFloor(grid, mask, undulation, x, y, level);
+    if (hasSea && this.bathymetry?.wantsDetail(level)) this.refineSeaFloor(grid, mask, maskTexture, zero, undulation, x, y, level);
     return grid;
   }
 

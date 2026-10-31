@@ -91,6 +91,27 @@ export const TREES_NRW = Object.freeze({
   notices: ['Tree positions, heights and crown widths come from the canopy height model; the species group (conifer/broadleaf) from the March 2025 colour-infrared photos; the tree shapes are generated.'],
 });
 
+export const TIDES_DMI = Object.freeze({
+  id: 'dmi-ocean',
+  name: 'DMI open ocean data: Esbjerg gauges (since 2001) and tide predictions for Nordby',
+  provenance: 'measured',
+  licence: 'CC BY 4.0',
+  attribution: 'Water level: Danmarks Meteorologiske Institut (DMI), open data, CC BY 4.0',
+  short: 'DMI water level',
+  href: 'https://opendatadocs.dmi.govcloud.dk/en/APIs/Oceanographic_Observation_API',
+  notices: ['Where neither gauge nor prediction covers the instant, a harmonic model fitted to DMI\'s predictions answers (37 constituents, high and low waters within 9 cm and mostly within 10 minutes of DMI\'s).'],
+});
+
+export const BATHYMETRY_EU = Object.freeze({
+  id: 'emodnet-bathymetry',
+  name: 'EMODnet Bathymetry DTM (1/16′, European seas, with intertidal flats)',
+  provenance: 'measured',
+  licence: 'CC BY 4.0',
+  attribution: 'EMODnet Bathymetry Consortium (2024): EMODnet Digital Bathymetry (DTM)',
+  short: 'EMODnet Bathymetry',
+  href: 'https://emodnet.ec.europa.eu/en/bathymetry',
+});
+
 export const HERO_HEIGHTS = Object.freeze({
   id: 'national-geoids',
   name: 'National height references: GCG2016 (Germany), DVR90(2023) (Denmark)',
@@ -181,4 +202,4 @@ export const EPHEMERIS = Object.freeze({
   href: 'https://github.com/cosinekitty/astronomy',
 });
 
-export const SOURCES = Object.freeze([TERRAIN, BATHYMETRY, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, TREES_NRW, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, GEOID, HERO_HEIGHTS, EPHEMERIS]);
+export const SOURCES = Object.freeze([TERRAIN, BATHYMETRY, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, TREES_NRW, TIDES_DMI, BATHYMETRY_EU, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, GEOID, HERO_HEIGHTS, EPHEMERIS]);
