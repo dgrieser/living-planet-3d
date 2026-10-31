@@ -63,6 +63,10 @@ therefore includes a spike that runs takram's TSL `ImageOverlay` port with
 3d-tiles-renderer on `WebGPURenderer`. If the spike does not meet the M0 exit criteria, the
 fallback below becomes the architecture before M1 starts.
 
+**Outcome (31 Oct 2026): GO on WebGPU** – see [12 §1.1](12-roadmap-verification-licences.md#11-m0-outcome-31-oct-2026).
+The spike did not need the ImageOverlay port: `TerrariumMeshPlugin` composes tile imagery on a canvas and
+applies it as a plain `map`, so only its material had to become a node material.
+
 If WebGPU work stalls: stay on `WebGLRenderer` with the full 3d-tiles-renderer plugin set
 and takram's stable WebGL atmosphere + clouds (pmndrs `postprocessing`), FFT ocean as
 `GPUComputationRenderer` ping-pong; port later. Last resort: CesiumJS (gives up compute

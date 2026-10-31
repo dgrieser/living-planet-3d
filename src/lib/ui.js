@@ -97,7 +97,7 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onTo
   toggle.setAttribute('aria-controls', body.id);
 
   // --- the header's camera button: one press, the next view ------------------
-  const views = camera?.views ?? [];
+  let views = camera?.views ?? [];
   let cursor = -1; // the view the last press landed on – where the next one carries on from
   let announceTimer = 0;
 
@@ -254,6 +254,15 @@ export function createPanel({ titleKey = 'panel.title', collapsedByDefault, onTo
       const index = views.findIndex((v) => v.id === id);
       if (index >= 0) cursor = index;
       if (say && index >= 0) announceView(views[index].labelKey);
+    },
+    /**
+     * Replace the list the camera button cycles through – for a simulation whose views depend on
+     * where the visitor is (the earth sim's places). The next press starts from `currentId`, or from
+     * the top of the new list. Only works for a panel created with a camera list.
+     */
+    setCameraViews(next, currentId = null) {
+      views = next;
+      cursor = views.findIndex((v) => v.id === currentId);
     },
     dispose() {
       disposers.forEach((d) => d());

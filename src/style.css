@@ -707,3 +707,62 @@ a:hover { color: #a9d9ff; }
   .lp-schematic-badge { left: 8px; top: 8px; padding-right: 8px; }
   .lp-schematic-badge__text { display: none; }
 }
+
+/* ---------- living earth simulation ---------- */
+.lp-earth-date { padding: 4px 0 6px; }
+.lp-earth-rate { flex: 1.2; }
+.lp-earth-rate option { background: var(--lp-bg-elevated-solid); color: var(--lp-text); }
+
+/* place names riding on the globe (positioned by transform each frame) */
+.lp-earth-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.lp-earth-labels[hidden] { display: none; }
+.lp-earth-label {
+  position: absolute; left: 0; top: 0;
+  padding: 2px 8px; margin: -11px 0 0 6px;
+  font-size: 0.75rem; font-weight: 600; color: var(--lp-text); white-space: nowrap;
+  background: rgba(6, 9, 19, 0.6); border: 1px solid var(--lp-border); border-radius: 999px;
+}
+.lp-earth-label::before {
+  content: ''; position: absolute; left: -10px; top: 50%; width: 6px; height: 6px; margin-top: -3px;
+  border-radius: 50%; background: var(--lp-focus); box-shadow: 0 0 6px var(--lp-focus);
+}
+.lp-earth-label--above { margin-top: -24px; }
+.lp-earth-label--above::before { top: calc(50% + 13px); }
+.lp-earth-label--below { margin-top: 2px; }
+.lp-earth-label--below::before { top: calc(50% - 13px); }
+.lp-earth-label[hidden] { display: none; }
+
+/* the attribution strip: the providers of everything on screen, required by their licences */
+.lp-earth-attribution {
+  position: absolute; left: 16px; bottom: 40px;
+  display: flex; align-items: center; gap: 8px;
+  max-width: calc(100vw - 420px);
+  font-size: 0.7rem; color: var(--lp-text-muted);
+  background: rgba(6, 9, 19, 0.6); padding: 3px 4px 3px 10px; border-radius: 999px;
+}
+.lp-earth-attribution__text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-earth-attribution__more {
+  flex: none; font: inherit; font-weight: 600; color: var(--lp-accent); cursor: pointer;
+  background: rgba(124, 196, 255, 0.1); border: 1px solid var(--lp-border); border-radius: 999px; padding: 1px 8px;
+}
+.lp-earth-attribution__more:hover { background: rgba(124, 196, 255, 0.2); }
+.lp-earth-attribution__more:focus-visible { outline: 3px solid var(--lp-focus); outline-offset: 1px; }
+.lp-earth-sources {
+  position: absolute; left: 16px; bottom: 72px; z-index: 5;
+  width: min(460px, calc(100vw - 32px)); max-height: 60%; overflow: auto;
+  padding: 12px 14px; font-size: 0.8rem;
+  background: var(--lp-bg-elevated-solid); border: 1px solid var(--lp-border); border-radius: var(--lp-radius-sm);
+  box-shadow: var(--lp-shadow);
+}
+.lp-earth-sources[hidden] { display: none; }
+.lp-earth-sources__title { margin: 0 0 8px; font-size: 0.9rem; }
+.lp-earth-sources__list { margin: 0 0 10px; padding-left: 18px; }
+.lp-earth-sources__list li { margin-bottom: 8px; }
+.lp-earth-sources__list a { color: var(--lp-accent); font-weight: 600; }
+.lp-earth-sources__meta { color: var(--lp-text-muted); }
+.lp-earth-sources__credit, .lp-earth-sources__notice { color: var(--lp-text-muted); font-size: 0.75rem; }
+
+@media (max-width: 720px) {
+  .lp-earth-attribution { left: 8px; bottom: auto; top: 8px; max-width: calc(100vw - 16px); font-size: 0.65rem; }
+  .lp-earth-sources { left: 8px; top: 40px; bottom: auto; }
+}

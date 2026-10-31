@@ -1000,6 +1000,136 @@
       "hint": "Abstandsregler ziehen",
       "hintZones": "Zonen mit der Maus erkunden",
       "hintFly": "Sonne oder Zentrum anklicken, um hinzufliegen"
+    },
+    "earth": {
+      "title": "Lebendige Erde",
+      "description": "Die echte Erde vom All bis zum Boden: gestreamtes Gelände und Satellitenbilder, Sonne, Mond und Himmel jedes Augenblicks, Lübbecke und Fanø. In Arbeit – die Grundlagen (Meilenstein M0).",
+      "controls": {
+        "time": "Tageszeit",
+        "date": "Datum",
+        "rate": "Zeitraffer",
+        "play": "Zeit laufen lassen",
+        "pause": "Zeit anhalten",
+        "now": "Zurück zu jetzt (live)",
+        "place": "Ort",
+        "camera": "Kameraansichten",
+        "quality": "Qualität"
+      },
+      "rates": {
+        "realtime": "Echtzeit (1×)",
+        "minute": "1 Minute pro Sekunde",
+        "tide": "Gezeiten: 30 Minuten pro Sekunde",
+        "day": "1 Tag pro Sekunde",
+        "season": "1 Monat pro Sekunde"
+      },
+      "places": {
+        "globe": "Globus",
+        "luebbecke": "Lübbecke",
+        "fanoe": "Fanø"
+      },
+      "views": {
+        "globe": "Ganze Erde",
+        "europe": "Europa",
+        "luebbeckeOverview": "Stadt und Kamm",
+        "reineberg": "Vom Reineberg",
+        "wurzelbrink": "Den Kamm entlang",
+        "fanoeOverview": "Insel und Watt",
+        "nordby": "Hafen Nordby",
+        "sonderho": "Sønderho"
+      },
+      "quality": {
+        "auto": "Auto",
+        "low": "Niedrig",
+        "high": "Hoch",
+        "ultra": "Ultra"
+      },
+      "sections": {
+        "more": "Kamera, Qualität & Ansicht",
+        "view": "Anzeigen"
+      },
+      "view": {
+        "atmosphere": "Atmosphäre (Himmel und Dunst)",
+        "stars": "Sterne",
+        "moon": "Mond",
+        "labels": "Ortsnamen"
+      },
+      "readout": {
+        "localTime": "Ortszeit, Bildmitte",
+        "modes": {
+          "live": "Live",
+          "replay": "Rückblick",
+          "forecast": "Vorhersage",
+          "climatology": "Klimatologie"
+        },
+        "modeHints": {
+          "live": "Der Himmel genau dieses Augenblicks. Wetter, Wasser und Schnee kommen in späteren Meilensteinen dazu.",
+          "replay": "Ein Augenblick in der Vergangenheit: Sonne, Mond und Himmel stimmen für ihn genau.",
+          "forecast": "Im Vorhersagezeitraum der Wettermodelle – die Wetterebenen kommen in späteren Meilensteinen dazu.",
+          "climatology": "Jenseits aller Daten: Die Astronomie bleibt exakt, das Wetter wird typisch für das Datum sein – nicht beobachtet."
+        },
+        "place": "Bildmitte",
+        "ground": "Geländehöhe",
+        "altitude": "Kamera über Grund",
+        "sun": "Sonne",
+        "sunUp": "{alt}° hoch, Azimut {az}°",
+        "sunDown": "{alt}° unter dem Horizont, Azimut {az}°",
+        "sunriseSunset": "Sonnenaufgang / -untergang",
+        "polarDay": "Polartag – die Sonne geht nicht unter",
+        "polarNight": "Polarnacht – die Sonne geht nicht auf",
+        "moon": "Mond",
+        "moonValue": "{phase}, {lit} % beleuchtet, {alt}° hoch",
+        "renderer": "Renderer",
+        "webgpu": "WebGPU",
+        "webgl2": "WebGL 2 (Ausweichlösung)"
+      },
+      "moonPhases": {
+        "new": "Neumond",
+        "waxingCrescent": "zunehmende Sichel",
+        "firstQuarter": "erstes Viertel",
+        "waxingGibbous": "zunehmender Mond",
+        "full": "Vollmond",
+        "waningGibbous": "abnehmender Mond",
+        "lastQuarter": "letztes Viertel",
+        "waningCrescent": "abnehmende Sichel"
+      },
+      "hemisphere": {
+        "north": "N",
+        "south": "S",
+        "east": "O",
+        "west": "W"
+      },
+      "provenance": {
+        "measured": "gemessen",
+        "modelled": "modelliert",
+        "generated": "generiert"
+      },
+      "attribution": {
+        "sources": "Datenquellen",
+        "title": "Datenquellen und Lizenzen",
+        "licence": "Lizenz",
+        "close": "Schließen"
+      },
+      "info": {
+        "title": "Woher kennt ein digitaler Zwilling die Welt?",
+        "body": [
+          "Jedes Pixel dieser Erde gehört zu einer von drei Arten. Gemessen: Das Gelände stammt aus Radar- und Laservermessungen, die Farben von den Sentinel-2-Satelliten, die jeden Ort der Erde alle paar Tage fotografieren. Modelliert: Wo Sonne und Mond in jedem Augenblick stehen und wie sich Sonnenlicht in der Luft streut, folgt aus der Physik – mit einem Fehler weit unter dem, was das Auge sieht. Generiert: Was niemand gemessen hat – hier die Sterne, später die Form eines einzelnen Blatts oder einer kleinen Wolke –, wird passend zu den Messdaten erzeugt.",
+          "Messdaten sind immer eine Momentaufnahme: Das Satellitenbild ist ein wolkenfreies Mosaik eines ganzen Jahres, das Geländemodell wurde in einem bestimmten Jahr beflogen. Ein digitaler Zwilling bringt sie auf eine gemeinsame Uhr, damit Licht, Himmel und – in späteren Meilensteinen – Wetter, Gezeiten, Schnee und Laub zum selben Augenblick gehören.",
+          "Manches kann nie exakt sein: Kein Instrument hält fest, wo jede kleine Wolke oder jeder Regentropfen ist. Das Wetter des Zwillings wird den Beobachtungen in deren Maßstab entsprechen – dem Gitter eines Wettermodells, einem Radarpixel – und den Rest so ergänzen, dass er stimmig aussieht, ohne vorzugeben, gemessen zu sein."
+        ]
+      },
+      "model": {
+        "title": "Modellkarte – was hier echt ist",
+        "body": [
+          "Dies ist Meilenstein M0, die Grundlagen. Noch gibt es keine Wolken, kein Wetter, kein Wasser, keine Gezeiten, keinen Schnee, keine Jahreszeiten, keine Gebäude und keine Bäume – sie kommen in späteren Meilensteinen des Plans (docs/earth-sim). Die Nachtseite ist dunkel: Die Lichter der Städte kommen mit M1.",
+          "Gelände: Höhenkacheln von Mapterhorn (Copernicus-DEM, verschmolzen mit nationalen 1-m- und 0,4-m-Modellen), gestreamt nur in der globalen Stufe – etwa 19 m pro Pixel in Deutschland und Dänemark, offenes Meer flach bei 0 m. Höhen über dem Meeresspiegel liegen ohne Geoid auf dem WGS84-Ellipsoid (hier etwa 40 m, anderswo bis ±100 m); die Korrektur und der Meeresboden kommen mit den Land-Meer-Kacheln von M1. Lübbeckes 1-m- und Fanøs 0,4-m-Gelände folgen in M2.",
+          "Bilder: EOX Sentinel-2 cloudless 2025, ein wolkenfreies Mosaik eines ganzen Jahres mit etwa 10 m pro Pixel – ohne Jahreszeit, ohne Schnee des Tages, und die Schatten des späten Vormittags, zu dem der Satellit vorbeifliegt, sind eingebacken.",
+          "Sonne und Mond: Astronomy Engine, geprüft gegen JPL Horizons für Lübbecke und Nordby – auf 0,1′ für die Sonne und 0,2′ für den Mond genau, Sonnenauf- und -untergang auf 30 Sekunden (npm run check:earth).",
+          "Himmel: eine eigene physikalisch basierte Atmosphäre – Einfachstreuung an Luftmolekülen (Rayleigh) und Aerosol (Mie, überall ein Standardaerosol) sowie Absorption durch Ozon; Mehrfachstreuung ist nur genähert, daher ist der Himmel kurz nach Sonnenuntergang etwas zu dunkel.",
+          "Sterne: ein generiertes Sternfeld, das sich richtig mit dem Himmel dreht (Präzession, Nutation, Sternzeit) – die Sterne selbst sind noch kein Katalog. Mond: wahre Größe, Position und Phase, ohne Oberflächentextur und Erdschein.",
+          "In dieser Arbeitsstufe werden die Daten von den öffentlichen Diensten der Anbieter gestreamt; der Quellenstreifen nennt sie, die Schaltfläche daneben ihre Lizenzen."
+        ]
+      },
+      "hint": "Ziehen dreht den Globus · Scrollen oder Zwei-Finger-Geste zoomt · Rechts ziehen neigt"
     }
   }
 }

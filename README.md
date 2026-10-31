@@ -20,6 +20,8 @@ npm run check:hz     # validate habitable-zone physics (Kopparapu flux limits, z
 npm run check:tides   # validate moon-tides physics (2GMR/r³, 1/r³ scaling, spring/neap, periods, tilt models)
 npm run check:mag     # validate magnetosphere physics (ram pressure, standoff, boundary fits, field-line deformation, Kp, aurora, air budget + climate + airless world)
 npm run check:galaxy  # validate galactic-zone model (Sun's orbit, zone edges, metallicity gradient, spiral geometry, point cloud statistics, "life on Earth" scalings, haze/dust/globular generators)
+npm run check:earth   # validate the Living Earth's pure-JS modules: geodesy against PROJ (ECEF, UTM32, ETRF2020, geoid grids ≤ 1 mm), Sun & Moon against JPL Horizons (≤ 1′, sunrise ±30 s), the simulation clock
+npm run check         # every check above in one go (what CI runs)
 ```
 
 ## Project structure
@@ -61,6 +63,13 @@ src/
   sims/galactic-zone/ model.js (config object with zone edges, Sun's orbit, metallicity gradient, log-spiral
                      arms, seeded 50 000-point galaxy generator, haze / dust-lane / globular-cluster generators,
                      "life on Earth" neighbourhood scalings – pure JS), index.js
+  sims/earth/        Living Earth (work in progress, see below): clock.js (simTime, rate, derived mode,
+                     local time – pure JS), ephemeris.js (Sun & Moon topocentric and in ECEF, rise/set, phase;
+                     wraps astronomy-engine – pure JS), geodesy.js (WGS84 ↔ ECEF, ENU, UTM 32N, ETRF2020 ↔
+                     ITRF2020, geoid grids – pure JS), places.js, sources.js (data sources with licence and
+                     attribution), render/ (viewport.js – WebGPURenderer + loop, globe.js – streamed terrain
+                     and imagery, atmosphere.js – TSL sky and aerial perspective, sky.js – stars and Moon,
+                     camera.js – geodetic poses and flights), index.js
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
   check-i18n.mjs     key-parity check for locale files
@@ -72,6 +81,9 @@ scripts/
   check-moon-tides.mjs validates the moon-tides physics (npm run check:tides)
   check-magnetosphere.mjs validates the magnetosphere physics (npm run check:mag)
   check-galactic-zone.mjs validates the galactic-zone model (npm run check:galaxy)
+  check-earth-geodesy.mjs validates the Living Earth geodesy against PROJ (npm run check:earth)
+  check-earth-ephemeris.mjs validates the Living Earth ephemeris against JPL Horizons (npm run check:earth)
+  check-earth-clock.mjs validates the Living Earth simulation clock (npm run check:earth)
 ```
 
 ## App header
@@ -735,12 +747,37 @@ disposers.push(viewShift.dispose);
   a hotter interior; metal-poor the reverse. The text states that Earth's orbit, year, seasons and sunlight are
   set by the Sun and do not change. All rows inherit the schematic caveat and are checked at 13 / 27 / 33 kly by `check:galaxy`.
 
-## Planned: Living Earth (digital twin)
+## Living Earth (digital twin, work in progress)
 
-A digital-twin Earth simulation – the real globe zoomable from space to street level,
-with real terrain, imagery, sea floor, tides, weather, seasons and snow, and Lübbecke
-and Fanø modelled in full 3D detail – is planned but not started. The plan, data
-sources and architecture live in [`docs/earth-sim/`](docs/earth-sim/README.md).
+A digital-twin Earth simulation – the real globe zoomable from space to street level, with real
+terrain, imagery, sea floor, tides, weather, seasons and snow, and Lübbecke and Fanø modelled in full
+3D detail. The plan, data sources and architecture live in [`docs/earth-sim/`](docs/earth-sim/README.md).
+
+**Milestone M0 (foundations) is built** and registered as `earth`, hidden behind the work-in-progress
+flask in the header (`#/sim/earth`):
+
+- three.js **r187 `WebGPURenderer`** (TSL) with its automatic WebGL 2 fallback – add `?renderer=webgl`
+  to the URL (before the `#`) to force the fallback; reversed float depth buffer, CPU float64
+  model-view matrices (`renderer.highPrecision`) for ECEF coordinates.
+- The globe streams **Mapterhorn** terrain (Terrarium tiles, global level z12) draped with **EOX
+  Sentinel-2 cloudless 2025** imagery through 3d-tiles-renderer's `TerrariumMeshPlugin`; every tile gets
+  a node material that shares one TSL graph (sunlight through the atmosphere, per-vertex terrain normals).
+  Tiles over open sea, which Mapterhorn does not serve, are answered with a flat sea-level tile.
+- An own **physically based atmosphere** in TSL (Rayleigh, Mie, ozone; CPU-built transmittance table):
+  the sky from the ground, aerial perspective, the limb from orbit, the solar disc, red sunsets on the
+  ground. `@takram/three-atmosphere` was not used – its packages pull React and React Three Fiber in
+  as peer dependencies.
+- **One clock** (live / replay / forecast / climatology, rate presets) and the **ephemeris** drive the
+  light: the Sun, the Moon (true size, position and phase) and a star field turning with the sky.
+- `GlobeControls` (drag, zoom to cursor, tilt) plus camera flights between per-place views; the panel's
+  camera list follows the place (`setCameraViews()` in `lib/ui.js`).
+- Readouts for the centre of the view (position, ground height, Sun, sunrise/sunset, Moon), an
+  attribution strip with the licences of everything on screen, essay and model card.
+
+What M0 does not have yet – clouds, weather, water and tides, the sea floor, seasons, snow, buildings,
+trees, city lights, the hero areas' 1 m / 0.4 m terrain – is listed in the model card and scheduled in
+[`docs/earth-sim/12`](docs/earth-sim/12-roadmap-verification-licences.md#1-milestones). The M0 status and
+its go/no-go outcome are recorded there as well.
 
 ## Adding a simulation
 
@@ -811,7 +848,7 @@ remembered: every visit starts from the teaching defaults.
 ## Deployment
 
 Every push to `main` runs [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml),
-which lints, builds and publishes `dist/` to GitHub Pages. The workflow can also be started
+which lints, runs every check script (`npm run check`), builds and publishes `dist/` to GitHub Pages. The workflow can also be started
 manually from the *Actions* tab (`workflow_dispatch`).
 
 Pages must be configured once in **Settings → Pages → Build and deployment → Source:
