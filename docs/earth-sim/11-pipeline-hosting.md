@@ -69,29 +69,30 @@ Avoid in the default path: Obj2Tiles (AGPL), cesium-terrain-builder (unmaintaine
 |---|---|
 | Global terrain + bathymetry | Terrarium WebP tiles in **PMTiles** (512 px), or quantized-mesh-1.0 with normals/watermask extensions |
 | Hero terrain | **3D Tiles 1.1, implicit quadtree**, glTF meshes (delatin, error-bounded) + `EXT_meshopt_compression`, with skirts; or Terrarium tiles at z18–20 for GPU displacement |
-| Imagery | KTX2 (UASTC for near tiles, ETC1S far) inside terrain glTF, or WebP/AVIF raster PMTiles draped by the overlay plugin |
+| Imagery | KTX2 inside terrain glTF – ETC1S, or UASTC with RDO + Zstandard for near tiles (plain UASTC is 8 bits/pixel: the Lübbecke 10 cm pyramid, ≈ 16 Gpx, would be ≈ 16 GB) – or WebP/AVIF raster PMTiles draped by the overlay plugin |
 | Material / land-use classes | 8-bit raster PMTiles (lossless) |
 | Buildings | 3D Tiles 1.1 glTF + `EXT_mesh_features` / `EXT_structural_metadata` (feature IDs, function, year, material, height) |
 | Trees, street furniture | glTF + **`EXT_mesh_gpu_instancing`** with per-instance attributes |
 | Splat hero spots | glTF `KHR_gaussian_splatting` (ratified 2026) / SPZ v4 |
 | Tide constituent maps | RGBA16F textures (KTX2, lossless) per constituent group + JSON constants |
 | Weather | brotli-compressed R8/R16F/RGBA16F tiles + JSON index per run/time step |
-| Land state | small JSON/binary per area per day |
+| Land state | binary per area per day (scalars, phenology state, 10 m snowpack grid) + JSON index – [10 §1.4](10-time-ui-interaction.md#14-history-dependent-state-the-land-remembers) |
 
 ## 4. Data volumes (estimates)
 
-| Product | Lübbecke (~120 km² box) | Fanø (~600 km² box; ~70 km² land + beach at full res) |
+| Product | Lübbecke (~120 km² box) | Fanø (~690 km² box; ~70 km² land + beach at full res) |
 |---|---|---|
-| Orthophoto tiles (10 cm / 12.5 cm, pyramid +33 %, KTX2/WebP) | ~2.5–5 GB | ~2–4 GB |
+| Orthophoto tiles (10 cm / 12.5 cm, pyramid +33 %, KTX2 ETC1S/WebP at ≈ 2–3 bits/pixel) | ~2.5–5 GB | ~2–4 GB |
 | Terrain meshes (≤ 1 m / 0.4 m, error-bounded) | ~0.3–0.6 GB | ~0.5–1 GB (incl. intertidal + sea floor) |
 | Material class rasters | ~0.2 GB | ~0.3 GB |
 | Buildings (LoD2 + roof textures) | ~0.2–0.5 GB | ~0.1–0.2 GB |
 | Trees (instances only; ~1 M / ~0.3 M trees × 32 B) | ~50 MB | ~15 MB |
 | Tree/plant archetypes + impostors | ~0.3 GB shared | (shared) |
 | Splat spots (each 20–200 MB) | ~0.5 GB | ~0.5 GB |
-| Tide maps | – | ~50 MB |
+| Tide maps | – | ~120 MB |
+| Town wind fields (PALM-4U, optional – not in the totals) | ~1–4 GB | – |
 | **Total hosted** | **≈ 4–7 GB** | **≈ 3.5–6 GB** |
-| Raw sources kept for reprocessing | measured for the 90 municipality tiles: LiDAR 6.44 GB LAZ (1.03 billion points), DOP10 3.24 GB JP2, iDOP20 ~4.4 GB, bDOM50 1.23 GB, nDOM 1.44 GB, DGM1/DOM1 0.38 GB, LoD2 0.47 GB, ALKIS 0.46 GB → **≈ 20 GB** (+ the 153 GB mesh SLPK, which is streamed via I3S instead) | LiDAR ~4–6 GB LAZ, orthophotos ~1–3 GB (land), DHM rasters ~2–6 GB, AIS ~0.8 GB/day → **≈ 15–30 GB** |
+| Raw sources kept for reprocessing | measured for the 90 municipality tiles: LiDAR 6.44 GB LAZ (1.03 billion points), DOP10 3.24 GB JP2, iDOP20 ~4.4 GB, bDOM50 1.23 GB, nDOM 1.44 GB, DGM1/DOM1 0.38 GB, LoD2 0.47 GB, ALKIS 0.46 GB → **≈ 20 GB** (+ the 153 GB mesh SLPK, which is streamed via I3S instead) | LiDAR ~10–13 GB LAZ (at Lübbecke's 6.25 bytes/point), orthophotos ~1–3 GB (land), DHM rasters ~2–6 GB, AIS ~0.8 GB/day → **≈ 20–35 GB** |
 
 Global layers: Mapterhorn PMTiles extracts (tens of GB for Europe at z13–17),
 Blue Marble monthly (~10 GB tiled), S2 quarterly (self-hosted only for selected regions;
@@ -133,7 +134,7 @@ blocked, ~100 GB/month soft bandwidth, no Git LFS serving.
 
 | Requirement | Why | Apache (`.htaccess`) example |
 |---|---|---|
-| **CORS** for the app's origin (if the app stays on GitHub Pages) | browser fetches tiles cross-origin | `Header set Access-Control-Allow-Origin "https://dgrieser.github.io"` · `Header set Access-Control-Expose-Headers "ETag, Content-Range, Content-Length"` · `Header set Access-Control-Allow-Headers "Range, If-Match"` |
+| **CORS** (if the app stays on GitHub Pages) | browser fetches tiles cross-origin – from Pages *and* from `npm run dev` on localhost; the tiles are public and fetched without credentials, so `*` is safe and a single origin would block local development | `Header set Access-Control-Allow-Origin "*"` · `Header set Access-Control-Expose-Headers "ETag, Content-Range, Content-Length"` · `Header set Access-Control-Allow-Headers "Range, If-Match"` |
 | **HTTP range requests** | PMTiles reads byte ranges | native for static files (`Accept-Ranges: bytes`) – don't route PMTiles through PHP |
 | **MIME types** | correct decoding, compression | `AddType model/gltf-binary .glb` · `AddType image/ktx2 .ktx2` · `AddType application/vnd.pmtiles .pmtiles` · `AddType application/octet-stream .subtree .bin` |
 | **Caching** | tiles are immutable | `<FilesMatch "\.(glb\|ktx2\|subtree\|bin\|webp\|pmtiles)$"> Header set Cache-Control "public, max-age=31536000, immutable" </FilesMatch>`; `tileset.json` / indexes: `max-age=300` |
@@ -157,8 +158,10 @@ the immutable paths) – nothing in the app changes.
 
 ### 5.4 Client caching
 
-A **service worker** caches our tiles and PMTiles range responses (browsers don't cache
-range requests) – never third-party content whose terms forbid caching.
+A **service worker** caches our tiles and PMTiles range responses (the HTTP cache handles
+range requests unreliably) – never third-party content whose terms forbid caching.
+`cache.put()` rejects 206 responses, so range responses are stored as synthetic 200
+responses keyed by URL + byte range (or in IndexedDB).
 
 ## 6. Scheduled jobs (weather and land state)
 
@@ -183,7 +186,13 @@ plan. Setup:
 - jobs write to a temp directory and **atomically rename** into place, then update the
   index JSON last – the client never sees half-written files;
 - a health file (`wx/status.json`: last success per feed) that the app reads to show data
-  age and fall back gracefully.
+  age and fall back gracefully;
+- **ingest is sized, not unlimited**: every model level × every step × several variables
+  of every ICON-D2 run adds up to tens of GB of downloads per day, plus the CPU to decode
+  the GRIB. The baker fetches only what the modes need – the first 12 h of each run for
+  live mode, the full horizon of the 00/12 UTC runs for forecast mode, only the variables
+  the textures use, GFS by byte range via its `.idx` files. Check the container's
+  CPU/RAM limits and the plan's traffic allowance before M6. (~)
 
 GitHub Actions is **not** used for the live jobs (scheduled workflows in public repos are
 disabled after 60 days without repository activity, and the 5–10 min cadence is too fast)
@@ -193,7 +202,8 @@ last successful bake and shows its age.
 ## 7. CI
 
 - Existing workflow (lint, build, deploy Pages) stays.
-- Add: `npm run check:earth` (all `check-earth-*.mjs`), `3d-tiles-tools validate` on
+- Add: the existing `check:*` scripts (CI runs only lint and build today),
+  `npm run check:earth` (all `check-earth-*.mjs`), `3d-tiles-tools validate` on
   pipeline outputs (pipeline repo/branch), Playwright visual snapshots on the WebGL2
   backend ([12 §2](12-roadmap-verification-licences.md#2-verification-keep-the-repos-scriptscheck-mjs-culture)).
 - Secrets (server deploy credentials, Dataforsyningen/Datafordeler tokens, any API keys)

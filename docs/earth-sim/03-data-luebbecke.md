@@ -197,3 +197,6 @@ The Wittekindsweg follows the ridge crest; industry lines the B 239 in the north
    Regierungsbezirk or state – clip in the pipeline.
 6. **LoD2 is untextured** – roofs from the true orthophoto, facades procedural / captured.
 7. Historical DOPs before 2009 are Gauss-Krüger (EPSG:31467).
+8. **Leaf-off forest**: the LiDAR (2023-02-09) and the DOP10/bDOM of the southern part
+   (town and ridge, 2024-03-08) are leaf-off – beech crowns are thin in the canopy height
+   model; see [06 §1](06-vegetation-seasons.md#1-tree-inventory-from-airborne-lidar-pipeline).

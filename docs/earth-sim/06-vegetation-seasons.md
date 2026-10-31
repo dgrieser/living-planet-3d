@@ -35,6 +35,14 @@ Pipeline output is GPL-free data (the tools' licence does not apply to their out
 Quality control: compare tree counts and heights per stand against the forest inventory
 where available, and overlay crowns on the orthophoto.
 
+**Leaf-off caveat (Lübbecke)**: the NRW LiDAR (2023-02-09) and the DOP10/bDOM of the
+ridge (2024-03-08) are leaf-off. Beech (26 % of the forest) and oak crowns are thin in a
+CHM from that flight, so CHM-based tree tops miss or merge them. Mitigation: point-based
+segmentation on all returns (lidR `li2012`) in deciduous stands, Meta CHM v2
+([02 §4](02-data-global.md#4-land-cover-vegetation-phenology-drives-procedural-3d-vegetation-globally))
+as an independent canopy estimate, and hand-mapped sample plots on the ridge to measure
+the detection rate.
+
 **Urban trees**: street and park trees from a municipal tree register where one exists
 ([03](03-data-luebbecke.md)), otherwise LiDAR + OSM `natural=tree`; hedges from
 ALKIS/ATKIS/GeoDanmark lines and the CHM.
@@ -113,7 +121,9 @@ camera (no stored instances for grass and small plants).
 
 Daily mean/min/max temperature (station data blended with the NWP/ERA5-Land analysis,
 downscaled by elevation and urban heat), **exact photoperiod** (from the ephemeris),
-soil moisture (ERA5-Land), snow cover. Integrated from 1 Nov of the previous year
+soil moisture (ERA5-Land), snow cover. Integrated from 1 Nov of the year before simTime's
+year (chilling), so one run covers this year's leaf-out and autumn; the next season's
+chilling starts in parallel on 1 Nov
 ([10 §1.4](10-time-ui-interaction.md#14-history-dependent-state-the-land-remembers)).
 
 ### 5.2 Models
@@ -126,8 +136,8 @@ soil moisture (ERA5-Land), snow cover. Integrated from 1 Nov of the previous yea
 | Flowering (heath, rapeseed, hawthorn, …) | thermal time | DWD phases (e.g. heather "Beginn Blüte") |
 | Crops | **PCSE/WOFOST** (EUPL-1.2) development stage → height, colour, cover | DWD crop phases; Sentinel-2 NDVI per field |
 
-Validation target: leaf-out and colouring within ± 7 days of observations
-(`check-earth-phenology.mjs`). First reference set: DWD annual reporters **Hille (09182)**
+Validation target: leaf-out and colouring dates with an RMSE ≤ 7 days against
+observations (`check-earth-phenology.mjs`). First reference set: DWD annual reporters **Hille (09182)**
 and **Wulferdingsen (09187)**, ~10 km from Lübbecke – beech leaf unfolding 8–10 Apr 2024
 and 15–25 Apr 2025, 50 % colouring 3–22 Oct, 50 % leaf fall 20 Oct–14 Nov; oak leaf
 unfolding 7 Apr 2024 / 10 Apr 2025, leaf fall 18–25 Nov
@@ -168,7 +178,9 @@ bales after harvest, brown ploughed fields in autumn, green winter cereals in No
 
 ### 5.5 Leaf litter (`litter.js`)
 
-Each tree's leaf fall is deposited into a litter density map (0.5 m in the hero areas)
+Each tree's leaf fall is deposited into a litter density map (0.5 m, computed on the GPU in
+tiles around the camera – not stored for the whole area, see
+[10 §1.4](10-time-ui-interaction.md#14-history-dependent-state-the-land-remembers))
 with a kernel shifted downwind by the day's wind; litter decays over winter
 (species-specific: beech slow, ash/lime fast), is compressed under snow, is cleared on
 roads (street cleaning), raked from lawns (procedural) and blown into corners (wind
@@ -181,4 +193,4 @@ the wind during fall and gusts.
 WorldCover class + Meta CHM v2 heights + HRL dominant leaf type → forests with the right
 height distribution, density and broadleaf/conifer mix; MCD12Q2 / HR-VPP season dates
 drive green-up and colouring; crops from WorldCover "cropland" with a regional generic
-calendar. Marked *procedural* in the provenance overlay.
+calendar. Marked *generated* (procedural) in the provenance overlay.

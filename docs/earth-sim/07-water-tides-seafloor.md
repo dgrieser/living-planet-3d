@@ -76,8 +76,10 @@ underwater: height fog with the same absorption, god rays, the surface seen from
 | Gauges | GESLA-3 (research use), **TICON-3** harmonic constants (CC BY 4.0) for validation worldwide | – | ✓ |
 
 Pipeline: FES2022b constituents (≈ 15 major + shallow-water M4/MS4/MN4) resampled to a
-1/16° global texture set (amplitude/phase per constituent) → the shader sums them for the
-sea surface height at shelf scale. This drives:
+**1/4°** global texture set (amplitude/phase per constituent; 18 constituents as RG16F
+≈ 70 MB – at 1/16° it would be ≈ 1.1 GB, more than the whole Low-tier GPU budget) → the
+shader sums them for the sea surface height at shelf scale. Finer 1/16° tiles only for the
+North Sea, streamed like terrain. This drives:
 
 - the global **tide overlay** (co-tidal lines and **amphidromic points** – a direct link
   to the `moon-tides` simulation, which shows the equilibrium tide: here the visitor sees
@@ -106,8 +108,10 @@ Global atlases (~2 km) cannot resolve tidal channels. Plan:
 
 - Harmonic analysis per node (UTide) of water level η and depth-averaged currents u, v
   for ~12–16 constituents (M2, S2, N2, K2, K1, O1, P1, Q1, M4, MS4, MN4, M6, 2MS6, Sa,
-  Ssa…) → amplitude/phase rasters on a ~15–25 m grid over the model box → RGBA16F
-  textures (≈ 50 MB).
+  Ssa…) → amplitude/phase rasters over the model box (688 km²) → RGBA16F textures:
+  η for all constituents on a 20 m grid (≈ 105 MB), currents only for the six largest
+  (M2, S2, N2, K1, O1, M4) on a 50 m grid (≈ 13 MB); land masked, Zstandard-compressed
+  in KTX2. Currents for all constituents at 20 m would be ≈ 315 MB.
 - **Wet/dry caveat**: harmonic reconstruction fails at cells that fall dry (the signal is
   clipped). Fix: store the water level of the nearest *always-wet* channel cell and the
   bed elevation, and compute local depth = max(0, η − z_bed) with a spreading kernel; or
@@ -175,7 +179,7 @@ dry ground:
 - newly exposed ground is wet for a while after it falls dry (same wetness model), dries
   to salt-crusted mud in deep basins (cosmetic),
 - the provenance overlay shows **measured** sea floor (multibeam, LiDAR, GEBCO TID
-  "direct measurement") vs. **predicted** (altimetry) – honest about the 71 % of the
+  "direct measurement") vs. **modelled** (predicted from altimetry) – honest about the 71 % of the
   ocean floor that is only known at km scale.
 
 ### 6.2 Data per scale
@@ -190,9 +194,10 @@ dry ground:
 
 ### 6.3 Educational extras
 
-- Snap stops at *mean low water*, *−10 m*, *−50 m*, *−200 m (shelf edge)*: the North Sea
-  drains at about −100 m and Doggerland appears; at −120 m the Last Glacial Maximum
-  coastline.
+- Snap stops at *mean low water*, *−10 m*, *−50 m*, *−120 m (Last Glacial Maximum)*,
+  *−200 m (shelf edge)*: Doggerland emerges by about −40 to −50 m (the Dogger Bank lies
+  15–36 m deep), most of the North Sea is dry by −100 m except the Norwegian Trench
+  (~700 m), and −120 m shows the Last Glacial Maximum coastline.
 - **Sea-level rise** what-if (+0 … +2 m) on Fanø: which parts of Nordby, Sønderho and the
   marsh flood at mean high water and at the 100-year surge (4.07 m at Esbjerg).
 

@@ -24,7 +24,8 @@ mode      : 'live' | 'replay' | 'forecast' | 'climatology'
 - `replay` – any past instant. Weather from archived analyses / reanalysis, water level
   from the harmonic tide **plus the observed surge** for that date, snow and phenology
   integrated from the archived drivers.
-- `forecast` – up to the end of the latest NWP run (≈ +10 days global, +48 h hero areas).
+- `forecast` – up to the end of the latest NWP run (IFS HRES +10 days, IFS ENS +15 days,
+  GFS +16 days globally; ICON-D2 +48 h, DINI +60 h in the hero areas).
 - `climatology` – any date without data (before the archive, beyond the forecast, or the
   visitor typed "2150-07-01"). Tides and astronomy stay exact – they are predictable –
   but weather, snow and leaf state come from a **seeded stochastic weather generator**
@@ -64,8 +65,8 @@ Some things are not a function of the instant alone:
 | State | Depends on | Spin-up |
 |---|---|---|
 | Snow pack depth / age / wetness | precipitation, temperature, sun, wind since the first snow | from 1 Sep |
-| Leaf phenology (bud, leaf, colour, fall) | chilling + forcing degree-days, photoperiod | from 1 Nov of the previous year |
-| Leaf litter on the ground | leaf fall per tree, wind, decay, snow, street cleaning | from 1 Aug |
+| Leaf phenology (bud, leaf, colour, fall) | chilling + forcing degree-days, photoperiod | from 1 Nov of the year before simTime's year (covers this year's leaf-out and autumn); the next season's chilling runs in parallel from 1 Nov |
+| Leaf litter on the ground | leaf fall per tree, wind, decay, snow, street cleaning | from 1 Aug two autumns back (beech and oak litter lasts more than a year) |
 | Surface wetness, puddles | rain, evaporation (sun, wind, T) | 3 days |
 | Crop stage per field | sowing date (crop type), degree-days, harvest detected from Sentinel-2 | from sowing |
 | Grass greenness / drought browning | soil moisture | 60 days |
@@ -74,8 +75,14 @@ Some things are not a function of the instant alone:
 These are integrated **daily** (hourly for wetness) by small pure-JS models
 (`snowpack.js`, `phenology.js`, `litter.js`, `wetness.js`, `crops.js`) from compact
 daily driver series. For the two hero areas a scheduled job precomputes a
-`land-state/<area>/<YYYY-MM-DD>.json` (a few kB) every day so the client does not have to
-spin up a year on load; the client integrates only the hours since the last state file.
+`land-state/<area>/<YYYY-MM-DD>.bin` every day so the client does not have to spin up a
+year on load; the client integrates only the hours since the last state file. The file
+holds per-area scalars, the per-stand/per-species phenology state and the 10 m snowpack
+grid (≈ 1.2 M cells for Lübbecke – a few hundred kB to a few MB compressed). Fine fields
+are **not** stored: litter (0.5 m), wetness and 1 m snow are rebuilt on the GPU in tiles
+around the camera from the static maps, the per-tree attributes and the driver series. A
+0.5 m litter map of the whole Lübbecke box would be 480 M texels, about 7× the largest 2D
+texture (8192²).
 For `climatology` mode the same models run on generator output.
 
 ---
@@ -94,7 +101,8 @@ the same header buttons as every other simulation.
    lat/lon or place name via a geocoder, see [11](11-pipeline-hosting.md)).
 3. **Water level** – slider from "real" (the tide/sea level of the moment) down to
    "drained" (−11 000 m), with the circle-arrow reset back to "real". The slider snaps at
-   *real*, *mean low water*, *−10 m*, *−50 m*, *−200 m (shelf edge)*, *drained*.
+   *real*, *mean low water*, *−10 m*, *−50 m*, *−120 m (Last Glacial Maximum)*,
+   *−200 m (shelf edge)*, *drained*.
 
 ### 2.2 Collapsible section (everything else)
 
@@ -104,14 +112,19 @@ the same header buttons as every other simulation.
 - **What-if extras**: sea-level rise (+0 … +2 m, for the Wadden Sea), "force snow",
   "force leaf state" (spring / summer / autumn / winter) – off by default, flagged in the
   readout when on.
-- **Quality**: *Auto* (default, adaptive to frame time) · *Low* · *Medium* · *High* · *Ultra*.
-- **Camera presets** (one line, same list as the header camera button):
-  `globe`, `europe`, `luebbecke-overview`, `luebbecke-market`, `reineberg`,
-  `fanoe-overview`, `sonderho`, `nordby-harbour`, `fanoe-beach`, `walk` (first person).
+- **Quality**: *Auto* (default, adaptive to frame time) · *Low* · *High* · *Ultra* (the tiers
+  of [01 §5](01-architecture.md#5-streaming-budgets)).
+- **Camera presets** (one line, same list as the header camera button). Ten views do not
+  fit one line, so the list follows the place preset – at most four per place:
+  *Globe*: `globe`, `europe` · *Lübbecke*: `luebbecke-overview`, `luebbecke-market`,
+  `reineberg` · *Fanø*: `fanoe-overview`, `sonderho`, `nordby-harbour`, `fanoe-beach`.
+  `walk` (first person) is a camera mode, not a step of the cycle, so it keeps its own
+  button (like axial-tilt's pinned place). This needs a `setCameraViews()` in `lib/ui.js`:
+  today `createPanel()` fixes the camera list at creation.
 - **Display toggles** (`createViewToggles`, remembered per visitor):
   clouds · precipitation · atmosphere haze · buildings · trees · labels · tide gauge
   overlay · bathymetry tint · depth contours · **data-provenance overlay** (tints every
-  surface by where its data came from – *measured* / *derived* / *procedural* – so the
+  surface by where its data came from – *measured* / *modelled* / *generated* – so the
   visitor can see exactly how "real" each pixel is) · wind field arrows · weather map.
 
 ### 2.3 Readouts (one `lp-facts` listing)
@@ -166,7 +179,8 @@ dialog with the full list and licence links. See
   drained or an explicit *underwater* view is chosen.
 - **Picking**: a GPU ID pass (or `EXT_mesh_features` feature IDs read back from the
   hit) identifies the building / tree / field / water body under the cursor; the info
-  card shows its attributes (building function and construction year from ALKIS/BBR,
+  card shows its attributes (building function from ALKIS/BBR, construction year where
+  the register has it – BBR, rarely NRW ALKIS,
   tree species/height/crown from the LiDAR inventory, crop from the field register,
   depth from the sea-floor model).
 - **Reduced motion**: as everywhere in the app – no auto animation, a static frame on

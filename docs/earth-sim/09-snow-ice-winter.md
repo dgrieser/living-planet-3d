@@ -44,7 +44,7 @@ stepped hourly from the drivers and **nudged to observations**:
 | Aspect / slope | south slopes melt first, north slopes and forest edges keep snow |
 | **Wind redistribution** | Winstral S<sub>x</sub> shelter index for the day's wind direction + terrain curvature: scoured ridges and open fields, **drifts in the lee of hedges, buildings, dunes and road cuttings** |
 | Canopy interception | conifers hold snow on branches (less on the ground beneath), unload with wind or warmth; leafless broadleaf forests let most snow through |
-| Roofs | snow on roofs by pitch (steep roofs shed), **heated roofs melt faster** (proxy: construction year / insulation from ALKIS/BBR), solar panels shed early, roof avalanches leave piles along the eaves |
+| Roofs | snow on roofs by pitch (steep roofs shed), **heated roofs melt faster** (proxy: construction year from BBR in Denmark; NRW ALKIS rarely carries a construction year (?) – there building function only), solar panels shed early, roof avalanches leave piles along the eaves |
 | Roads & paths | main roads cleared/salted quickly (black, wet), side streets white, ploughed snow banks along road edges, footpaths trodden |
 | Urban heat | town centre melts earlier |
 | Beach & dunes (Fanø) | salt spray and tides keep the beach and flats snow-free below the high-water line; snow in dune hollows |

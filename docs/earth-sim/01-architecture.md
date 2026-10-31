@@ -19,6 +19,9 @@ clouds, ocean, tides, vegetation and snow.
 Why:
 
 - The app already is three.js (r185) – every other simulation, the UI kit, `createScene()`.
+  `createScene()` builds a `WebGLRenderer` (`src/lib/scene.js`), so the earth sim creates
+  its own `WebGPURenderer` (or `createScene()` gains a renderer option); the UI kit is used
+  unchanged.
 - WebGPU compute is needed for the FFT ocean, the local shallow-water window, cloud
   noise baking, GPU-driven vegetation culling and snow deformation. CesiumJS (1.146,
   Apache-2.0, the most complete 3D Tiles engine) has **no WebGPU/compute**; iTowns and
@@ -53,6 +56,12 @@ Why:
 | Tile cache is a hard LRU cap (default 0.3–0.4 GB): when full, refinement stops | per-tier budgets (§5), separate caches for hero tilesets |
 
 ### 1.4 Fallback architecture
+
+**Go/no-go at the end of M0.** The critical path is imagery draped on streamed terrain,
+which needs `ImageOverlayPlugin` – one of the plugins that fail on WebGPU (§1.3). M0
+therefore includes a spike that runs takram's TSL `ImageOverlay` port with
+3d-tiles-renderer on `WebGPURenderer`. If the spike does not meet the M0 exit criteria, the
+fallback below becomes the architecture before M1 starts.
 
 If WebGPU work stalls: stay on `WebGLRenderer` with the full 3d-tiles-renderer plugin set
 and takram's stable WebGL atmosphere + clouds (pmndrs `postprocessing`), FFT ocean as
@@ -124,6 +133,10 @@ flowchart TB
   pieces are mutually consistent); the shift to the ITRF-based global layers is applied
   once at the boundary with a proper time-dependent transformation (PROJ), so a 1 m seam
   never appears where hero tiles meet global or Google tiles. (~)
+  **OSM / Overture inside the hero areas**: in Germany and Denmark most OSM geometry is
+  traced from the national (ETRS89) orthophotos, so there it is treated as ETRS89 and
+  shifted with the hero data – otherwise street lamps, benches and OSM trees land ~1 m off
+  the hero orthophoto. (~)
 - **Heights**: ellipsoidal at runtime; geoid/quasigeoid conversions in the pipeline
   ([02 §8](02-data-global.md#8-vertical-reference--one-height-system-for-everything)).
 
@@ -202,6 +215,8 @@ clouds/atmosphere 3 · shadows 2 · post 1.5 · CPU/streaming slack 2.
 - Main thread: three.js, UI, clock.
 - Workers: tile decoding (meshopt/Draco/KTX2), weather texture decoding (brotli → typed
   arrays), quantized-mesh, land-state integration catch-up, geocoding.
-- Service worker: Cache API for **our** tiles and PMTiles range responses (browsers do
-  not cache range requests) – never for third-party content that forbids caching.
+- Service worker: Cache API for **our** tiles and PMTiles range responses (the HTTP cache
+  handles range requests unreliably) – never for third-party content that forbids caching.
+  `cache.put()` rejects 206 responses, so a range response is stored as a synthetic 200
+  response keyed by URL + byte range (or in IndexedDB).
 - Code layout: see [10 §4](10-time-ui-interaction.md#4-module-layout-proposal).
