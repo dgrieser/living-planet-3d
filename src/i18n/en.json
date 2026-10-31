@@ -1003,7 +1003,7 @@
     },
     "earth": {
       "title": "Living Earth",
-      "description": "The real Earth from space down to the ground: terrain and sea floor, seasonal imagery, snow, sea ice, city lights and the clouds of a weather model, Lübbecke and Fanø in metre detail to walk through, the Sun, the Moon and the sky of any moment. Work in progress (milestone M2).",
+      "description": "The real Earth from space down to the ground: terrain and sea floor, seasonal imagery, snow, sea ice, city lights and the clouds of a weather model, Lübbecke and Fanø in metre detail with their buildings to walk through, the Sun, the Moon and the sky of any moment. Work in progress (milestone M3).",
       "controls": {
         "time": "Time of day",
         "date": "Date",
@@ -1059,7 +1059,8 @@
         "depthTint": "Depth colours on the sea floor",
         "snowIce": "Snow and sea ice of the date",
         "lights": "City lights at night",
-        "clouds": "Clouds (weather model)"
+        "clouds": "Clouds (weather model)",
+        "buildings": "Buildings"
       },
       "readout": {
         "localTime": "Local time, centre of the view",
@@ -1135,8 +1136,9 @@
       "model": {
         "title": "Model card – what is real here",
         "body": [
-          "This is milestone M2, the hero areas' terrain and imagery. Still missing: buildings, trees, rain, wind, waves and tides – they arrive in later milestones of the plan (docs/earth-sim). Lübbecke and Fanø stand on their bare ground: houses and forests are flat pictures on it until M3 and M4.",
+          "This is milestone M3, the buildings. Still missing: trees, rain, wind, waves and tides – they arrive in later milestones of the plan (docs/earth-sim). Forests are still flat pictures on the ground until M4.",
           "Terrain: Mapterhorn elevation tiles (Copernicus DEM, fused with national models). Inside the two hero areas they come at about 0.7 m per pixel from NRW's 1 m DGM1 (laser scan of February 2023) and Denmark's 0.4 m DHM, elsewhere at about 19 m. Lübbecke's heights match the state's own DGM1 to within 3 cm (mean 0.001 m). There they are placed on the ellipsoid with the national references (GCG2016 for Lübbecke, DVR90 for Fanø) instead of the global EGM2008, which differs by 0.2–0.3 m. At sea the GEBCO_2026 grid takes over (450 m; from orbit a 30 km copy that ships with the page). Only about a quarter of the sea floor has been measured by ships; the rest is predicted from satellite altimetry.",
+          "Buildings: in North Rhine-Westphalia the state's LoD2 models – every building, roof shapes fitted to the 2023 laser scan (±1 m), streamed from Geobasis NRW and set onto our terrain; a click shows the building's use and address from the cadastre (ALKIS). On Fanø the footprints come from OpenStreetMap; their heights and roofs are generated from the tags or typical values (gable roofs on small rectangular houses, flat roofs on everything else, including L-shaped houses). Walls and roofs have no photos yet: their colours are generated from the roof type, height or building type, the windows are a pattern, and after dusk about half of them are lit. Buildings cast no shadows yet.",
           "Water level: lowering the sea shades the uncovered floor with its main sediments by depth – sand on the shelf, mud on the slope, pale carbonate ooze on the mid-ocean ridges above about 4.5 km, brown clay in the deep basins – or with depth colours and 1000 m contours. That colour scheme is a generalisation, not a map of the real sediments, and the sea floor's relief is shaded five times exaggerated so its gentle slopes show. The sea surface is drawn on the sea floor itself, which is right from the heights of this view and becomes a real surface with the ocean of M5.",
           "Imagery: from far away NASA's Blue Marble, one cloud-free composite per month (2004), blended between the two months around the date; closer EOX Sentinel-2 cloudless 2025 at about 10 m, a mosaic of a whole year without season. Over North Rhine-Westphalia the state's orthophotos take over – 10 cm, in Lübbecke flown leaf-off on 8 March 2024 south of about 52.31° N and leaf-on on 1 May 2024 north of it, which shows as a seam. Fanø keeps the 10 m imagery: the Danish 12.5 cm orthophotos need an access token (a data request of the plan). Close to the ground a little generated texture keeps the photo's pixels from reading as tiles. Snow is MODIS/Terra's monthly snow cover of the date's month (from 2000), sea ice the AMSR-E/AMSR2 concentration of the day (2002–2025, with a gap in 2011–12). Dates outside these records show the same month or day of the nearest year – a climatology, not the real date.",
           "Clouds: NOAA's GFS weather model, cover of low, middle and high cloud at 0.25° (about 28 km), from the run a few hours before the moment – back to January 2021 – or the latest forecast up to 16 days ahead. The model's cover is broken up by generated detail, so the large patterns – fronts, cyclones, clear areas – are real, every single cloud shape is not. Clouds are thin shells for now; volumetric clouds and the satellite correction come with the weather pipeline (M6). City lights: NASA Black Marble 2016.",
@@ -1157,7 +1159,101 @@
         "turnLeft": "Turn left",
         "turnRight": "Turn right"
       },
-      "hintWalk": "Arrow keys or W A S D to walk · Shift runs · Q / E turn · Drag to look around"
+      "hintWalk": "Arrow keys or W A S D to walk · Shift runs · Q / E turn · Drag to look around",
+      "building": {
+        "title": "Building",
+        "use": "Use",
+        "roof": "Roof",
+        "height": "Height",
+        "source": "Source",
+        "close": "Close",
+        "alkisCode": "ALKIS function {code}",
+        "heightMeasured": "{h} m",
+        "heightGenerated": "≈ {h} m (generated)",
+        "sourceNrw": "Geobasis NRW LoD2 · {id}",
+        "sourceOsm": "OpenStreetMap footprint, generated shape",
+        "address": "Address",
+        "alkisLoading": "Asking ALKIS…",
+        "alkisUnavailable": "not available (ALKIS did not answer)"
+      },
+      "buildingFunctions": {
+        "1000": "Residential building",
+        "1010": "Residential house",
+        "1020": "Residential home",
+        "1100": "Mixed use with housing",
+        "1120": "Residential and commercial building",
+        "1313": "Garden house",
+        "2000": "Commercial or industrial building",
+        "2020": "Office building",
+        "2050": "Commercial building",
+        "2100": "Industrial building",
+        "2463": "Garage",
+        "2700": "Agricultural building",
+        "2723": "Shed",
+        "3000": "Public building",
+        "3021": "School",
+        "3041": "Church",
+        "9998": "Building (use not recorded)"
+      },
+      "roofTypes": {
+        "0": "no data",
+        "1000": "flat roof",
+        "2100": "mono-pitch roof",
+        "2200": "offset mono-pitch roof",
+        "3100": "gable roof",
+        "3200": "hip roof",
+        "3300": "half-hip roof",
+        "3400": "mansard roof",
+        "3500": "pyramid roof",
+        "3600": "cone roof",
+        "3700": "dome",
+        "3800": "sawtooth roof",
+        "3900": "arched roof",
+        "4000": "tower roof",
+        "5000": "mixed roof shapes",
+        "9999": "other roof"
+      },
+      "osmTypes": {
+        "yes": "Building",
+        "house": "House",
+        "detached": "Detached house",
+        "bungalow": "Summer house",
+        "semidetached_house": "Semi-detached house",
+        "terrace": "Terraced houses",
+        "apartments": "Apartment building",
+        "residential": "Residential building",
+        "farm": "Farmhouse",
+        "cabin": "Cabin",
+        "allotment_house": "Allotment house",
+        "garage": "Garage",
+        "shed": "Shed",
+        "barn": "Barn",
+        "industrial": "Industrial building",
+        "church": "Church",
+        "school": "School",
+        "hotel": "Hotel",
+        "bunker": "Bunker",
+        "commercial": "Commercial building",
+        "retail": "Shop"
+      },
+      "osmRoofs": {
+        "gabled": "gable roof",
+        "hipped": "hip roof",
+        "half-hipped": "half-hip roof",
+        "flat": "flat roof",
+        "skillion": "mono-pitch roof",
+        "pyramidal": "pyramid roof",
+        "mansard": "mansard roof"
+      },
+      "osmRoofMaterials": {
+        "thatch": "thatch",
+        "roof_tiles": "tiles",
+        "tar_paper": "roofing felt",
+        "metal": "metal",
+        "concrete": "concrete",
+        "glass": "glass",
+        "grass": "green roof"
+      }
     }
   }
 }

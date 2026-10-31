@@ -56,6 +56,30 @@ export const IMAGERY_NRW = Object.freeze({
   notices: ['Lübbecke: the south part (town, ridge) was flown leaf-off on 8 Mar 2024, the north part leaf-on on 1 May 2024 – the seam shows near 52.31° N.'],
 });
 
+export const BUILDINGS_NRW = Object.freeze({
+  id: 'geobasis-nrw-lod2',
+  url: 'https://ogc-api.nrw.de/3dg/v1/collections/building/3dtiles',
+  name: 'Geobasis NRW 3D building models LoD2 (3D Tiles 1.1)',
+  provenance: 'measured',
+  licence: 'dl-de/zero-2.0',
+  attribution: '© Geobasis NRW (LoD2, dl-de/zero-2.0)',
+  short: '© Geobasis NRW LoD2',
+  href: 'https://ogc-api.nrw.de/3dg/v1',
+  notices: ['Roof shapes fitted to the 2023 laser scan (±1 m); untextured – wall and roof colours are generated from the building function.'],
+});
+
+export const BUILDINGS_OSM = Object.freeze({
+  id: 'osm-buildings',
+  file: 'earth/fanoe-buildings.bin.gz',
+  name: 'OpenStreetMap building footprints (Fanø), baked 31 Oct 2026',
+  provenance: 'generated',
+  licence: 'ODbL 1.0',
+  attribution: '© OpenStreetMap contributors (ODbL)',
+  short: '© OpenStreetMap contributors',
+  href: 'https://www.openstreetmap.org/copyright',
+  notices: ['Footprints measured by mappers; heights and roofs are generated from the tags or typical values until the LoD2 reconstruction from the Danish point cloud exists. The baked footprint file is a derived database under ODbL.'],
+});
+
 export const HERO_HEIGHTS = Object.freeze({
   id: 'national-geoids',
   name: 'National height references: GCG2016 (Germany), DVR90(2023) (Denmark)',
@@ -146,4 +170,4 @@ export const EPHEMERIS = Object.freeze({
   href: 'https://github.com/cosinekitty/astronomy',
 });
 
-export const SOURCES = Object.freeze([TERRAIN, BATHYMETRY, IMAGERY, IMAGERY_NRW, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, GEOID, HERO_HEIGHTS, EPHEMERIS]);
+export const SOURCES = Object.freeze([TERRAIN, BATHYMETRY, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, GEOID, HERO_HEIGHTS, EPHEMERIS]);

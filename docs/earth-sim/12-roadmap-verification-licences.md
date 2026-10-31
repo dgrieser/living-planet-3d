@@ -157,6 +157,34 @@ shipped base grid, product dates, Blue Marble months, colour maps, mip chains), 
 classification, de-shadowing and the merged land–sea DEM of the Wadden Sea stay open (pipeline and data
 requests); buildings are flat until M3; walking does not collide with anything but the ground.
 
+### 1.4 M3 outcome (31 Oct 2026)
+
+**Built** (`render/buildings.js`, `data/osmBuildings.js`):
+
+| M3 item | State |
+|---|---|
+| NRW LoD2 | done, live instead of our own pg2b3dm tileset: `ogc-api.nrw.de/3dg/v1/collections/building/3dtiles` (3D Tiles 1.1, implicit quadtree, glTF with `EXT_mesh_features` + `EXT_structural_metadata`, CORS) over all of NRW. The service delivers every building with its ground at the ellipsoid (checked at Lübbecke, Winterberg, Cologne: lowest vertex at h = 0), so each building is set onto our terrain: base at the lowest terrain sample under its footprint, re-fitted whenever terrain tiles arrive. Meshes are rewritten into one float format and drawn with one TSL material |
+| DK LoD2 reconstruction (roofer) | **not built** – needs the DHM point cloud (token). Fanø uses OpenStreetMap footprints instead (16 196, baked by `tools/earth-pipeline/build-osm-buildings.mjs` into `public/earth/fanoe-buildings.bin.gz`, 525 kB, ODbL): heights from tags or per type, gabled/hipped/pyramidal roofs over the minimum bounding rectangle of near-rectangular houses, flat roofs otherwise |
+| roof textures from the orthophoto, procedural facades | partly – generated colours (roof type / height / building type, Danish and East-Westphalian palettes), a window grid (3 m storeys, 2.6 m bays) on every wall of buildings that have windows; no orthophoto roofs, no facade photos |
+| windows lit at night | done – about half the windows glow after dusk (hash per window) |
+| picking with ALKIS/BBR attributes | done for NRW: the click finds the building (raycast) and asks the state's simplified ALKIS WFS (CORS) for the building at that point: function (e.g. *Kirche*, code 31001_3041), name, street address, update date. The 3D Tiles' own `function` property is empty. Fanø: OSM type, roof, height (marked *generated* where untagged); BBR needs a Datafordeler key |
+
+**Exit criteria:**
+
+- *Every building of both areas present* – NRW: all LoD2 buildings (the state's complete stock) within
+  the streaming distance; Fanø: every OSM footprint (OSM's Danish building layer comes from the national
+  import, so practically complete).
+- *Roof shapes match the orthophoto* – NRW: the LoD2 roofs are the state's fit to the laser scan; Fanø:
+  only for simple rectangular houses (generated gables), not for L-shapes or complex roofs.
+- *Picking shows ALKIS/BBR attributes* – met for ALKIS (function, name, address); BBR open (key).
+
+**Performance:** 51–53 fps in the town and on Fanø, ≈ 45–50 in the Lübbecke overview (≈ 140 draw calls,
+three.js submits ≈ 10.7 ms per frame on the CPU; building tiles use `UpdateOnChangePlugin`, sunlight and
+cloud shadow are evaluated per building vertex). Batching draw calls is M9 work.
+
+**Deviations:** no own building tileset, no roofer reconstruction, no orthophoto roofs or facade
+photos, no building shadows; the window pattern ignores real facades.
+
 ---
 
 ## 2. Verification (keep the repo's `scripts/check-*.mjs` culture)

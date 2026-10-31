@@ -43,9 +43,10 @@ export function cloudOpacity(nodes, cover, layer, p, { detail = true } = {}) {
   // detail only where a pixel is small against the noise: from orbit the fine octaves would alias into
   // speckle, so the coarse noise takes over as the footprint grows (fwidth of the noise coordinates –
   // taken here, outside the branch below: derivatives need uniform control flow)
-  const footprint = length(fwidth(q));
-  const coarseWeight = smoothstep(0.08, 0.35, footprint);
-  const soft = max(float(layer.sharpness), footprint.mul(0.8));
+  // (the shadow variant runs per vertex too, where there are no derivatives: it uses the plain sharpness)
+  const footprint = detail ? length(fwidth(q)) : null;
+  const coarseWeight = detail ? smoothstep(0.08, 0.35, footprint) : null;
+  const soft = detail ? max(float(layer.sharpness), footprint.mul(0.8)) : float(layer.sharpness);
   const alpha = float(0).toVar();
   // no cover, no cloud: skip the noise (most of the sky on a clear day)
   If(c.greaterThan(0.02), () => {

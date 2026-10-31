@@ -72,10 +72,13 @@ src/
                      – GFS clouds), render/ (viewport.js – WebGPURenderer + loop, globe.js – streamed land+sea
                      terrain and imagery, surface.js – the ground and water shader, atmosphere.js – TSL sky and
                      aerial perspective, clouds.js – cloud shells and shadows, sky.js – stars and Moon,
-                     camera.js – geodetic poses and flights, walk.js – first-person walking), regions.js
+                     camera.js – geodetic poses and flights, walk.js – first-person walking, buildings.js –
+                     LoD2 tiles and generated buildings), data/osmBuildings.js (footprints → roofs), regions.js
                      (hero boxes, depth limits, NRW orthophoto coverage), index.js
-public/earth/        small derived grids for the Living Earth: EGM2008 geoid 0.5°, GEBCO_2026 sea floor 16′
-tools/earth-pipeline/ scripts that build them (build-geoid.mjs, build-gebco-base.mjs, build-hero-geoids.mjs)
+public/earth/        small derived data for the Living Earth: EGM2008 geoid 0.5°, GEBCO_2026 sea floor 16′,
+                     national hero geoids, Fanø's OSM building footprints (ODbL)
+tools/earth-pipeline/ scripts that build them (build-geoid.mjs, build-gebco-base.mjs, build-hero-geoids.mjs,
+                     build-osm-buildings.mjs)
                      and verify_hero_heights.py (hero terrain vs NRW DGM1) – not shipped
 public/textures/     planet textures – Solar System Scope, CC BY 4.0
 scripts/
@@ -94,6 +97,7 @@ scripts/
   check-earth-grib.mjs validates the GRIB2 decoder against ecCodes on GFS fixtures (npm run check:earth)
   check-earth-layers.mjs checks the sea-floor merge and the date-driven global layers (npm run check:earth)
   check-earth-hero.mjs checks the hero regions, depth limits and national height grids (npm run check:earth)
+  check-earth-buildings.mjs checks the OSM footprints and the generated walls and roofs (npm run check:earth)
   fixtures/          GFS messages used by check-earth-grib.mjs
 ```
 
@@ -764,7 +768,7 @@ A digital-twin Earth simulation – the real globe zoomable from space to street
 terrain, imagery, sea floor, tides, weather, seasons and snow, and Lübbecke and Fanø modelled in full
 3D detail. The plan, data sources and architecture live in [`docs/earth-sim/`](docs/earth-sim/README.md).
 
-**Milestones M0 (foundations), M1 (the whole Earth from a distance) and M2 (hero terrain & imagery) are
+**Milestones M0–M3 (foundations, the whole Earth from a distance, hero terrain & imagery, buildings) are
 built** and registered as `earth`, hidden behind the work-in-progress flask in the header (`#/sim/earth`):
 
 - three.js **r187 `WebGPURenderer`** (TSL) with its automatic WebGL 2 fallback – add `?renderer=webgl`
@@ -786,6 +790,9 @@ built** and registered as `earth`, hidden behind the work-in-progress flask in t
 - **Hero areas**: Lübbecke and Fanø at ≈ 0.7 m relief (NRW DGM1, Danish DHM via Mapterhorn) on their
   national height references (GCG2016, DVR90), NRW's 10 cm orthophotos over the whole state, and a
   **walk mode** (arrow keys / WASD, drag to look, touch pad).
+- **Buildings**: NRW's LoD2 models streamed live as 3D Tiles 1.1 and set onto the terrain (click one for
+  its use and address from ALKIS), Fanø's OpenStreetMap footprints with generated roofs; windows light up
+  after dusk.
 - An own **physically based atmosphere** in TSL (Rayleigh, Mie, ozone; CPU-built transmittance table):
   the sky from the ground, aerial perspective, the limb from orbit, the solar disc, red sunsets on the
   ground. `@takram/three-atmosphere` was not used – its packages pull React and React Three Fiber in
@@ -798,8 +805,8 @@ built** and registered as `earth`, hidden behind the work-in-progress flask in t
   attribution strip with the licences of everything on screen, essay and model card.
 
 What is still missing – rain and wind, waves and tides (the M1 tide overlay moved to M5), volumetric
-clouds, buildings, trees, Fanø's 12.5 cm orthophotos – is listed in the model card and scheduled in
-[`docs/earth-sim/12`](docs/earth-sim/12-roadmap-verification-licences.md#1-milestones), where the M0–M2
+clouds, trees, facade photos, Fanø's 12.5 cm orthophotos – is listed in the model card and scheduled in
+[`docs/earth-sim/12`](docs/earth-sim/12-roadmap-verification-licences.md#1-milestones), where the M0–M3
 outcomes are recorded as well.
 
 ## Adding a simulation
@@ -888,11 +895,16 @@ The code in this repository is released under the
 redistribute it for any purpose, with no attribution and no notice-retention
 requirement.
 
-Two things in the tree are **not** covered by that grant and keep their own terms:
+These things in the tree are **not** covered by that grant and keep their own terms:
 
 - `public/textures/` – planet and Sun maps by
   [Solar System Scope](https://www.solarsystemscope.com/textures/), licensed
   **CC BY 4.0**. Reusing them requires keeping the attribution (already shown in
   the home footer and inside each simulation).
+- `public/earth/` – data derived for the Living Earth: `fanoe-buildings.bin.gz` is a derived database of
+  OpenStreetMap (**ODbL 1.0**, © OpenStreetMap contributors); `hero-geoids.json` holds GCG2016 (© BKG,
+  CC BY 4.0) and DVR90(2023) (© Klimadatastyrelsen, CC BY 4.0); `egm2008-0p5.bin` (NGA, public domain)
+  and `gebco2026-16min.bin.gz` (GEBCO Compilation Group 2026, public domain with acknowledgement). The
+  Data sources list inside the simulation names every source and its terms.
 - `three` and the other npm dependencies, which ship under their own licences
   (Three.js is MIT).
