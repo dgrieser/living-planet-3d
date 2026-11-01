@@ -20,87 +20,25 @@ import * as THREE from 'three/webgpu';
 import { TilesRenderer } from '3d-tiles-renderer';
 import { TerrariumMeshPlugin, XYZTilesOverlay, UpdateOnChangePlugin } from '3d-tiles-renderer/plugins';
 import { mergeSeaFloor } from '../data/gebco.js';
-import { terrainSourceCap, levelCap, usesNrwDop } from '../regions.js';
+import { terrainSourceCap, levelCap, usesNrwDop, NRW_DOP_GAIN } from '../regions.js';
+import { enlargeTile, gainTables, applyGain } from './resample.js';
+import { writeNormals, writeEdgeNormals } from './terrainNormals.js';
 
 // the deepest sea floor (Challenger Deep ≈ −10 935 m) plus margin, below the plugin's fixed −500 m
 const MIN_ELEVATION = -11500;
 const PLUGIN_MIN_ELEVATION = -500;
 
-/** One material per tile, sharing the colour graph. `seaMask` is read by the graph (surface.js). */
-function createTerrainMaterial(colorNode, map, seaMask) {
+/** One material per tile, sharing the colour graph. `seaMask` and `normalGrid` are read by the graph (surface.js). */
+function createTerrainMaterial(colorNode, map, seaMask, normalGrid) {
   const material = new THREE.MeshBasicNodeMaterial();
   material.colorNode = colorNode;
   material.map = map;
   material.seaMask = seaMask;
+  material.normalGrid = normalGrid;
   material.displacementMap = null;
   material.displacementScale = 1;
   material.displacementBias = 0;
   return material;
-}
-
-// bilinear sample of the plugin's padded height grid at padded texture coordinates
-function sampleGrid(data, width, height, tu, tv) {
-  const fx = Math.min(Math.max(tu * width - 0.5, 0), width - 1);
-  const fy = Math.min(Math.max(tv * height - 0.5, 0), height - 1);
-  const x0 = Math.floor(fx);
-  const y0 = Math.floor(fy);
-  const x1 = Math.min(x0 + 1, width - 1);
-  const y1 = Math.min(y0 + 1, height - 1);
-  const tx = fx - x0;
-  const ty = fy - y0;
-  const h0 = data[y0 * width + x0] * (1 - tx) + data[y0 * width + x1] * tx;
-  const h1 = data[y1 * width + x0] * (1 - tx) + data[y1 * width + x1] * tx;
-  return h0 * (1 - ty) + h1 * ty;
-}
-
-/**
- * Per-vertex terrain normals: displace the surface vertices on the CPU exactly as the GPU will, then take
- * central differences across the vertex grid. Skirt vertices copy their source vertex.
- */
-function computeTerrainNormals(geometry, grid, heightScale) {
-  const { position, normal, uv } = geometry.attributes;
-  const { surfaceVertexCount, skirtSourceIndices } = geometry;
-  const cols = Math.round(Math.sqrt(surfaceVertexCount));
-  const { data, width, height } = grid.image;
-  const displaced = new Float32Array(surfaceVertexCount * 3);
-  for (let i = 0; i < surfaceVertexCount; i++) {
-    const h = sampleGrid(data, width, height, uv.getX(i), uv.getY(i)) * heightScale;
-    displaced[i * 3] = position.getX(i) + normal.getX(i) * h;
-    displaced[i * 3 + 1] = position.getY(i) + normal.getY(i) * h;
-    displaced[i * 3 + 2] = position.getZ(i) + normal.getZ(i) * h;
-  }
-  const out = new Float32Array(position.count * 3);
-  const a = new THREE.Vector3();
-  const b = new THREE.Vector3();
-  const n = new THREE.Vector3();
-  const ref = new THREE.Vector3();
-  const at = (r, c, v) => v.fromArray(displaced, (r * cols + c) * 3);
-  const p0 = new THREE.Vector3();
-  const p1 = new THREE.Vector3();
-  for (let r = 0; r < cols; r++) {
-    for (let c = 0; c < cols; c++) {
-      at(r, Math.min(c + 1, cols - 1), p1);
-      at(r, Math.max(c - 1, 0), p0);
-      a.subVectors(p1, p0);
-      at(Math.min(r + 1, cols - 1), c, p1);
-      at(Math.max(r - 1, 0), c, p0);
-      b.subVectors(p1, p0);
-      n.crossVectors(a, b).normalize();
-      const i = r * cols + c;
-      ref.fromBufferAttribute(normal, i);
-      if (n.dot(ref) < 0) n.negate();
-      if (!Number.isFinite(n.x)) n.copy(ref);
-      n.toArray(out, i * 3);
-    }
-  }
-  for (let k = 0; k < skirtSourceIndices.length; k++) {
-    const src = skirtSourceIndices[k];
-    const dst = surfaceVertexCount + k;
-    out[dst * 3] = out[src * 3];
-    out[dst * 3 + 1] = out[src * 3 + 1];
-    out[dst * 3 + 2] = out[src * 3 + 2];
-  }
-  geometry.setAttribute('terrainNormal', new THREE.BufferAttribute(out, 3));
 }
 
 /** Duplicates the edge texels of a padded grid into its border (until neighbours fill it). */
@@ -156,19 +94,49 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
     this.colorNode = options.colorNode;
     this.placeholder = options.placeholder;
     this.maskPlaceholder = options.maskPlaceholder;
+    this.normalPlaceholder = options.normalPlaceholder;
     this.anisotropy = options.anisotropy ?? 8;
     this.bathymetry = options.bathymetry ?? null;
     this.geoid = options.geoid ?? null;
-    // sea masks by height grid image (the meshes hold clones of the grid texture that share its image)
+    // sea masks and relief normals by height grid image (the meshes hold clones of the grid texture that
+    // share its image)
     this.seaMasks = new WeakMap();
+    this.normalGrids = new WeakMap();
     const cache = this._gridCache;
     cache.fetchItem = (key, signal) => this.fetchGrid(key, signal);
     cache.disposeItem = (grid) => {
       if (!grid) return;
       this.seaMasks.get(grid.image)?.dispose();
       this.seaMasks.delete(grid.image);
+      this.normalGrids.get(grid.image)?.texture.dispose();
+      this.normalGrids.delete(grid.image);
       grid.dispose();
     };
+    // stitching writes a neighbour's heights into each grid's border: refresh the normals along the edges
+    const stitch = cache.stitchNeighbors.bind(cache);
+    cache.stitchNeighbors = (grid, x, y, level) => {
+      stitch(grid, x, y, level);
+      const tiling = this._source.tiling;
+      const { tileCountX } = tiling.getLevel(level);
+      const yDir = tiling.flipY ? -1 : 1;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const nb = cache.get((x + dx + tileCountX) % tileCountX, y + dy * yDir, level);
+          if (nb && !(nb instanceof Promise)) this.updateNormals(nb, true);
+        }
+      }
+    };
+  }
+
+  /** Writes (or, `edges`, refreshes along the edges) the relief normals of a grid. */
+  updateNormals(grid, edges = false) {
+    const entry = this.normalGrids.get(grid.image);
+    if (!entry) return;
+    const { data, width, height } = grid.image;
+    const out = entry.texture.image.data;
+    if (edges) writeEdgeNormals(out, data, width, height, entry.y, entry.level, this.heightScale);
+    else writeNormals(out, data, width, height, entry.y, entry.level, this.heightScale);
+    entry.texture.needsUpdate = true;
   }
 
   /**
@@ -211,8 +179,8 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
 
   /**
    * Swaps the detailed sea floor into a grid that started from the base grid: the sea texels get the
-   * COG's depths, the textures re-upload (the meshes displace on the GPU), the vertex normals of every
-   * mesh on this grid are recomputed and the seams re-stitched.
+   * COG's depths, the textures re-upload (the meshes displace on the GPU), the relief normals are
+   * rewritten and the seams re-stitched.
    */
   refineSeaFloor(grid, mask, maskTexture, zero, undulation, x, y, level) {
     const size = grid.image.width - 2;
@@ -239,14 +207,8 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
       maskTexture.needsUpdate = true;
       fillGridBorder(heights, pw, pw);
       this._gridCache.stitchNeighbors(grid, x, y, level);
+      this.updateNormals(grid);
       grid.needsUpdate = true;
-      this.tiles.forEachLoadedModel((scene) => {
-        scene.traverse((mesh) => {
-          if (mesh.isMesh && mesh.material?.displacementMap?.image === grid.image) {
-            computeTerrainNormals(mesh.geometry, grid, mesh.material.displacementScale);
-          }
-        });
-      });
       this.tiles.dispatchEvent({ type: 'needs-render' });
     });
   }
@@ -314,7 +276,12 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
     maskTexture.magFilter = THREE.LinearFilter;
     maskTexture.needsUpdate = true;
     this.seaMasks.set(grid.image, maskTexture);
+    const normals = new THREE.DataTexture(new Uint8Array(pw * ph * 2), pw, ph, THREE.RGFormat, THREE.UnsignedByteType);
+    normals.minFilter = THREE.LinearFilter;
+    normals.magFilter = THREE.LinearFilter;
+    this.normalGrids.set(grid.image, { texture: normals, y, level });
     this._gridCache.stitchNeighbors(grid, x, y, level);
+    this.updateNormals(grid);
     if (hasSea && this.bathymetry?.wantsDetail(level)) this.refineSeaFloor(grid, mask, maskTexture, zero, undulation, x, y, level);
     return grid;
   }
@@ -385,10 +352,9 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
       map.needsUpdate = true;
     }
     const grid = old.displacementMap;
-    const material = createTerrainMaterial(this.colorNode, map, this.seaMasks.get(grid.image) ?? this.maskPlaceholder);
+    const material = createTerrainMaterial(this.colorNode, map, this.seaMasks.get(grid.image) ?? this.maskPlaceholder, this.normalGrids.get(grid.image)?.texture ?? this.normalPlaceholder);
     material.displacementMap = grid;
     material.displacementScale = old.displacementScale;
-    computeTerrainNormals(mesh.geometry, grid, old.displacementScale);
     old.map = null;
     old.displacementMap = null;
     old.bumpMap = null;
@@ -407,20 +373,41 @@ class EarthTerrainPlugin extends TerrariumMeshPlugin {
  */
 function useRegionalImagery(source, imagery, hero) {
   const eoxMax = imagery.levels - 1;
-  const fetchBitmap = async (url, signal, crop = null) => {
+  const opts = { premultiplyAlpha: 'none', colorSpaceConversion: 'none' };
+  const fetchBitmap = async (url, signal) => {
     const res = await fetch(url, { signal });
     if (!res.ok) throw new Error(`imagery ${res.status}`);
     const blob = await res.blob();
-    const opts = { premultiplyAlpha: 'none', colorSpaceConversion: 'none' };
-    return { bitmap: crop ? await createImageBitmap(blob, ...crop, { ...opts, resizeWidth: 256, resizeHeight: 256, resizeQuality: 'high' }) : await createImageBitmap(blob, opts), type: res.headers.get('content-type') ?? '' };
+    return { bitmap: await createImageBitmap(blob, opts), type: res.headers.get('content-type') ?? '' };
   };
-  const eox = (x, y, z, signal) => {
+  // the pixels of the last EOX tiles that deeper tiles were cut from (a z15 tile serves 4 + 16 of them)
+  const parents = new Map();
+  const parentPixels = (url) => {
+    let entry = parents.get(url);
+    if (!entry) {
+      entry = fetchBitmap(url).then(({ bitmap }) => {
+        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        return ctx.getImageData(0, 0, canvas.width, canvas.height);
+      });
+      entry.catch(() => parents.delete(url));
+      parents.set(url, entry);
+      if (parents.size > 24) parents.delete(parents.keys().next().value);
+    }
+    return entry;
+  };
+  const eox = async (x, y, z, signal) => {
     if (z <= eoxMax) return fetchBitmap(source.getUrl(x, y, z), signal);
     const d = z - eoxMax;
     const ax = x >> d;
     const ay = y >> d;
-    const size = 256 / 2 ** d;
-    return fetchBitmap(source.getUrl(ax, ay, eoxMax), signal, [(x - ax * 2 ** d) * size, (y - ay * 2 ** d) * size, size, size]);
+    const parent = await parentPixels(source.getUrl(ax, ay, eoxMax));
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    const span = parent.width / 2 ** d;
+    const pixels = enlargeTile(parent.data, parent.width, parent.height, (x - ax * 2 ** d) * span, (y - ay * 2 ** d) * span, span, 256);
+    return { bitmap: await createImageBitmap(new ImageData(pixels, 256, 256), opts), type: 'image/png' };
   };
   const toTexture = async (bitmap) => {
     const flipped = await createImageBitmap(bitmap, { imageOrientation: 'flipY', premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
@@ -431,11 +418,23 @@ function useRegionalImagery(source, imagery, hero) {
     texture.needsUpdate = true;
     return texture;
   };
+  // the orthophotos brought onto the colour scale of the EOX mosaic (regions.js NRW_DOP_GAIN)
+  const dopTables = gainTables(NRW_DOP_GAIN);
+  const calibrate = async (bitmap) => {
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    applyGain(image.data, dopTables);
+    return createImageBitmap(image, opts);
+  };
   source.fetchItem = async ([x, y, z], signal) => {
     if (usesNrwDop(x, y, z)) {
       try {
-        const dop = await fetchBitmap(hero.url.replace('{m}', String(z - 5).padStart(2, '0')).replace('{x}', x).replace('{y}', y), signal);
-        if (dop.type.includes('jpeg')) return toTexture(dop.bitmap); // fully inside the state
+        const fetched = await fetchBitmap(hero.url.replace('{m}', String(z - 5).padStart(2, '0')).replace('{x}', x).replace('{y}', y), signal);
+        const dop = await calibrate(fetched.bitmap);
+        if (fetched.type.includes('jpeg')) return toTexture(dop); // fully inside the state
         const base = await eox(x, y, z, signal).catch(() => null);
         const canvas = new OffscreenCanvas(256, 256);
         const ctx = canvas.getContext('2d');
@@ -443,8 +442,8 @@ function useRegionalImagery(source, imagery, hero) {
           ctx.drawImage(base.bitmap, 0, 0, 256, 256);
           base.bitmap.close();
         }
-        ctx.drawImage(dop.bitmap, 0, 0, 256, 256);
-        dop.bitmap.close();
+        ctx.drawImage(dop, 0, 0, 256, 256);
+        dop.close();
         return toTexture(await createImageBitmap(canvas));
       } catch (err) {
         if (signal?.aborted) throw err;
@@ -475,6 +474,9 @@ export function createGlobe({ terrain, imagery, hero = null, colorNode, camera, 
   // the sea mask of a tile without one: all land
   const maskPlaceholder = new THREE.DataTexture(new Uint8Array([0]), 1, 1, THREE.RedFormat, THREE.UnsignedByteType);
   maskPlaceholder.needsUpdate = true;
+  // the relief normals of a tile without its own: flat (east and north components 0)
+  const normalPlaceholder = new THREE.DataTexture(new Uint8Array([128, 128]), 1, 1, THREE.RGFormat, THREE.UnsignedByteType);
+  normalPlaceholder.needsUpdate = true;
 
   const overlay = new XYZTilesOverlay({ url: imagery.url, tileDimension: imagery.tileDimension, levels: Math.max(imagery.levels, (hero?.levels ?? 0)) });
   if (hero) useRegionalImagery(overlay.imageSource, imagery, hero);
@@ -488,6 +490,7 @@ export function createGlobe({ terrain, imagery, hero = null, colorNode, camera, 
     colorNode,
     placeholder,
     maskPlaceholder,
+    normalPlaceholder,
     anisotropy,
     bathymetry,
     geoid,
@@ -517,6 +520,7 @@ export function createGlobe({ terrain, imagery, hero = null, colorNode, camera, 
       tiles.dispose();
       placeholder.dispose();
       maskPlaceholder.dispose();
+      normalPlaceholder.dispose();
     },
   };
 }

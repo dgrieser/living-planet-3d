@@ -335,10 +335,10 @@ export function createCloudLayer({ depthNode, camera, uniforms: u, lutTexture, s
  * (the built-in camera nodes would refer to the quad's camera).
  * @param {{ colorNode: Node, depthNode: Node, camera: THREE.PerspectiveCamera,
  *           uniforms: ReturnType<typeof createAtmosphereUniforms>, lutTexture: THREE.DataTexture,
- *           steps?: number, exposure: Node, cloudLayer?: Node, fog?: ReturnType<typeof createFogUniforms> }} opts
- *   cloudLayer: the (A, T) texture of `createCloudLayer`
+ *           steps?: number, exposure: Node, cloudLayer?: Node, cloudTexels?: Node, fog?: ReturnType<typeof createFogUniforms> }} opts
+ *   cloudLayer: the (A, T) texture of `createCloudLayer`; cloudTexels: its size in texels (vec2 uniform)
  */
-export function createAtmospherePass({ colorNode, depthNode, camera, uniforms: u, lutTexture, steps = 16, exposure, cloudLayer = null, fog = null }) {
+export function createAtmospherePass({ colorNode, depthNode, camera, uniforms: u, lutTexture, steps = 16, exposure, cloudLayer = null, cloudTexels = null, fog = null }) {
   const lookup = createTransmittanceLookup(lutTexture);
   const toSun = createTransmittanceToSun(lookup);
   const projectionInverse = uniform(camera.projectionMatrixInverse);
@@ -385,7 +385,11 @@ export function createAtmospherePass({ colorNode, depthNode, camera, uniforms: u
     const out = mix(color, color.mul(trans).add(inscatter), u.haze).toVar();
     // the clouds (and the air in front of them) over the picture
     if (cloudLayer) {
-      const cl = cloudLayer.sample(screenUv);
+      // a tent over the layer's texels (four bilinear taps half a texel out): the march's per-pixel jitter
+      // averages out instead of showing as grain
+      const d = vec2(0.5).div(cloudTexels);
+      const cl = cloudLayer.sample(screenUv.add(vec2(d.x, d.y))).add(cloudLayer.sample(screenUv.add(vec2(d.x.negate(), d.y))))
+        .add(cloudLayer.sample(screenUv.add(vec2(d.x, d.y.negate())))).add(cloudLayer.sample(screenUv.sub(d))).mul(0.25);
       out.assign(out.mul(cl.a).add(cl.rgb));
     }
 

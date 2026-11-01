@@ -13,9 +13,9 @@
  *  - **sea floor above the water level** (the "remove the water" slider, docs/earth-sim/07 §6): sediment
  *    colours by depth and slope, or hypsometric depth colours with 1000 m contours.
  *
- * Relief is lit per pixel: the mesh carries 33 × 33 vertices per tile, the height grid 512 × 512 texels; the
- * detail in between becomes a bump normal from screen-space derivatives (Mikkelsen 2010), taken in view
- * space where the positions are small and precise.
+ * Relief is lit per pixel: the mesh carries 33 × 33 vertices per tile, the height grid 512 × 512 texels, and
+ * each grid brings its texel normals (render/globe.js) – the lighting follows the grid, never the mesh's
+ * triangles.
  *
  * (smoothstep edges always low → high: WGSL leaves reversed edges undefined, and a NaN poisons every mix.)
  *
@@ -24,13 +24,14 @@
  * The FFT ocean of the hero areas (M5) brings a real surface.
  */
 import {
-  Fn, vec2, vec3, vec4, float, uniform, max, min, normalize, dot, smoothstep, length, clamp, mix, exp, pow, atan, fract, fwidth,
-  abs, sign, cross, dFdx, dFdy, vertexStage, attribute, materialColor, materialReference, modelWorldMatrix, positionWorld,
+  Fn, vec2, vec3, float, uniform, max, min, normalize, dot, smoothstep, length, clamp, mix, exp, pow, atan, fract, fwidth,
+  abs, sign, cross, dFdx, dFdy, materialColor, materialReference, positionWorld,
   positionView, texture, If, cos, sin, sqrt, mx_fractal_noise_float, mx_noise_float,
 } from 'three/tsl';
 import { ATMOSPHERE, DETAIL_SCALE } from './atmosphere.js';
 import { WGS84 } from '../geodesy.js';
 import { HERO_FEATHER_DEG } from '../regions.js';
+import { skyLight } from './clouds.js';
 
 const PI = Math.PI;
 const E2 = WGS84.e2 ?? WGS84.f * (2 - WGS84.f);
@@ -61,6 +62,8 @@ export function createSurfaceUniforms() {
     depthTint: uniform(0),
     /** 0 = the tile imagery (EOX), 1 = the seasonal Blue Marble month – set from the camera altitude */
     farBlend: uniform(0),
+    /** factor on the tile imagery's colour near the ground (render/exposure.js EXPOSURE_ADAPT.imageryGain) */
+    imageryGain: uniform(1),
     /** 0/1 display toggles for the date-driven layers */
     snowIce: uniform(1),
     nightLights: uniform(1),
@@ -73,7 +76,7 @@ export function createSurfaceUniforms() {
     windSpeed: uniform(7),
     /** vertical exaggeration of the sea floor's shading while it is shown */
     floorRelief: uniform(5),
-    /** development aid: 1 = sea mask, 2 = height above sea level, 3 = relief normal, 4 = bump residual */
+    /** development aid: 1 = sea mask, 2 = height above sea level, 3 = relief normal, 4 = normal grid (east, north) */
     debug: uniform(0),
   };
 }
@@ -186,24 +189,26 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers 
     const r = max(length(pKm), ATMOSPHERE.bottomRadius + 0.001);
     const muS = dot(normalize(pKm), u.sunDirectionScaled);
     const shadow = layers.sunShadow ? layers.sunShadow(latLon, p) : float(1);
-    const sunT = toSun(r, muS).mul(shadow);
-    // under cloud the sky light is grey (the overcast is what lights the ground), and a little dimmer
-    const skyClear = vec3(0.45, 0.6, 1.0).mul(smoothstep(-0.2, 0.25, muS).mul(0.18)).mul(clamp(muS.add(0.6), 0.25, 1));
-    const skyIrr = mix(skyClear, vec3(dot(skyClear, vec3(0.2126, 0.7152, 0.0722))).mul(0.9), shadow.oneMinus());
+    const sunBeam = toSun(r, muS);
+    const sunT = sunBeam.mul(shadow);
+    // the sky's light (grey under cloud) and the sunlight that comes down diffusely through the cloud
+    const light = skyLight(muS, shadow);
+    const skyIrr = light.sky;
+    const cloudIrr = sunBeam.mul(light.diffuse);
     const E = u.sunIlluminance;
     const L = u.sunDirection;
 
-    // --- relief normal: the vertex normal, bumped by the grid's detail between the vertices --------------
-    const nVertex = normalize(modelWorldMatrix.mul(vec4(attribute('terrainNormal', 'vec3'), 0)).xyz);
-    const nView = normalize(u.viewRotation.mul(nVertex));
-    const hVertex = vertexStage(materialReference('displacementMap', 'texture').r);
-    const bump = materialReference('displacementMap', 'texture').r.sub(hVertex);
+    // --- relief normal: the tile's normal grid – east and north components, stored as sign · √|n| -------
     const up = normalize(p.mul(vec3(1, 1, 1 / (1 - E2)))); // ellipsoid normal
-    const nLand = bumpNormal(positionView, nView, bump);
+    const east = normalize(cross(vec3(0, 0, 1), up));
+    const north = cross(up, east);
+    const ng = materialReference('normalGrid', 'texture').rg.mul(2).sub(1);
+    const nEN = ng.mul(abs(ng));
+    const nLand = normalize(east.mul(nEN.x).add(north.mul(nEN.y)).add(up.mul(sqrt(max(float(1).sub(dot(nEN, nEN)), 0)))));
     // The sea floor's slopes are gentle (a mid-ocean ridge rises 2–3 km over 1000 km); while it is shown
     // (drained or depth colours) its relief is shaded exaggerated, like a relief map – said in the model card.
-    const nFloor = bumpNormal(positionView, normalize(u.viewRotation.mul(up)), H.mul(s.floorRelief));
-    const nTerrain = normalize(u.viewToWorld.mul(mix(nLand, nFloor, sea.mul(max(s.drain, s.depthTint)))));
+    const nFloor = u.viewToWorld.mul(bumpNormal(positionView, normalize(u.viewRotation.mul(up)), H.mul(s.floorRelief)));
+    const nTerrain = normalize(mix(nLand, nFloor, sea.mul(max(s.drain, s.depthTint))));
 
     // --- ground (land, and sea floor above the water level) -------------------------------------------
     // the tide around Fanø (a smooth box over the Wadden Sea basins); elsewhere mean sea level for now
@@ -216,7 +221,7 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers 
     const wet = sea.mul(smoothstep(level.sub(0.05), level.add(0.05), H).oneMinus());
     const exposed = sea.mul(wet.oneMinus());
     const floor = seaFloorAlbedo(H, dot(nTerrain, up), s.depthTint);
-    let imagery = materialColor.rgb; // the tile's imagery (sRGB decoded to linear by the sampler)
+    let imagery = materialColor.rgb.mul(s.imageryGain); // the tile's imagery (sRGB decoded to linear by the sampler)
     // Generated detail where a pixel covers less than the imagery's own pixel (walking, low flights): a
     // little fractal variation anchored to the ground, so 10 cm orthophoto pixels do not read as tiles.
     // Anchored via the camera offset (double precision on the CPU) plus the precise view-space position.
@@ -239,7 +244,7 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers 
     const flatAlbedo = imagery.mul(mix(float(1), float(0.6), wetFlat));
     const uncovered = mix(floor, flatAlbedo, intertidal.mul(s.depthTint.oneMinus()));
     const groundAlbedo = mix(land, uncovered, max(exposed, sea.mul(s.depthTint)));
-    const groundIrr = E.mul(sunT.mul(max(dot(nTerrain, L), 0)).add(skyIrr)).add(nightFloor);
+    const groundIrr = E.mul(sunT.mul(max(dot(nTerrain, L), 0)).add(skyIrr).add(cloudIrr)).add(nightFloor);
     let ground = groundAlbedo.mul(1 / PI).mul(groundIrr);
     if (layers.wetness) {
       // the sheen of a wet surface: a rough GGX lobe (α 0.2) with water's Fresnel, plus the sky in it
@@ -272,8 +277,6 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers 
     // steeper in a stronger wind, damped in shallow water, faded out where a pixel is wider than the wave
     // (no shimmer from orbit)
     const qm = u.detailOrigin.mul(DETAIL_SCALE).add(u.viewToWorld.mul(positionView));
-    const east = normalize(cross(vec3(0, 0, 1), up));
-    const north = cross(up, east);
     const px = dot(qm, east);
     const py = dot(qm, north);
     // the larger of the two screen derivatives: at grazing angles a pixel is long along the view
@@ -298,15 +301,21 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers 
     const fresnel = pow(nDotV.oneMinus(), 5).mul(0.98).add(0.02);
     const Hv = normalize(V.add(L));
     const nDotH = max(dot(nWater, Hv), 0);
-    // foam where the water runs out on the beach and the flats (depth below 25 cm), drifting with the waves
-    const foamNoise = fract(sin(px.mul(0.37).add(py.mul(0.21)).add(s.time.mul(0.6)).add(sin(py.mul(0.9).add(px.mul(0.13))).mul(2))).mul(43758.5));
-    const swash = smoothstep(0.02, 0.25, depth).oneMinus().mul(smoothstep(0.55, 0.9, foamNoise));
+    // swash foam: a thin band at the water line, only where the bottom is as steep as a beach (the surf of the
+    // North Sea beach – on the flats a few centimetres of water span hundreds of metres and do not foam);
+    // patches of smooth noise drifting in time, their average where a pixel is wider than a patch
+    const depthSlope = length(vec2(dFdx(depth), dFdy(depth))).div(max(footprint, 1e-3));
+    const beach = smoothstep(0.004, 0.02, depthSlope);
+    const band = smoothstep(0, 0.02, depth).mul(smoothstep(0.08, 0.3, depth).oneMinus());
+    const swashNoise = mx_noise_float(vec3(px.mul(0.6), py.mul(0.6), s.time.mul(0.5))).mul(0.5).add(0.5);
+    const swash = band.mul(beach).mul(mix(smoothstep(0.45, 0.7, swashNoise), float(0.3), smoothstep(0.4, 1.5, footprint)));
     // whitecaps on open water: Monahan's fraction W = 3.84e-6 U^3.41 (≈ 1 % at 10 m/s, 4 % at 15 m/s)
     const capFraction = clamp(pow(s.windSpeed, 3.41).mul(3.84e-6), 0.001, 0.2); // (never 0: equal smoothstep edges are undefined)
     // patches a few metres across that come and go (gradient noise drifting in time), not single sparkles
     const capNoise = mx_noise_float(vec3(px.mul(0.11), py.mul(0.11), s.time.mul(0.22))).mul(0.5).add(0.5);
-    const caps = smoothstep(capFraction.mul(-3).add(1), capFraction.mul(-1.5).add(1), capNoise).mul(smoothstep(0.5, 2, depth));
-    const foam = max(swash, caps).mul(smoothstep(3, 30, footprint).oneMinus());
+    const caps = mix(smoothstep(capFraction.mul(-3).add(1), capFraction.mul(-1.5).add(1), capNoise), capFraction, smoothstep(1, 4, footprint))
+      .mul(smoothstep(0.5, 2, depth));
+    const foam = max(swash, caps);
     // Cox–Munk: the slopes of the sea surface widen the glint with the wind (σ² = 0.003 + 0.00512 U)
     const alpha = clamp(sqrt(s.windSpeed.mul(0.00512).add(0.003)).mul(GLINT_ROUGHNESS / Math.sqrt(0.003 + 0.00512 * 7)), 0.08, 0.45);
     const a2 = alpha.mul(alpha);
@@ -317,7 +326,7 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers 
     let ice = float(0);
     if (layers.seaIce) ice = layers.seaIce(latLon, p).mul(s.snowIce).mul(s.drain.oneMinus());
     waterAlbedo = mix(waterAlbedo, vec3(0.7, 0.74, 0.78), max(ice, foam.mul(0.8)));
-    const waterIrr = E.mul(sunT.mul(max(nDotL, 0)).add(skyIrr)).add(nightFloor);
+    const waterIrr = E.mul(sunT.mul(max(nDotL, 0)).add(skyIrr).add(cloudIrr)).add(nightFloor);
     const specular = E.mul(skyIrr).mul(1 / PI).mul(fresnel).add(glint).mul(ice.oneMinus());
     const water = waterAlbedo.mul(1 / PI).mul(waterIrr).mul(fresnel.oneMinus()).add(specular);
 
@@ -331,7 +340,7 @@ export function createSurfaceColorNode(u, toSun, s, { nightFloor, geoid, layers 
         dbg.assign(vec3(float(1).sub(dot(nTerrain, up)).mul(50)));
       });
       If(s.debug.greaterThan(3.5), () => {
-        dbg.assign(vec3(clamp(bump.div(200), 0, 1), clamp(bump.div(-200), 0, 1), 0));
+        dbg.assign(vec3(nEN.mul(5).add(0.5), 0));
       });
       if (layers.lights) {
         If(s.debug.greaterThan(4.5), () => {

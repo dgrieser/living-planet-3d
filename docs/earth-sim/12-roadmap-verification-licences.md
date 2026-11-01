@@ -288,6 +288,30 @@ test days of 2026 every 3 h plus 29–31 Oct hourly, built by `tools/earth-pipel
 and the satellite correction are not advected between slots; wind downscaling is not done; snow on the
 ground stays M7. Satellite placement covers the Meteosat disc only; elsewhere the clouds are GFS alone.
 
+### 1.8 Quality pass after M6 (1 Nov 2026)
+
+Feedback from phone screenshots: low quality overall, Lübbecke not to be seen. Causes found and fixed:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Lübbecke a white sheet | real weather (Meteosat VIS: a stratus deck over NW Germany and Denmark on 31 Oct, base ≈ 790 m) – the preset view at 1500 m looked down on its flat top | preset views of the hero places go under a low deck when it would hide the place (closed deck below the view, or the view inside the layer: `places.js` `poseUnderDeck`, layer heights from `weatherCodes.js` `lowCloudLayer`, the CPU twin of the shader); re-checked when the near-ground weather arrives or the clock moves; deck tops rise and fall with the shape noise |
+| triangular facets on the ground | the bump term mixed per-triangle planes with interpolated vertex normals | per-texel normals of every height grid (`render/terrainNormals.js`, RG8, sign·√ companded), refreshed along the edges when neighbours stitch; shading follows the grid, never the mesh |
+| salt-and-pepper glitter on the flats | swash foam under 25 cm of water drawn from a per-pixel hash – on the flats that is hundreds of metres | foam band only where the bottom is beach-steep, smooth noise, averaged once a pixel is wider than a patch; whitecaps averaged the same way |
+| washed-out Lübbecke in summer, murky overcast | NRW orthophotos are display renderings, 4–8× brighter (linear) than the EOX mosaic with a blue cast; one fixed exposure for orbit and ground; under cloud only blue-sky light | orthophotos calibrated per channel onto EOX (`regions.js` `NRW_DOP_GAIN`, from five z14 tiles); imagery ×1.6 near the ground; exposure follows the ground light at the camera (`render/exposure.js`: partial adaptation, day only, only cloud above the camera counts, less over a cloud sea); diffuse sunlight through cloud (two-stream, ≈ 40 % through a stratus deck) on ground, water, trees and buildings |
+| blocky cloud edges from orbit, grain from above | shells drawn at half resolution; erosion noise at pixel size; per-pixel jitter | the cloud layer goes up to full resolution (≤ 2 Mpx) when only the shells draw; erosion fades by texel footprint; a 4-tap tent when upsampling |
+| square seams in the 10 m imagery at Fanø | every z16/z17 tile was cropped from its z15 parent and enlarged on its own | children enlarged from the cached parent with a separable Catmull–Rom that reads across their edges (`render/resample.js`) |
+| soft picture on phones | Auto rendered at pixel ratio 1.5 | Auto renders small canvases at 2 and steps down by eighths (to 1.25) while frames stay slower than 30 fps |
+
+Checks: `check-earth-hero.mjs` (seamless enlargement, colour tables, grid normals of a known plane) and
+`check-earth-weather.mjs` (low-layer heights, exposure, views under the deck). Performance on the Radeon 890M:
+60 fps at phone size (824 × 1518) and 1400 × 600 on WebGPU and WebGL 2; at 2800 × 1688 Ultra 44–60 fps
+(`main` before: 50–60; run-to-run spread ≈ 10 %).
+
+Still open: Fanø's ground stays 10 m imagery (the Danish 12.5 cm orthophotos need a Dataforsyningen token,
+which must not go into the page – a server-side tile cache is the way); deck tops seen from above are
+bright and nearly uniform; the clouds are not yet shaped by the satellite's visible image (EUMETView's
+`msg_fes:vis006` and the global `mumi:worldcloudmap_ir108` are CORS-open candidates).
+
 ---
 
 ## 2. Verification (keep the repo's `scripts/check-*.mjs` culture)

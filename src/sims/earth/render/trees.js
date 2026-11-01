@@ -13,6 +13,7 @@ import {
 } from 'three/tsl';
 import { ATMOSPHERE } from './atmosphere.js';
 import { geodeticLatLon } from './surface.js';
+import { skyLight } from './clouds.js';
 import { geodeticToUtm, utmToGeodetic, geodeticToEcef, WGS84 } from '../geodesy.js';
 
 const PI = Math.PI;
@@ -108,8 +109,12 @@ function createTreeMaterial({ u, toSun, sunShadow, nightFloor, season, time, win
     const pKm = p.mul(0.001).mul(vec3(1, 1, ATMOSPHERE.zScale));
     const r = max(length(pKm), ATMOSPHERE.bottomRadius + 0.001);
     const muS = dot(normalize(pKm), u.sunDirectionScaled);
-    const sunT = vertexStage(toSun(r, muS).mul(sunShadow ? sunShadow(geodeticLatLon(positionWorld), positionWorld) : float(1)));
-    const skyIrr = vec3(0.45, 0.6, 1.0).mul(smoothstep(-0.2, 0.25, muS).mul(0.18)).mul(clamp(muS.add(0.6), 0.25, 1));
+    const beam = vertexStage(toSun(r, muS));
+    const shadow = vertexStage(sunShadow ? sunShadow(geodeticLatLon(positionWorld), positionWorld) : float(1));
+    const sunT = beam.mul(shadow);
+    // the sky's light (grey under cloud) and the sunlight coming down through the cloud (clouds.js)
+    const light = skyLight(muS, shadow);
+    const skyIrr = light.sky.add(beam.mul(light.diffuse));
     const v = fract(seed.mul(7.13)).sub(0.5).mul(0.35).add(1); // per-tree brightness
     let leaf;
     if (conifer) {

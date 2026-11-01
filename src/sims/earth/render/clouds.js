@@ -24,7 +24,7 @@
 import * as THREE from 'three/webgpu';
 import {
   vec2, vec3, float, int, uniform, max, min, normalize, dot, smoothstep, length, clamp, mix, exp, sqrt,
-  fract, fwidth, If, Loop, Break, select, screenCoordinate, atan, step, pow, abs, sin,
+  fract, fwidth, If, Loop, Break, select, screenCoordinate, atan, step, pow, abs, sin, log,
 } from 'three/tsl';
 import { ATMOSPHERE } from './atmosphere.js';
 import { WGS84 } from '../geodesy.js';
@@ -69,6 +69,7 @@ export function createCloudUniforms() {
     drift: uniform(new THREE.Vector3()), // wind drift of the noise (m, ECEF, wrapped)
     volume: uniform(1), // 1 = volumetric (camera low), 0 = shells (from space)
     stepScale: uniform(1), // longer steps on big canvases (the march costs per pixel)
+    pixelAngle: uniform(0.001), // radians per texel of the cloud layer (the erosion noise fades out as texels grow)
     weatherOn: uniform(1), // the "rain, snow and fog" toggle (wet ground)
   };
 }
@@ -185,13 +186,18 @@ export function createCloudField({ nodes, cu }) {
     const stratiform = select(inLow.greaterThan(0.5), c.conv.oneMinus(), select(inMid.greaterThan(0.5), float(0.6), float(0)));
     // thin cover, lower tops: a deck tapers towards its edge and scattered cumulus stay flat (humilis)
     const hn = h.sub(base).div(max(top.sub(base).mul(cover.mul(0.6).add(0.4)), 50));
-    const profile = smoothstep(0, 0.1, hn).mul(smoothstep(mix(0.55, 0.75, stratiform), 1, hn).oneMinus());
     // below the low base, the noise is stretched vertically: rain falls in columns
     const below = step(h, c.lowBase);
     const q = p.add(cu.drift).div(tile);
     const up = normalize(p);
     const qs = mix(q, q.sub(up.mul(dot(q, up).mul(0.92))), below);
-    const n = nodes.noise.sample(qs).r;
+    const shape = nodes.noise.sample(qs);
+    const n = shape.r;
+    // the top of a deck is not a sheet: it comes down by up to half the layer with the shape noise and its
+    // finer cells (the billows of a stratus or stratocumulus top – never above the column's top, where the
+    // march ends); the base stays flat
+    const hnTop = hn.add(n.mul(0.3)).add(shape.g.mul(0.2));
+    const profile = smoothstep(0, 0.1, hn).mul(smoothstep(mix(0.55, 0.75, stratiform), 1, hnTop).oneMinus());
     // stratiform: the same coverage, but flatter inside (a deck rather than heaps)
     // full cover closes the layer: the noise floor rises towards 1 as the cover does (c⁴ – barely any change
     // below 70 %)
@@ -291,7 +297,8 @@ export function createCloudPass({ u, toSun, field, cu, nightFloor }) {
           const r = length(q);
           const hs = r.sub(RG).mul(1000);
           const ps = vec3(q.x, q.y, q.z.div(zScale)).mul(1000);
-          const lod = smoothstep(15, 40, ts); // the erosion noise would only alias far away
+          // the erosion noise (≈ 20 m features) only aliases once a texel covers more than a few metres
+          const lod = smoothstep(5, 15, ts.mul(1000).mul(cu.pixelAngle));
           const e = field.extinction(ps, hs, c, { lod });
           const sigma = e.sigma.add(e.rain);
           If(sigma.greaterThan(1e-6), () => {
@@ -399,6 +406,24 @@ export function createWetness({ nodes, cu }) {
     const snow = mix(a.g, b.g, cu.mix);
     return smoothstep(0.03, 0.6, rate).mul(cu.localOn).mul(cu.weatherOn).mul(snow.mul(0.6).oneMinus());
   };
+}
+
+/**
+ * The light of the sky and of the clouds on a surface, per unit sunlight (TSL), with the Sun at `muS`
+ * (cosine of its zenith angle) and `shadow` = the fraction of the direct beam the clouds let through:
+ *  - `sky`: the clear sky's light, turning grey and a little dimmer under cloud;
+ *  - `diffuse`: sunlight scattered down through the cloud onto a level surface – the two-stream
+ *    transmission of a water cloud, 1 / (1 + 0.75 τ (1 − g)) with g = 0.85 and τ the cloud's vertical
+ *    optical depth (from `shadow`). This is what lights the ground under overcast: a 500 m stratus deck
+ *    (τ ≈ 13) passes about 40 % of the sunlight as diffuse light, a thick cumulus about 15 %.
+ * Multiply `diffuse` by the beam's transmittance through the air (unshadowed).
+ */
+export function skyLight(muS, shadow) {
+  const clear = vec3(0.45, 0.6, 1.0).mul(smoothstep(-0.2, 0.25, muS).mul(0.18)).mul(clamp(muS.add(0.6), 0.25, 1));
+  const sky = mix(clear, vec3(dot(clear, vec3(0.2126, 0.7152, 0.0722))).mul(0.9), shadow.oneMinus());
+  const tauV = log(max(shadow, 1e-6)).negate().mul(max(muS, 0.08));
+  const diffuse = shadow.oneMinus().mul(max(muS, 0)).div(tauV.mul(0.75 * 0.15).add(1));
+  return { sky, diffuse };
 }
 
 /**

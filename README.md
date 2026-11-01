@@ -73,7 +73,9 @@ src/
                      fusion, read-back), render/ (viewport.js – WebGPURenderer + loop, globe.js – streamed land+sea
                      terrain and imagery, surface.js – the ground and water shader, atmosphere.js – TSL sky,
                      aerial perspective, fog, clouds.js + cloudNoise.js – volumetric clouds, shells and shadows,
-                     precipitation.js – rain and snow around the camera, sky.js – stars and Moon,
+                     precipitation.js – rain and snow around the camera, exposure.js – exposure that follows
+                     the ground light, terrainNormals.js – per-texel relief normals, resample.js – seamless
+                     enlargement and colour calibration of imagery tiles, sky.js – stars and Moon,
                      camera.js – geodetic poses and flights, walk.js – first-person walking, buildings.js –
                      LoD2 tiles and generated buildings, trees.js – instanced trees), data/osmBuildings.js
                      (footprints → roofs), data/trees.js + treeWorker.js (tree tops in canopy heights), data/tides.js +
@@ -800,9 +802,12 @@ trees, water, weather) are built** and registered as `earth`, hidden behind the 
   **Volumetric clouds** near the ground (ray-marched at half resolution in the atmosphere pass, shaped by
   cloud type from tileable Perlin–Worley noise, drifting with the wind), shells from space, cloud shadows
   on terrain, trees and buildings; rain shafts, **rain and snow** around the camera, wet ground, height
-  fog from the visibility, trees and waves (and whitecaps) moving with the model's wind.
+  fog from the visibility, trees and waves (and whitecaps) moving with the model's wind. Under cloud the
+  ground gets the sunlight scattered through it; the place views go under a low deck that would hide the
+  place, and the exposure follows the light near the ground.
 - **Hero areas**: Lübbecke and Fanø at ≈ 0.7 m relief (NRW DGM1, Danish DHM via Mapterhorn) on their
-  national height references (GCG2016, DVR90), NRW's 10 cm orthophotos over the whole state, and a
+  national height references (GCG2016, DVR90), NRW's 10 cm orthophotos over the whole state (colour-
+  calibrated onto the Sentinel-2 mosaic), relief lit from per-texel normals of the height grids, and a
   **walk mode** (arrow keys / WASD, drag to look, touch pad).
 - **Buildings**: NRW's LoD2 models streamed live as 3D Tiles 1.1 and set onto the terrain (click one for
   its use and address from ALKIS), Fanø's OpenStreetMap footprints with generated roofs; windows light up
@@ -827,7 +832,7 @@ What is still missing – the server-side weather pipeline and regional models (
 downscaling, the global tide overlay, an FFT ocean, ground cover, facade photos, Fanø's 12.5 cm
 orthophotos – is listed in the model card and scheduled in
 [`docs/earth-sim/12`](docs/earth-sim/12-roadmap-verification-licences.md#1-milestones), where the M0–M6
-outcomes are recorded as well.
+outcomes and the quality pass after M6 are recorded as well.
 
 ## Adding a simulation
 

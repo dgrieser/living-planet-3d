@@ -19,12 +19,13 @@
 import * as THREE from 'three/webgpu';
 import {
   Fn, vec3, float, attribute, positionWorld, positionView, normalize, dot, max, cross, fract, floor, sin, step,
-  smoothstep, mix, length, clamp, abs, sign, vertexStage,
+  smoothstep, mix, length, abs, sign, vertexStage,
 } from 'three/tsl';
 import { TilesRenderer } from '3d-tiles-renderer';
 import { ImplicitTilingPlugin, GLTFExtensionsPlugin, UpdateOnChangePlugin } from '3d-tiles-renderer/plugins';
 import { ATMOSPHERE, DETAIL_SCALE } from './atmosphere.js';
 import { geodeticLatLon } from './surface.js';
+import { skyLight } from './clouds.js';
 import { ecefToGeodetic, geodeticToEcef, geodeticToUtm, WGS84, DEG } from '../geodesy.js';
 
 const ALKIS_WFS = 'https://www.wfs.nrw.de/geobasis/wfs_nw_alkis_vereinfacht';
@@ -96,8 +97,12 @@ function createBuildingMaterial({ u, toSun, sunShadow, nightFloor }) {
     const r = max(length(pKm), ATMOSPHERE.bottomRadius + 0.001);
     const muS = dot(normalize(pKm), u.sunDirectionScaled);
     // sunlight and cloud shadow per vertex: buildings are small against both, and it saves the noise
-    const sunT = vertexStage(toSun(r, muS).mul(sunShadow ? sunShadow(geodeticLatLon(positionWorld), positionWorld) : float(1)));
-    const skyIrr = vec3(0.45, 0.6, 1.0).mul(smoothstep(-0.2, 0.25, muS).mul(0.18)).mul(clamp(muS.add(0.6), 0.25, 1));
+    const beam = vertexStage(toSun(r, muS));
+    const shadow = vertexStage(sunShadow ? sunShadow(geodeticLatLon(positionWorld), positionWorld) : float(1));
+    const sunT = beam.mul(shadow);
+    // the sky's light (grey under cloud) and the sunlight coming down through the cloud (clouds.js)
+    const light = skyLight(muS, shadow);
+    const skyIrr = light.sky.add(beam.mul(light.diffuse));
 
     // windows: a grid on vertical walls – rows every 3 m above the base, columns every 2.6 m along the wall,
     // anchored to the ground through the double-precision camera offset

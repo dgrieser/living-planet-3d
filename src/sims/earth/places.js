@@ -49,3 +49,24 @@ export function placeAt(latDeg, lonDeg) {
   }
   return null;
 }
+
+/** How far under a cloud deck's base a view goes (m) – clear of the base's lumps. */
+export const DECK_CLEARANCE_M = 200;
+
+/**
+ * A view under the low cloud: from above a closed deck (cover ≥ 0.8) or from inside the layer (cover ≥ 0.5)
+ * a place is hidden, so the camera comes down to `DECK_CLEARANCE_M` under the base and tilts so it looks at
+ * the same ground point. Above broken cloud the view stays (the place shows through the gaps); a deck too
+ * low to fly under (fog) leaves the view as it is.
+ * @param {{ baseM: number, topM: number, cover: number, groundM: number }} low  heights above the ellipsoid
+ */
+export function poseUnderDeck(pose, { baseM, topM, cover, groundM }) {
+  if (![baseM, topM, cover, groundM].every(Number.isFinite) || cover < 0.5) return pose;
+  if (pose.heightM > topM + DECK_CLEARANCE_M && cover < 0.8) return pose;
+  const heightM = baseM - DECK_CLEARANCE_M;
+  if (pose.heightM <= heightM || heightM < groundM + 120) return pose;
+  const down = Math.max(1, -pose.pitchDeg) * (Math.PI / 180);
+  const reach = (pose.heightM - groundM) / Math.tan(down); // ground distance to the point the view looks at
+  const pitchDeg = -Math.min(60, Math.max(3, (Math.atan((heightM - groundM) / reach) * 180) / Math.PI));
+  return { ...pose, heightM, pitchDeg, underDeck: true };
+}

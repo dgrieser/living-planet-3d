@@ -26,14 +26,15 @@ import { createGeoid } from './data/geoid.js';
 import { createGlobalLayers } from './data/globalLayers.js';
 import { createGfsWeather } from './data/gfs.js';
 import { createSatellite } from './data/satellite.js';
-import { decodePrecip, decodeCeiling, windFrom, compassPoint, terrainCorrection, fuseCover, rainUnderCloud } from './data/weatherCodes.js';
+import { decodePrecip, decodeCeiling, windFrom, compassPoint, terrainCorrection, fuseCover, rainUnderCloud, lowCloudLayer } from './data/weatherCodes.js';
 import { createFanoeWater } from './data/water.js';
 import { createCloudField, createCloudPass, createShellPass, createCloudShadow, createCloudUniforms, createNoiseTexture, createWetness, VOLUME_FADE } from './render/clouds.js';
 import { createPrecipitation } from './render/precipitation.js';
 import { createSky } from './render/sky.js';
 import { applyPose, readPose, createFlight, rayEllipsoid } from './render/camera.js';
 import { createWalk } from './render/walk.js';
-import { PLACES, VIEWS, HERO_BOXES, findPlace, placeAt } from './places.js';
+import { exposureFactor, shadingCover, nearGround, EXPOSURE_ADAPT } from './render/exposure.js';
+import { PLACES, VIEWS, HERO_BOXES, findPlace, placeAt, poseUnderDeck } from './places.js';
 import { NRW_DOP } from './regions.js';
 import { TERRAIN, IMAGERY, IMAGERY_NRW, BUILDINGS_NRW, BUILDINGS_OSM, TREES_NRW, TIDES_DMI, BATHYMETRY_EU, BATHYMETRY, BLUE_MARBLE, SNOW, SEA_ICE, NIGHT_LIGHTS, CLOUDS, SATELLITE_CLOUDS, SOURCES } from './sources.js';
 import { createClock, RATE_PRESETS, placeTimeZone, localDayStart, localMinuteOfDay, MS_PER_DAY } from './clock.js';
@@ -67,6 +68,9 @@ const SEA_LEVEL_STOPS = Object.freeze([
 
 /** Quality tiers (docs/earth-sim/01 §5) – screen-space error, pixel ratio cap, atmosphere samples, tile cache. */
 const QUALITY = Object.freeze({
+  // auto: high, and up to the screen's full sharpness (2) on a small canvas – a phone in portrait has a
+  // quarter of a desktop window's pixels, and at 1.5 its picture was visibly soft
+  auto: { errorTarget: 2, maxPixelRatio: 1.5, smallCanvasPixelRatio: 2, cacheBytes: 0.6 * 1024 ** 3 },
   low: { errorTarget: 4, maxPixelRatio: 1, cacheBytes: 0.3 * 1024 ** 3 },
   high: { errorTarget: 2, maxPixelRatio: 1.5, cacheBytes: 0.6 * 1024 ** 3 },
   ultra: { errorTarget: 1.5, maxPixelRatio: 2, cacheBytes: 1.2 * 1024 ** 3 },
@@ -149,7 +153,7 @@ export default async function mount(container, meta) {
   precipScene.add(precipitation.mesh);
   disposers.push(() => precipitation.dispose());
   const colorNode = createSurfaceColorNode(u, toSun, surface, { nightFloor, geoid, layers });
-  const quality = () => QUALITY[state.quality === 'auto' ? 'high' : state.quality];
+  const quality = () => QUALITY[state.quality];
   const globe = createGlobe({
     terrain: TERRAIN, imagery: IMAGERY, hero: IMAGERY_NRW, colorNode, camera, renderer, bathymetry, geoid,
     errorTarget: quality().errorTarget, cacheBytes: quality().cacheBytes,
@@ -197,6 +201,7 @@ export default async function mount(container, meta) {
       createShellPass({ u, toSun, field: cloudField, cu: cloudU, nightFloor }),
     ],
   }), null, null, { type: THREE.HalfFloatType, resolutionScale: CLOUD_RESOLUTION });
+  const cloudTexels = uniform(new THREE.Vector2(1, 1));
   const atmospherePass = createAtmospherePass({
     colorNode: scenePass.getTextureNode('output'),
     depthNode: scenePass.getTextureNode('depth'),
@@ -205,6 +210,7 @@ export default async function mount(container, meta) {
     lutTexture: lut,
     exposure,
     cloudLayer,
+    cloudTexels,
     fog,
   });
   pipeline.outputNode = atmospherePass.add(vec4(precipPass.getTextureNode('output').rgb.mul(exposure), 0));
@@ -278,12 +284,37 @@ export default async function mount(container, meta) {
     const radius = 6371000;
     return { ...pose, heightM: Math.max(pose.heightM, radius / Math.sin(half) - radius) };
   }
+  /**
+   * The pose of a preset view – under the low cloud at the place when it would hide the place (places.js
+   * `poseUnderDeck`; the layer as the clouds draw it, data/weatherCodes.js `lowCloudLayer`).
+   */
+  function presetPose(id) {
+    const pose = fitPose(VIEWS[id]);
+    if (pose.place === 'globe' || !state.showClouds) return pose;
+    const w = gfs.sample(pose.latDeg, pose.lonDeg);
+    if (!w?.local) return pose;
+    const sat = satellite.sample(pose.latDeg, pose.lonDeg);
+    const fused = fuseCover(w, sat, satellite.state.weight);
+    const layer = lowCloudLayer({ ceilingM: decodeCeiling(w.ceilingCode), convective: w.convective }, sat, satellite.state.weight);
+    const groundM = globe.sampleElevation(pose.latDeg * DEG, pose.lonDeg * DEG) ?? w.modelHeight + geoid.sample(pose.latDeg, pose.lonDeg);
+    return poseUnderDeck(pose, { baseM: layer.base, topM: layer.top, cover: fused.low, groundM });
+  }
+  /** The cloud cover over a camera at `heightM` above the ellipsoid: only the layers above it shade what it sees. */
+  function coverAbove(w, geo, heightM) {
+    const sat = satellite.sample(geo.lat / DEG, geo.lon / DEG);
+    const low = w.local ? lowCloudLayer({ ceilingM: decodeCeiling(w.ceilingCode), convective: w.convective }, sat, satellite.state.weight) : { top: 1500 };
+    const above = (top) => 1 - Math.min(1, Math.max(0, (heightM - top) / 300));
+    return { low: w.fused.low * above(low.top), middle: w.fused.middle * above(5500), high: w.fused.high * above(10400) };
+  }
+  let viewPose = null; // where the active preset view put the camera
+  let lastDeckCheck = 0;
   function setCamera(id, { animate = true } = {}) {
     const preset = VIEWS[id];
     if (!preset) return;
     if (walk.state.active) setWalking(false);
     buildingCard.hidden = true;
-    const target = fitPose(preset);
+    const target = presetPose(id);
+    viewPose = target;
     state.view = id;
     if (target.place !== state.place) setPlace(target.place, { fly: false });
     if (!animate || view.reducedMotion) {
@@ -716,6 +747,7 @@ export default async function mount(container, meta) {
   }
   function setQuality(id) {
     state.quality = id;
+    autoScale = 1;
     viewPrefs.set('quality', id);
     applyQuality();
     syncQualityButtons();
@@ -725,9 +757,38 @@ export default async function mount(container, meta) {
     globe.tiles.errorTarget = q.errorTarget;
     globe.tiles.lruCache.maxBytesSize = q.cacheBytes;
     globe.tiles.lruCache.minBytesSize = q.cacheBytes / 2;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.maxPixelRatio));
+    const small = q.smallCanvasPixelRatio && viewport.clientWidth * viewport.clientHeight < 6e5;
+    const full = Math.min(window.devicePixelRatio || 1, small ? q.smallCanvasPixelRatio : q.maxPixelRatio);
+    const ratio = state.quality === 'auto' ? Math.max(Math.min(1, full), full * autoScale) : full;
+    if (ratio !== renderer.getPixelRatio()) renderer.setPixelRatio(ratio);
     view.requestRender();
   }
+  // auto quality: while frames stay slow (a phone's GPU) the pixel ratio steps down by an eighth, after a
+  // long run of fast frames back up – only frames of a continuous run count (on-demand frames come seconds
+  // apart), and not while tiles load (their main-thread work is no GPU load)
+  let autoScale = 1;
+  let slowFor = 0;
+  let fastFor = 0;
+  let wasContinuous = false;
+  function adaptAutoQuality(dt, backToBack) {
+    if (state.quality !== 'auto' || !backToBack || !(dt > 0)) return;
+    slowFor = dt > 1 / 30 ? slowFor + dt : 0;
+    fastFor = dt < 1 / 52 ? fastFor + dt : 0;
+    if (slowFor > 3 && autoScale > 0.625) {
+      autoScale -= 0.125;
+      slowFor = 0;
+      applyQuality();
+    } else if (fastFor > 20 && autoScale < 1) {
+      autoScale += 0.125;
+      fastFor = 0;
+      applyQuality();
+    }
+  }
+  const onWindowResize = () => {
+    if (state.quality === 'auto') applyQuality();
+  };
+  window.addEventListener('resize', onWindowResize);
+  disposers.push(() => window.removeEventListener('resize', onWindowResize));
   function applyDisplay() {
     u.haze.value = state.showAtmosphere ? 1 : 0;
     surface.depthTint.value = state.showDepthTint ? 1 : 0;
@@ -915,6 +976,7 @@ export default async function mount(container, meta) {
 
   // --- frame ------------------------------------------------------------------------------------------------------------
   const sunDir = new THREE.Vector3();
+  const _up = new THREE.Vector3();
   let lastCloudUpdate = -Infinity;
   let lastCloudCall = 0;
   let lastDriftTime = null;
@@ -924,6 +986,7 @@ export default async function mount(container, meta) {
   const enuNorth = new THREE.Vector3();
   const dropLight = new THREE.Color();
   let weatherNow = null;
+  let exposureTime = null;
   view.onFrame((dt) => {
     let changed = controlsMoved;
     controlsMoved = false;
@@ -988,6 +1051,37 @@ export default async function mount(container, meta) {
     weatherNow = gfs.sample(camGeoW.lat / DEG, camGeoW.lon / DEG);
     if (weatherNow) Object.assign(weatherNow, { fused: fuseCover(weatherNow, satellite.sample(camGeoW.lat / DEG, camGeoW.lon / DEG), satellite.state.weight) });
     const local = weatherNow?.local ? weatherNow : null;
+    // exposure: near the ground it follows the light there (render/exposure.js), eased over a second
+    const muSun = sunDir.dot(_up.copy(camera.position).normalize());
+    const above = state.showClouds && weatherNow ? coverAbove(weatherNow, camGeoW, camGeoW.h) : null;
+    const cover = above ? shadingCover(above) : 0;
+    const below = above ? shadingCover({ low: weatherNow.fused.low - above.low, middle: weatherNow.fused.middle - above.middle, high: 0 }) : 0;
+    const exposureTarget = EXPOSURE * exposureFactor({ muS: muSun, cover, below, altitudeM: altitude });
+    const nowS = performance.now() / 1000;
+    const ease = exposureTime === null ? 1 : 1 - Math.exp(-Math.max(0, nowS - exposureTime) / EXPOSURE_ADAPT.timeConstant);
+    exposureTime = nowS;
+    exposure.value += (exposureTarget - exposure.value) * ease;
+    if (Math.abs(exposureTarget - exposure.value) > 0.01 * exposureTarget) changed = true;
+    surface.imageryGain.value = 1 + (EXPOSURE_ADAPT.imageryGain - 1) * nearGround(altitude);
+    // a preset view stays under a low overcast deck – the near-ground weather arrives after its flight began,
+    // and the deck comes and goes with the clock
+    if (state.view && viewPose && !flight && !walk.state.active && nowS - lastDeckCheck > 1) {
+      lastDeckCheck = nowS;
+      const want = presetPose(state.view);
+      if (Math.abs(want.heightM - viewPose.heightM) > 100) {
+        viewPose = want;
+        flight = createFlight(readPose(camera), want);
+        flightTime = 0;
+        changed = true;
+      }
+    }
+    // the cloud layer is marched at reduced resolution; the shells seen from space are cheap – up to full size
+    // (≈ 2 million pixels: the air in front of them still costs per pixel)
+    const canvas = renderer.domElement;
+    const cloudScale = cloudU.volume.value > 0.001 ? CLOUD_RESOLUTION : Math.min(1, Math.max(CLOUD_RESOLUTION, Math.sqrt(2e6 / (canvas.width * canvas.height))));
+    cloudLayer.setResolutionScale(cloudScale);
+    cloudTexels.value.set(Math.max(1, Math.floor(canvas.width * cloudScale)), Math.max(1, Math.floor(canvas.height * cloudScale)));
+    cloudU.pixelAngle.value = (camera.fov * DEG) / cloudTexels.value.y;
     // rain at the camera only under cloud, as in the shader (render/clouds.js)
     const cloudAbove = weatherNow ? Math.max(weatherNow.fused.low, weatherNow.fused.middle) : 0;
     const rainHere = local ? rainUnderCloud(decodePrecip(local.precipCode), cloudAbove) : 0;
@@ -1046,9 +1140,12 @@ export default async function mount(container, meta) {
     });
     const stats = globe.tiles.stats;
     const loading = stats.downloading + stats.parsing + stats.queued > 0;
-    view.setContinuous(loading || buildingsBusy || treesBusy || (raining && !view.reducedMotion) || (!view.reducedMotion && altitude < 5000) || (!view.reducedMotion && state.showTrees && trees.stats.trees > 0 && altitude < 2500) || !!flight || walk.moving || (clock.playing && !clock.live && clock.effectiveRate !== 0));
+    const continuous = loading || buildingsBusy || treesBusy || (raining && !view.reducedMotion) || (!view.reducedMotion && altitude < 5000) || (!view.reducedMotion && state.showTrees && trees.stats.trees > 0 && altitude < 2500) || !!flight || walk.moving || (clock.playing && !clock.live && clock.effectiveRate !== 0);
+    view.setContinuous(continuous);
     updateLabels();
     updateReadouts(performance.now());
+    adaptAutoQuality(dt, continuous && wasContinuous && !loading && !buildingsBusy && !treesBusy);
+    wasContinuous = continuous;
     return changed || loading;
   });
 
@@ -1081,7 +1178,7 @@ export default async function mount(container, meta) {
       pickBuilding: (x, y) => { const info = buildings.pick(new THREE.Vector2(x, y)); renderBuildingCard(info); return info; },
       setTime: (ms) => { clock.setTime(ms); onClockChanged(); },
       readPose: () => readPose(camera),
-      applyPose: (pose) => { applyPose(camera, typeof pose === 'string' ? VIEWS[pose] : pose); view.requestRender(); },
+      applyPose: (pose) => { state.view = null; applyPose(camera, typeof pose === 'string' ? VIEWS[pose] : pose); view.requestRender(); },
       finishFlight: () => { if (flight) { applyPose(camera, flight.at(flight.duration)); flight = null; controls.enabled = true; view.requestRender(); } },
       refresh: () => { lastReadout = 0; updateReadouts(performance.now()); },
     };

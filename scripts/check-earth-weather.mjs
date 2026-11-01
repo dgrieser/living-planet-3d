@@ -3,7 +3,8 @@
  *
  *  1. the byte encodings the GPU reads (precipitation, ceiling, cloud top), wind direction, the read-back of
  *     EUMETSAT's cloud renderings, the satellite–model fusion, the terrain correction, the cloud noise
- *     (seamless, equalised), the drop count;
+ *     (seamless, equalised), the drop count, the low cloud layer's heights, the exposure that follows the light
+ *     near the ground, the preset views that go under a low deck;
  *  2. the exit criteria on the test-day fixture (tools/earth-pipeline/weather-testdays.mjs): cloud cover
  *     against station observations and the satellite, precipitation timing against stations and radar,
  *     10 m wind against stations – scored with the simulation's own functions.
@@ -12,8 +13,10 @@ import fs from 'node:fs';
 import {
   encodePrecip, decodePrecip, encodeCeiling, decodeCeiling, encodeCloudTop, decodeCloudTop, windFrom, compassPoint,
   classifyCloudMask, cloudTopHeight, CTH_STOPS, fuseCover, rainUnderCloud, terrainCorrection, SAT_BROKEN, SAT_THIN,
-  snowFraction,
+  snowFraction, lowCloudLayer,
 } from '../src/sims/earth/data/weatherCodes.js';
+import { exposureFactor, groundIlluminance, shadingCover, EXPOSURE_ADAPT } from '../src/sims/earth/render/exposure.js';
+import { poseUnderDeck, DECK_CLEARANCE_M } from '../src/sims/earth/places.js';
 import { packSatellite, satelliteSlot, satelliteWeight, SATELLITE } from '../src/sims/earth/data/satellite.js';
 import { generateCloudNoise } from '../src/sims/earth/render/cloudNoise.js';
 import { dropCount } from '../src/sims/earth/render/precipitation.js';
@@ -105,6 +108,41 @@ const near = (a, b, tol) => Math.abs(a - b) <= tol;
   check('cloud noise R is equalised: a cover c makes the share c cloud', share.every((x) => near(x, 0.25, 0.03)), share.map((x) => x.toFixed(2)).join(' '));
 }
 check('drops: none when dry, more in heavier rain, snow fills more of the box', dropCount(0) === 0 && dropCount(0.5) < dropCount(5) && dropCount(1, 1) > dropCount(1, 0) && dropCount(100) === 14000);
+
+// --- low layer, exposure, views under the deck ---------------------------------------------------------------------
+{
+  const deck = lowCloudLayer({ ceilingM: 790, convective: 0 });
+  check('low layer from the ceiling: base 790 m, stratus 500 m deep', deck.base === 790 && deck.top === 1290, JSON.stringify(deck));
+  const none = lowCloudLayer({ ceilingM: 12000, convective: 0.5 });
+  check('no ceiling: cumulus base 1 km, 1.5 km deep when convective', none.base === 1000 && none.top === 2500, JSON.stringify(none));
+  const satTop = lowCloudLayer({ ceilingM: 600, convective: 0 }, { cloud: 1, topM: 1800, valid: 1 }, 1);
+  check('the satellite moves the low top to its cloud top', near(satTop.top, 1800, 1e-6), JSON.stringify(satTop));
+
+  const june = exposureFactor({ muS: 0.87, cover: 0, altitudeM: 500 });
+  const nov = exposureFactor({ muS: 0.3, cover: shadingCover({ low: 1 }), altitudeM: 500 });
+  check('exposure: clear June noon below the base, overcast November above it', june < 0.85 && nov > 1.4, `${june.toFixed(2)} / ${nov.toFixed(2)}`);
+  check('exposure: the night and the view from orbit keep the base exposure',
+    exposureFactor({ muS: -0.3, cover: 0.9, altitudeM: 500 }) === 1 && near(exposureFactor({ muS: 0.3, cover: 1, altitudeM: 400000 }), 1, 1e-9));
+  let monotone = true;
+  for (let c = 0; c < 1; c += 0.05) monotone &&= exposureFactor({ muS: 0.5, cover: c + 0.05, altitudeM: 500 }) >= exposureFactor({ muS: 0.5, cover: c, altitudeM: 500 });
+  check('exposure rises with the cover, stays within its limits', monotone && exposureFactor({ muS: 0.01, cover: 1, altitudeM: 0 }) <= EXPOSURE_ADAPT.max + 1e-9);
+  check('exposure drops over a sea of cloud below the camera', exposureFactor({ muS: 0.5, cover: 0, below: 1, altitudeM: 3000 }) < exposureFactor({ muS: 0.5, cover: 0, altitudeM: 3000 }));
+  check('ground light: overcast passes a fifth to a half of the clear-sky light', (() => {
+    const r = groundIlluminance(0.6, 1) / groundIlluminance(0.6, 0);
+    return r > 0.2 && r < 0.5;
+  })());
+
+  const view = { latDeg: 52.352, lonDeg: 8.62, heightM: 1500, headingDeg: 180, pitchDeg: -16 };
+  const under = poseUnderDeck(view, { baseM: 830, topM: 1330, cover: 1, groundM: 90 });
+  const reach = (p) => (p.heightM - 90) / Math.tan((-p.pitchDeg * Math.PI) / 180);
+  check('overcast at 830 m: the view comes down under the base and looks at the same ground point',
+    under.heightM === 830 - DECK_CLEARANCE_M && near(reach(under), reach(view), 1), `${under.heightM} m, pitch ${under.pitchDeg.toFixed(1)}°`);
+  check('inside a broken layer the view comes down too', poseUnderDeck(view, { baseM: 1000, topM: 2500, cover: 0.6, groundM: 90 }).underDeck === true);
+  check('above broken cloud, under thin cloud and over fog the view stays',
+    !poseUnderDeck({ ...view, heightM: 3000 }, { baseM: 800, topM: 1300, cover: 0.6, groundM: 90 }).underDeck &&
+    !poseUnderDeck(view, { baseM: 830, topM: 1330, cover: 0.3, groundM: 90 }).underDeck &&
+    !poseUnderDeck(view, { baseM: 150, topM: 650, cover: 1, groundM: 90 }).underDeck);
+}
 
 // --- 2. the exit criteria on the test days -----------------------------------------------------------------------------
 const fixtureUrl = new URL('./fixtures/weather-testdays-2026.json', import.meta.url);

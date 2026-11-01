@@ -104,6 +104,23 @@ export function fuseCover({ low, middle, high }, sat, weight) {
   };
 }
 
+/**
+ * Base and top (m) of the low cloud layer as the clouds draw it – the CPU twin of render/clouds.js
+ * `column()`: the base at the model's ceiling (else 1 km), a few hundred metres of stratus or a kilometre
+ * or two of cumulus above it, the top moved to the satellite's cloud top where it saw low cloud.
+ * `sat` = satellite.sample() (or null), `weight` = the picture's time weight.
+ */
+export function lowCloudLayer({ ceilingM, convective = 0 }, sat = null, weight = 0) {
+  const hasCeil = 1 - smooth(2500, 3500, ceilingM);
+  const base = 1000 + (Math.min(2500, Math.max(40, ceilingM)) - 1000) * hasCeil;
+  let top = base + 500 + 1000 * smooth(0.03, 0.35, convective);
+  if (sat && sat.topM !== null && weight > 0) {
+    const w = weight * sat.valid * sat.cloud * (1 - smooth(3000, 4000, sat.topM));
+    top += (Math.max(sat.topM, base + 150) - top) * w;
+  }
+  return { base, top };
+}
+
 /** Precipitation only falls under cloud: the model's rate faded out where the (fused) low/middle cover is thin. */
 export function rainUnderCloud(rate, cover) {
   return rate * smooth(0.1, 0.4, cover);

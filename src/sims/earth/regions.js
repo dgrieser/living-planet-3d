@@ -13,6 +13,13 @@ export const TERRAIN_SOURCE_MAX = Object.freeze({ global: 12, hero: 16 });
 export const LEVEL_MAX = Object.freeze({ global: 15, hero: 17, nrw: 21 });
 /** Coverage of the NRW orthophoto WMTS (its WGS84 bounding box; outside NRW it is transparent). */
 export const NRW_DOP = Object.freeze({ west: 5.6989, south: 50.2651, east: 9.6835, north: 52.5704, minZoom: 10, maxZoom: 21 });
+/**
+ * Colour calibration of the NRW orthophotos onto the EOX Sentinel-2 mosaic (linear gain per channel, red,
+ * green, blue): the orthophotos are display renderings – bright, with a blue haze cast – and drawn as
+ * albedo they washed the ground out and jumped at the state border. Median ratio EOX / DOP of the mean
+ * linear colour of five z14 tiles around Lübbecke (farmland, town, forest), 2026-11-01.
+ */
+export const NRW_DOP_GAIN = Object.freeze([0.18, 0.26, 0.12]);
 /** Width (degrees of latitude) of the blend between national and global height references. */
 export const HERO_FEATHER_DEG = 0.02;
 
